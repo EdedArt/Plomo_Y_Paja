@@ -82,6 +82,8 @@ public class EnemyAI : MonoBehaviour
     private float _lastAttackTime = 0f;
     private bool _playerInSightRange = false;
     private bool _playerInAttackRange = false;
+    private bool _hasPatrolDestination = false;   // ya se le dio el destino del punto actual
+    private Quaternion _homeRotation;             // hacia dónde mira el centinela
 
     // ============ Propiedades públicas ============
     public EnemyState CurrentState => currentState;
@@ -102,6 +104,7 @@ public class EnemyAI : MonoBehaviour
 
     private void Start()
     {
+        _homeRotation = transform.rotation; // el centinela vuelve a mirar hacia aquí
         if (enemyType == EnemyType.Centinela)
         {
             ChangeState(EnemyState.Idle); // Centinela empieza quieto
@@ -153,8 +156,7 @@ public class EnemyAI : MonoBehaviour
             if (angle < fieldOfView / 2f)
             {
                 // Raycast para verificar que no haya paredes entre el enemigo y el jugador
-                if (!Physics.Raycast(transform.position + Vector3.up, directionToPlayer, distanceToPlayer,
-                    LayerMask.GetMask("Default")))
+                if (HasLineOfSight())
                 {
                     _playerInSightRange = true;
 
@@ -179,9 +181,27 @@ public class EnemyAI : MonoBehaviour
         _playerInAttackRange = distanceToPlayer <= attackRange;
     }
 
+    /// <summary>
+    /// ¿Hay pared entre el enemigo y el pecho del jugador?
+    /// El collider del propio jugador no cuenta como obstáculo (si no, nunca lo vería).
+    /// </summary>
+    private bool HasLineOfSight()
+    {
+        Vector3 eye = transform.position + Vector3.up;
+        Vector3 toTarget = (playerTransform.position + Vector3.up) - eye;
+
+        if (Physics.Raycast(eye, toTarget.normalized, out RaycastHit hit, toTarget.magnitude,
+            LayerMask.GetMask("Default")))
+        {
+            return hit.transform.IsChildOf(playerTransform);
+        }
+        return true;
+    }
+
     private void UpdateIdle()
     {
-        // Centinela: simplemente espera. No hace nada hasta detectar al jugador.
+        // Centinela: espera mirando hacia su dirección inicial. No hace nada hasta detectar al jugador.
+        transform.rotation = Quaternion.Slerp(transform.rotation, _homeRotation, Time.deltaTime * 3f);
         billboardSprite?.PlayWalk(); // Animación idle (primer frame del walk)
     }
 
@@ -190,13 +210,21 @@ public class EnemyAI : MonoBehaviour
         if (patrolPoints == null || patrolPoints.Length == 0) return;
         if (_waitingAtPoint) return;
 
-        // Moverse hacia el punto actual de patrulla
-        _agent.SetDestination(patrolPoints[_currentPatrolIndex].position);
+        // Moverse hacia el punto actual de patrulla (el destino se da una sola vez por punto:
+        // repetirlo cada frame deja la ruta "pendiente" y remainingDistance no sirve)
         _agent.speed = patrolSpeed;
         billboardSprite?.PlayWalk();
 
+        if (!_hasPatrolDestination)
+        {
+            _agent.isStopped = false;
+            _agent.SetDestination(patrolPoints[_currentPatrolIndex].position);
+            _hasPatrolDestination = true;
+            return;
+        }
+
         // ¿Llegó al punto?
-        if (_agent.remainingDistance < 0.5f)
+        if (!_agent.pathPending && _agent.remainingDistance < 0.5f)
         {
             StartCoroutine(WaitAtPatrolPoint());
         }
@@ -208,6 +236,7 @@ public class EnemyAI : MonoBehaviour
         _agent.isStopped = true;
         yield return new WaitForSeconds(waitTimeAtPoint);
         _currentPatrolIndex = (_currentPatrolIndex + 1) % patrolPoints.Length;
+        _hasPatrolDestination = false;
         _agent.isStopped = false;
         _waitingAtPoint = false;
     }
@@ -237,7 +266,7 @@ public class EnemyAI : MonoBehaviour
 
         // Perdió al jugador
         if (!_playerInSightRange && Vector3.Distance(transform.position, playerTransform.position) > sightRange * 1.5f)
-            ChangeState(EnemyState.Patrol);
+            ChangeState(enemyType == EnemyType.Centinela ? EnemyState.Idle : EnemyState.Patrol);
     }
 
     private void UpdateAttack()
@@ -285,6 +314,13 @@ public class EnemyAI : MonoBehaviour
 
         switch (newState)
         {
+            case EnemyState.Idle:
+                if (_agent.isOnNavMesh) _agent.isStopped = true;
+                break;
+            case EnemyState.Patrol:
+                _hasPatrolDestination = false; // pedir de nuevo el destino al volver a patrullar
+                _waitingAtPoint = false;
+                break;
             case EnemyState.Alert:
                 StartCoroutine(AlertTransition());
                 break;

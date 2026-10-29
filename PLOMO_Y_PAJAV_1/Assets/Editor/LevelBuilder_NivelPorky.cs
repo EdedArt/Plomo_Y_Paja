@@ -46,6 +46,9 @@ public static class LevelBuilder_NivelPorky
 
         if (!EditorSceneManager.SaveCurrentModifiedScenesIfUserWantsTo()) return;
 
+        // Player, IA y guardias salen de prefabs: crear los que falten antes de vaciar la escena
+        TestPrefabGenerator.EnsurePrefabs(false);
+
         Scene scene = EditorSceneManager.NewScene(NewSceneSetup.EmptyScene, NewSceneMode.Single);
 
         LoadMaterials();
@@ -61,6 +64,8 @@ public static class LevelBuilder_NivelPorky
         BuildStreetLamp(environment, lighting);
         BuildLighting(lighting);
         BuildMarkers(markers);
+        NoirVolumeBuilder.CreateGlobalVolume(lighting);
+        BuildActors();
 
         // Solo el entorno es estático; luces y marcadores no
         MarkStaticRecursive(environment.gameObject);
@@ -284,6 +289,102 @@ public static class LevelBuilder_NivelPorky
         trigger.isTrigger = true;
         trigger.center = new Vector3(0f, 1.5f, 0f);
         trigger.size = new Vector3(3f, 3f, 1f);
+    }
+
+    // ============ Actores: jugador, IA y guardias (se colocan sobre los marcadores) ============
+
+    private static void BuildActors()
+    {
+        var markers = new List<LevelMarker>(Object.FindObjectsOfType<LevelMarker>());
+        markers.Sort((a, b) => string.CompareOrdinal(a.name, b.name));
+
+        // El Player trae su propia cámara y AudioListener
+        LevelMarker spawn = markers.Find(m => m.Type == MarkerType.PlayerSpawn);
+        GameObject playerPrefab = AssetDatabase.LoadAssetAtPath<GameObject>(TestPrefabGenerator.PlayerPath);
+        if (playerPrefab != null && spawn != null)
+        {
+            var player = (GameObject)PrefabUtility.InstantiatePrefab(playerPrefab);
+            player.transform.SetPositionAndRotation(spawn.transform.position, spawn.transform.rotation);
+        }
+        else
+        {
+            Debug.LogWarning("[LevelBuilder] Sin Player.prefab o PlayerSpawn: el nivel queda sin jugador.");
+        }
+
+        // Debe ser raíz de la escena para que DontDestroyOnLoad funcione
+        PlaceRoot(TestPrefabGenerator.AICompanionPath);
+
+        Transform actors = CreateGroup("--- ACTORS ---");
+        GameObject guardPrefab = AssetDatabase.LoadAssetAtPath<GameObject>(TestPrefabGenerator.GuardPath);
+        GameObject interrogablePrefab = AssetDatabase.LoadAssetAtPath<GameObject>(TestPrefabGenerator.InterrogablePath);
+
+        // Patrullero: ruta Patrol_A_0..3
+        var waypoints = markers.FindAll(m => m.Type == MarkerType.PatrolWaypoint && m.Id == "A");
+        if (guardPrefab != null && waypoints.Count > 0)
+        {
+            GameObject patrol = SpawnAt(guardPrefab, "Guard_Patrulla_A", waypoints[0].transform, actors);
+            var so = new SerializedObject(patrol.GetComponent<EnemyAI>());
+            so.FindProperty("enemyType").enumValueIndex = (int)EnemyAI.EnemyType.Patrullero;
+            SerializedProperty points = so.FindProperty("patrolPoints");
+            points.arraySize = waypoints.Count;
+            for (int i = 0; i < waypoints.Count; i++)
+                points.GetArrayElementAtIndex(i).objectReferenceValue = waypoints[i].transform;
+            so.ApplyModifiedPropertiesWithoutUndo();
+        }
+
+        // Centinela: quieto mirando hacia donde apunta el marcador
+        LevelMarker sentinel = markers.Find(m => m.Type == MarkerType.SentinelPoint);
+        if (guardPrefab != null && sentinel != null)
+        {
+            GameObject guard = SpawnAt(guardPrefab, "Guard_Centinela", sentinel.transform, actors);
+            var so = new SerializedObject(guard.GetComponent<EnemyAI>());
+            so.FindProperty("enemyType").enumValueIndex = (int)EnemyAI.EnemyType.Centinela;
+            so.ApplyModifiedPropertiesWithoutUndo();
+        }
+
+        // Guardias interrogables: npcId = id del marcador
+        foreach (LevelMarker marker in markers.FindAll(m => m.Type == MarkerType.InterrogableGuard))
+        {
+            if (interrogablePrefab == null) break;
+            GameObject guard = SpawnAt(interrogablePrefab, $"Guard_Interrogable_{marker.Id}", marker.transform, actors);
+            var so = new SerializedObject(guard.GetComponent<EnemyHealth>());
+            so.FindProperty("npcId").stringValue = marker.Id;
+            so.ApplyModifiedPropertiesWithoutUndo();
+        }
+
+        RemoveStrayCameras();
+    }
+
+    private static GameObject SpawnAt(GameObject prefab, string name, Transform marker, Transform parent)
+    {
+        var instance = (GameObject)PrefabUtility.InstantiatePrefab(prefab);
+        instance.name = name;
+        instance.transform.SetParent(parent, false);
+        instance.transform.SetPositionAndRotation(marker.position, marker.rotation);
+        return instance;
+    }
+
+    private static void PlaceRoot(string prefabPath)
+    {
+        var prefab = AssetDatabase.LoadAssetAtPath<GameObject>(prefabPath);
+        if (prefab == null)
+        {
+            Debug.LogWarning($"[LevelBuilder] Falta {prefabPath}.");
+            return;
+        }
+        PrefabUtility.InstantiatePrefab(prefab);
+    }
+
+    /// <summary>Solo debe haber la cámara y el AudioListener del Player.</summary>
+    private static void RemoveStrayCameras()
+    {
+        foreach (Camera cam in Object.FindObjectsOfType<Camera>(true))
+            if (cam.GetComponentInParent<PlayerController>() == null)
+                Object.DestroyImmediate(cam.gameObject);
+
+        foreach (AudioListener listener in Object.FindObjectsOfType<AudioListener>(true))
+            if (listener.GetComponentInParent<PlayerController>() == null)
+                Object.DestroyImmediate(listener);
     }
 
     // ============ NavMesh y Build Settings ============

@@ -34,6 +34,10 @@ public class EnemyHealth : MonoBehaviour
     [Tooltip("Se rinde cuando la vida baja a este % (0 a 1)")]
     [SerializeField, Range(0f, 0.5f)] private float surrenderThreshold = 0.3f;
 
+    [Tooltip("Segundos tras rendirse en que ignora daño, para que los perdigones restantes " +
+             "del mismo disparo no lo maten (la escopeta dispara 8 a la vez)")]
+    [SerializeField, Min(0f)] private float surrenderGraceTime = 0.4f;
+
     [Header("Eventos")]
     [Tooltip("Se dispara cada vez que recibe daño")]
     public UnityEvent onDamageTaken;
@@ -55,6 +59,7 @@ public class EnemyHealth : MonoBehaviour
     private EnemyAI _ai;
     private bool _isSurrendered = false;
     private bool _isDead = false;
+    private float _graceUntil = -1f;
 
     // ============ Propiedades públicas ============
     public string NpcId => npcId;
@@ -75,6 +80,7 @@ public class EnemyHealth : MonoBehaviour
     public bool TakeDamage(float damage)
     {
         if (_isDead) return false; // Ya está muerto
+        if (Time.time < _graceUntil) return false; // recién rendido: el resto del disparo no cuenta
 
         currentHealth -= damage;
         currentHealth = Mathf.Max(0, currentHealth);
@@ -99,6 +105,7 @@ public class EnemyHealth : MonoBehaviour
     private void Surrender()
     {
         _isSurrendered = true;
+        _graceUntil = Time.time + surrenderGraceTime;
         _ai?.TriggerSurrender();
 
         OnSurrender?.Invoke();
