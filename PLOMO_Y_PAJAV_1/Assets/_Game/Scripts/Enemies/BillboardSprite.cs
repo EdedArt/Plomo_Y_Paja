@@ -2,16 +2,24 @@ using UnityEngine;
 
 /// <summary>
 /// Hace que un sprite 2D siempre mire hacia la cámara del jugador.
-/// Este es el efecto visual clave del estilo Mouse P.I. For Hire:
-/// personajes dibujados en 2D que "viven" en un mundo 3D.
+/// Este es el efecto visual clave del juego: personajes dibujados en 2D que "viven" en un mundo 3D.
 ///
 /// DÓNDE VA: GameObject del sprite del enemigo (el que tiene SpriteRenderer).
-/// El enemigo tiene esta jerarquía:
-/// - EnemyRoot (con EnemyAI, NavMeshAgent, Rigidbody)
-///   └── EnemySprite (con SpriteRenderer y BillboardSprite)
+/// El enemigo tiene esta jerarquía (la crea "Crear Prefabs de Prueba"):
+/// - EnemyRoot (con EnemyAI, NavMeshAgent, EnemyHealth)
+///   └── Visual
+///       ├── Body / Head (placeholder de cápsula)
+///       └── SpriteHolder (con SpriteRenderer y BillboardSprite)
+///
+/// SPRITES:
+/// - spriteSet (CharacterSpriteSet): animaciones idle/walk/shoot/hit/surrender/death/talk.
+///   Si una animación falta se usa idle (o walk). Si el set no tiene ningún frame, el sprite se
+///   oculta y el placeholder (placeholderRenderers) sigue visible.
+/// - accessorySet (opcional): se dibuja encima con el mismo frame (ej: pañuelo rojo del informante).
+/// - walkSprites/alertSprites/deathSprite: modo antiguo, solo si no hay set con frames.
 ///
 /// TIPOS DE BILLBOARD:
-/// - Full: el sprite rota en todos los ejes para mirar a la cámara (como árbol en juegos viejos)
+/// - Full: el sprite rota en todos los ejes para mirar a la cámara
 /// - YAxis: solo rota en Y (el sprite "voltea" pero no se inclina) — más natural para personajes
 /// </summary>
 public class BillboardSprite : MonoBehaviour
@@ -31,7 +39,17 @@ public class BillboardSprite : MonoBehaviour
     [Tooltip("¿Voltear el sprite horizontalmente según el movimiento?")]
     [SerializeField] private bool flipWithMovement = true;
 
-    [Header("Animación simple (sin Animator)")]
+    [Header("Set de sprites (pipeline de arte)")]
+    [Tooltip("Animaciones del personaje. Vacío = se ve el placeholder")]
+    [SerializeField] private CharacterSpriteSet spriteSet;
+
+    [Tooltip("Accesorio dibujado encima con el mismo frame (opcional)")]
+    [SerializeField] private CharacterSpriteSet accessorySet;
+
+    [Tooltip("Renderers del placeholder (cápsula): se ocultan cuando hay sprites")]
+    [SerializeField] private Renderer[] placeholderRenderers;
+
+    [Header("Animación simple antigua (sin set)")]
     [Tooltip("Sprites para el ciclo de caminado (izquierda, centro, derecha, centro...)")]
     [SerializeField] private Sprite[] walkSprites;
 
@@ -46,9 +64,21 @@ public class BillboardSprite : MonoBehaviour
 
     private Camera _mainCamera;
     private SpriteRenderer _spriteRenderer;
+    private SpriteRenderer _accessoryRenderer;
     private float _animTimer;
     private int _currentFrame;
     private Sprite[] _currentAnimation;
+
+    // Modo set
+    private bool _useSet;
+    private string _setAnim;
+    private CharacterSpriteSet.AnimClip _setClip;
+    private bool _setLoop = true;
+    private string _resumeAnim;     // animación a la que volver tras "hit"
+    private float _hitUntil = -1f;
+
+    /// <summary>¿Se están mostrando sprites (set o modo antiguo)? Si no, se ve el placeholder.</summary>
+    public bool HasSprites => _useSet || (walkSprites != null && walkSprites.Length > 0);
 
     private void Awake()
     {
@@ -57,6 +87,39 @@ public class BillboardSprite : MonoBehaviour
 
         if (walkSprites != null && walkSprites.Length > 0)
             _currentAnimation = walkSprites;
+
+        RefreshMode();
+    }
+
+    /// <summary>Cambia el set en runtime (ej: informantes de la fase 3B).</summary>
+    public void SetSpriteSets(CharacterSpriteSet set, CharacterSpriteSet accessory)
+    {
+        spriteSet = set;
+        accessorySet = accessory;
+        RefreshMode();
+    }
+
+    private void RefreshMode()
+    {
+        _useSet = spriteSet != null && spriteSet.HasAnyFrames;
+
+        if (_useSet && accessorySet != null && accessorySet.HasAnyFrames && _accessoryRenderer == null && _spriteRenderer != null)
+        {
+            var go = new GameObject("Accessory");
+            go.transform.SetParent(transform, false);
+            _accessoryRenderer = go.AddComponent<SpriteRenderer>();
+            _accessoryRenderer.sortingLayerID = _spriteRenderer.sortingLayerID;
+            _accessoryRenderer.sortingOrder = _spriteRenderer.sortingOrder + 1;
+        }
+        if (_accessoryRenderer != null) _accessoryRenderer.enabled = false;
+
+        bool showSprite = HasSprites;
+        if (_spriteRenderer != null) _spriteRenderer.enabled = showSprite;
+        if (placeholderRenderers != null)
+            foreach (Renderer r in placeholderRenderers)
+                if (r != null) r.enabled = !showSprite;
+
+        if (_useSet) SetAnim("idle", true);
     }
 
     private void LateUpdate()
@@ -65,11 +128,13 @@ public class BillboardSprite : MonoBehaviour
         // porque así los enemigos ya movieron antes de que actualizemos la rotación
 
         RotateTowardsCamera();
-        UpdateAnimation();
+        if (_useSet) UpdateSetAnimation();
+        else UpdateAnimation();
     }
 
     private void RotateTowardsCamera()
     {
+        if (_mainCamera == null) _mainCamera = Camera.main;
         if (_mainCamera == null) return;
 
         Vector3 directionToCamera = _mainCamera.transform.position - transform.position;
@@ -90,7 +155,7 @@ public class BillboardSprite : MonoBehaviour
 
     private void UpdateAnimation()
     {
-        if (_currentAnimation == null || _currentAnimation.Length == 0) return;
+        if (_currentAnimation == null || _currentAnimation.Length == 0 || _spriteRenderer == null) return;
 
         _animTimer += Time.deltaTime * animationSpeed;
         if (_animTimer >= 1f)
@@ -101,11 +166,102 @@ public class BillboardSprite : MonoBehaviour
         }
     }
 
+    // ============ Modo set ============
+
+    private void UpdateSetAnimation()
+    {
+        if (_hitUntil > 0f && Time.time >= _hitUntil)
+        {
+            _hitUntil = -1f;
+            SetAnim(_resumeAnim ?? "idle", true);
+        }
+
+        if (_setClip == null) return;
+
+        _animTimer += Time.deltaTime * Mathf.Max(0.1f, _setClip.fps);
+        if (_animTimer >= 1f)
+        {
+            _animTimer -= 1f;
+            int next = _currentFrame + 1;
+            if (next >= _setClip.frames.Length) next = _setLoop ? 0 : _setClip.frames.Length - 1;
+            if (next != _currentFrame)
+            {
+                _currentFrame = next;
+                ApplySetFrame();
+            }
+        }
+    }
+
+    /// <summary>Busca la animación pedida; si falta, idle; si falta, walk; si no, la primera que haya.</summary>
+    private CharacterSpriteSet.AnimClip ResolveClip(string anim)
+    {
+        if (spriteSet.TryGet(anim, out var clip)) return clip;
+        if (spriteSet.TryGet("idle", out clip)) return clip;
+        if (spriteSet.TryGet("walk", out clip)) return clip;
+        foreach (var c in spriteSet.clips)
+            if (c != null && c.frames != null && c.frames.Length > 0) return c;
+        return null;
+    }
+
+    private void SetAnim(string anim, bool loop)
+    {
+        if (!_useSet) return;
+        if (_setAnim == anim && _setClip != null) return;
+
+        _setAnim = anim;
+        _setLoop = loop;
+        _setClip = ResolveClip(anim);
+        _currentFrame = 0;
+        _animTimer = 0f;
+        ApplySetFrame();
+    }
+
+    private void ApplySetFrame()
+    {
+        if (_setClip == null || _spriteRenderer == null) return;
+        _spriteRenderer.sprite = _setClip.frames[_currentFrame];
+
+        if (_accessoryRenderer != null)
+        {
+            CharacterSpriteSet.AnimClip acc = null;
+            bool hasAccessory = accessorySet != null && accessorySet.TryGet(_setClip.name, out acc);
+            _accessoryRenderer.enabled = hasAccessory;
+            if (hasAccessory)
+            {
+                _accessoryRenderer.sprite = acc.frames[_currentFrame % acc.frames.Length];
+                _accessoryRenderer.flipX = _spriteRenderer.flipX;
+            }
+        }
+    }
+
+    /// <summary>Reproduce cualquier animación del set por nombre (sin efecto en modo antiguo).</summary>
+    public void Play(string anim, bool loop = true)
+    {
+        if (_hitUntil > 0f)
+        {
+            _resumeAnim = anim; // termina el golpe y luego sigue con esta
+            return;
+        }
+        SetAnim(anim, loop);
+    }
+
     // ============ Métodos para cambiar animaciones desde EnemyAI ============
+
+    /// <summary>Animación de reposo (en modo antiguo = caminado, como antes)</summary>
+    public void PlayIdle()
+    {
+        if (_useSet) Play("idle");
+        else PlayWalk();
+    }
 
     /// <summary>Cambiar a animación de caminado</summary>
     public void PlayWalk()
     {
+        if (_useSet)
+        {
+            Play("walk");
+            return;
+        }
         if (_currentAnimation != walkSprites)
         {
             _currentAnimation = walkSprites;
@@ -114,9 +270,14 @@ public class BillboardSprite : MonoBehaviour
         }
     }
 
-    /// <summary>Cambiar a animación de alerta</summary>
+    /// <summary>Cambiar a animación de alerta (con set: "shoot")</summary>
     public void PlayAlert()
     {
+        if (_useSet)
+        {
+            Play("shoot");
+            return;
+        }
         if (_currentAnimation != alertSprites && alertSprites != null)
         {
             _currentAnimation = alertSprites;
@@ -125,11 +286,45 @@ public class BillboardSprite : MonoBehaviour
         }
     }
 
-    /// <summary>Mostrar sprite de muerte (imagen estática)</summary>
+    /// <summary>Frame de golpe durante unos instantes y vuelve a la animación anterior.</summary>
+    public void PlayHit(float duration = 0.15f)
+    {
+        if (!_useSet || !spriteSet.TryGet("hit", out _)) return;
+        if (_hitUntil < 0f) _resumeAnim = _setAnim;
+        _setAnim = null;
+        SetAnim("hit", false);
+        _hitUntil = Time.time + duration;
+    }
+
+    /// <summary>Manos arriba (en modo antiguo = caminado, como antes)</summary>
+    public void PlaySurrender()
+    {
+        if (_useSet)
+        {
+            _hitUntil = -1f;
+            SetAnim("surrender", true);
+        }
+        else PlayWalk();
+    }
+
+    /// <summary>Animación de hablar (interrogatorios)</summary>
+    public void PlayTalk()
+    {
+        if (_useSet) Play("talk");
+    }
+
+    /// <summary>Mostrar la muerte: con set se reproduce una vez y se queda en el último frame</summary>
     public void PlayDeath()
     {
+        if (_useSet)
+        {
+            _hitUntil = -1f;
+            SetAnim("death", false);
+            return;
+        }
+
         _currentAnimation = null;
-        if (deathSprite != null)
+        if (deathSprite != null && _spriteRenderer != null)
             _spriteRenderer.sprite = deathSprite;
         enabled = false; // Dejar de actualizar este componente
     }
@@ -137,12 +332,13 @@ public class BillboardSprite : MonoBehaviour
     /// <summary>Voltear el sprite según la dirección de movimiento</summary>
     public void SetFacingDirection(Vector3 movementDirection)
     {
-        if (!flipWithMovement || _mainCamera == null) return;
+        if (!flipWithMovement || _mainCamera == null || _spriteRenderer == null) return;
 
         // Calcular si el enemigo se mueve hacia la izquierda o derecha RELATIVO a la cámara
         Vector3 camRight = _mainCamera.transform.right;
         float dot = Vector3.Dot(movementDirection.normalized, camRight);
 
         _spriteRenderer.flipX = dot < 0;
+        if (_accessoryRenderer != null) _accessoryRenderer.flipX = _spriteRenderer.flipX;
     }
 }

@@ -202,13 +202,17 @@ public class EnemyAI : MonoBehaviour
     {
         // Centinela: espera mirando hacia su dirección inicial. No hace nada hasta detectar al jugador.
         transform.rotation = Quaternion.Slerp(transform.rotation, _homeRotation, Time.deltaTime * 3f);
-        if (billboardSprite != null) billboardSprite.PlayWalk(); // Animación idle (primer frame del walk)
+        if (billboardSprite != null) billboardSprite.PlayIdle();
     }
 
     private void UpdatePatrol()
     {
         if (patrolPoints == null || patrolPoints.Length == 0) return;
-        if (_waitingAtPoint) return;
+        if (_waitingAtPoint)
+        {
+            if (billboardSprite != null) billboardSprite.PlayIdle();
+            return;
+        }
 
         // Moverse hacia el punto actual de patrulla (el destino se da una sola vez por punto:
         // repetirlo cada frame deja la ruta "pendiente" y remainingDistance no sirve)
@@ -258,7 +262,7 @@ public class EnemyAI : MonoBehaviour
         _agent.isStopped = false;
         _agent.speed = chaseSpeed;
         _agent.SetDestination(playerTransform.position);
-        if (billboardSprite != null) billboardSprite.PlayAlert();
+        if (billboardSprite != null) billboardSprite.PlayWalk();
 
         // Atacar si está en rango
         if (_playerInAttackRange)
@@ -273,6 +277,7 @@ public class EnemyAI : MonoBehaviour
     {
         // Detenerse para atacar
         _agent.isStopped = true;
+        if (billboardSprite != null) billboardSprite.PlayAlert();
 
         // Mirar al jugador
         if (playerTransform != null)
@@ -337,7 +342,7 @@ public class EnemyAI : MonoBehaviour
                     _agent.ResetPath();
                 }
                 _agent.velocity = Vector3.zero;
-                if (billboardSprite != null) billboardSprite.PlayWalk(); // Frame de rendición
+                if (billboardSprite != null) billboardSprite.PlaySurrender();
                 break;
             case EnemyState.Dead:
                 StopAllCoroutines(); // la espera de patrulla tocaría un agente ya desactivado

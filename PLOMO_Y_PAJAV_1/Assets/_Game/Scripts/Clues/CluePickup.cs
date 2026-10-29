@@ -96,6 +96,8 @@ public class CluePickup : MonoBehaviour
         if (_collected) return;
         _collected = true;
 
+        AudioLibrary.PlaySfx2D("pista_papel");
+
         // 1. Registrar en el tracker de estado del juego
         if (GameStateTracker.Instance != null) GameStateTracker.Instance.RegisterClueCollected(clueId, shortDescription);
 

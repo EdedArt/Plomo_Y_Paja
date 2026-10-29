@@ -122,11 +122,15 @@ public static class TestPrefabGenerator
         agent.speed = 2f;
 
         root.AddComponent<EnemyHealth>(); // canSurrender = false por defecto
-        root.AddComponent<EnemyAI>();
+        EnemyAI ai = root.AddComponent<EnemyAI>();
+
+        // Todo lo visible cuelga de "Visual": RubberHoseMotion lo deforma sin tocar el collider
+        var visual = new GameObject("Visual");
+        visual.transform.SetParent(root.transform, false);
 
         GameObject body = GameObject.CreatePrimitive(PrimitiveType.Capsule);
         body.name = "Body";
-        body.transform.SetParent(root.transform, false);
+        body.transform.SetParent(visual.transform, false);
         body.transform.localPosition = new Vector3(0f, 1f, 0f);
         body.transform.localScale = new Vector3(0.8f, 1f, 0.8f);
         Object.DestroyImmediate(body.GetComponent<Collider>());
@@ -135,11 +139,30 @@ public static class TestPrefabGenerator
         // "Cabeza" cuadrada adelantada para ver hacia dónde mira
         GameObject head = GameObject.CreatePrimitive(PrimitiveType.Cube);
         head.name = "Head";
-        head.transform.SetParent(root.transform, false);
+        head.transform.SetParent(visual.transform, false);
         head.transform.localPosition = new Vector3(0f, 1.55f, 0.35f);
         head.transform.localScale = new Vector3(0.3f, 0.3f, 0.5f);
         Object.DestroyImmediate(head.GetComponent<Collider>());
         head.GetComponent<MeshRenderer>().sharedMaterial = noseMat;
+
+        // Sprite 2D del set "guardia": oculto (y placeholder visible) mientras el set esté vacío
+        var spriteHolder = new GameObject("SpriteHolder");
+        spriteHolder.transform.SetParent(visual.transform, false);
+        spriteHolder.AddComponent<SpriteRenderer>();
+        BillboardSprite billboard = spriteHolder.AddComponent<BillboardSprite>();
+        var billboardSo = new SerializedObject(billboard);
+        billboardSo.FindProperty("spriteSet").objectReferenceValue = CharacterSpriteSetBuilder.GetOrCreateSet("guardia");
+        SerializedProperty placeholders = billboardSo.FindProperty("placeholderRenderers");
+        placeholders.arraySize = 2;
+        placeholders.GetArrayElementAtIndex(0).objectReferenceValue = body.GetComponent<MeshRenderer>();
+        placeholders.GetArrayElementAtIndex(1).objectReferenceValue = head.GetComponent<MeshRenderer>();
+        billboardSo.ApplyModifiedPropertiesWithoutUndo();
+
+        var aiSo = new SerializedObject(ai);
+        aiSo.FindProperty("billboardSprite").objectReferenceValue = billboard;
+        aiSo.ApplyModifiedPropertiesWithoutUndo();
+
+        root.AddComponent<RubberHoseMotion>();
 
         SaveAndDestroy(root, GuardPath);
     }
@@ -167,7 +190,7 @@ public static class TestPrefabGenerator
         aiSo.ApplyModifiedPropertiesWithoutUndo();
 
         instance.AddComponent<DialogueNPC>();
-        instance.transform.Find("Body").GetComponent<MeshRenderer>().sharedMaterial = brown;
+        instance.transform.Find("Visual/Body").GetComponent<MeshRenderer>().sharedMaterial = brown;
 
         // Guardar una instancia de otro prefab como asset nuevo crea una variante
         SaveAndDestroy(instance, InterrogablePath);
@@ -225,6 +248,13 @@ public static class TestPrefabGenerator
             if (contents.GetComponent<PlayerHealth>() == null)
                 contents.AddComponent<PlayerHealth>();
 
+            // Mantiene cargada la librería de audio (sin referencia no entraría en el build)
+            AudioLibraryLoader loader = contents.GetComponent<AudioLibraryLoader>();
+            if (loader == null) loader = contents.AddComponent<AudioLibraryLoader>();
+            var loaderSo = new SerializedObject(loader);
+            loaderSo.FindProperty("library").objectReferenceValue = AudioLibraryBuilder.GetOrCreateLibrary();
+            loaderSo.ApplyModifiedPropertiesWithoutUndo();
+
             Camera cam = contents.GetComponentInChildren<Camera>();
             if (cam != null)
             {
@@ -234,6 +264,13 @@ public static class TestPrefabGenerator
                 // Sin skybox el fondo quedaba negro: cielo nocturno índigo (fase 3A)
                 cam.clearFlags = CameraClearFlags.SolidColor;
                 cam.backgroundColor = new Color32(0x2A, 0x26, 0x55, 0xFF);
+
+                // Manos con escopeta en 2D (invisibles mientras el set wilbur_hands esté vacío)
+                FirstPersonViewmodel viewmodel = cam.GetComponent<FirstPersonViewmodel>();
+                if (viewmodel == null) viewmodel = cam.gameObject.AddComponent<FirstPersonViewmodel>();
+                var viewmodelSo = new SerializedObject(viewmodel);
+                viewmodelSo.FindProperty("handsSet").objectReferenceValue = CharacterSpriteSetBuilder.GetOrCreateSet("wilbur_hands");
+                viewmodelSo.ApplyModifiedPropertiesWithoutUndo();
 
                 // Luz de relleno suave que acompaña al jugador: nunca hay negro total delante
                 if (cam.transform.Find("FillLight") == null)

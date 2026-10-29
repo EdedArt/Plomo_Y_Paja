@@ -77,6 +77,16 @@ public class ShotgunController : MonoBehaviour
     [Tooltip("Se llama cuando el jugador mata a un enemigo")]
     public UnityEvent onEnemyKilled;
 
+    // ============ Eventos de código (viewmodel, efectos, audio) ============
+    // System.Action con nombre completo: "using System" chocaría con UnityEngine.Random
+    public event System.Action OnFired;
+    public event System.Action OnReloadStarted;
+    public event System.Action OnReloadFinished;
+    public event System.Action OnDryFire;
+
+    /// <summary>Segundos tras el disparo en que suena el bombeo de la corredera.</summary>
+    private const float PumpDelay = 0.35f;
+
     // ============ Estado interno ============
     private bool _canFire = true;
     private bool _isReloading = false;
@@ -115,9 +125,15 @@ public class ShotgunController : MonoBehaviour
         if (Input.GetButtonDown("Fire1") && _canFire && !_isReloading)
         {
             if (currentAmmo > 0)
+            {
                 StartCoroutine(Fire());
+            }
             else
-                PlaySound(emptySound); // Clic de gatillo vacío
+            {
+                // Clic de gatillo vacío
+                OnDryFire?.Invoke();
+                if (!AudioLibrary.PlaySfx2D("escopeta_vacia")) PlaySound(emptySound);
+            }
         }
 
         // Recarga manual: tecla R
@@ -137,8 +153,9 @@ public class ShotgunController : MonoBehaviour
 
         // 1. Efectos inmediatos
         if (muzzleFlash != null) muzzleFlash.Play(); // ?. no sirve con campos de Unity sin asignar
-        PlaySound(fireSound);
+        if (!AudioLibrary.PlaySfx2D("escopeta_disparo")) PlaySound(fireSound);
         if (_animator != null) _animator.SetTrigger(FireHash);
+        StartCoroutine(PlayPumpSound());
 
         // 2. Disparar cada perdigón como un raycast
         for (int i = 0; i < pelletsPerShot; i++)
@@ -149,6 +166,7 @@ public class ShotgunController : MonoBehaviour
         // 3. Restar munición y actualizar UI
         currentAmmo--;
         onAmmoChanged?.Invoke(currentAmmo, reserveAmmo);
+        OnFired?.Invoke();
 
         // 4. Auto-recarga si el cargador quedó vacío y hay reserva
         if (currentAmmo <= 0 && reserveAmmo > 0)
@@ -217,10 +235,17 @@ public class ShotgunController : MonoBehaviour
     private IEnumerator Reload()
     {
         _isReloading = true;
-        PlaySound(reloadSound);
         if (_animator != null) _animator.SetTrigger(ReloadHash);
+        OnReloadStarted?.Invoke();
 
-        yield return new WaitForSeconds(reloadTime);
+        // Un "clac" por cartucho repartido en el tiempo de recarga
+        int shells = Mathf.Max(1, Mathf.Min(maxAmmoInMag - currentAmmo, reserveAmmo));
+        float interval = reloadTime / shells;
+        for (int i = 0; i < shells; i++)
+        {
+            yield return new WaitForSeconds(interval);
+            if (!AudioLibrary.PlaySfx2D("escopeta_cargar") && i == 0) PlaySound(reloadSound);
+        }
 
         // Calcular cuántas balas se necesitan y si hay suficientes en reserva
         int ammoNeeded = maxAmmoInMag - currentAmmo;
@@ -231,6 +256,13 @@ public class ShotgunController : MonoBehaviour
 
         onAmmoChanged?.Invoke(currentAmmo, reserveAmmo);
         _isReloading = false;
+        OnReloadFinished?.Invoke();
+    }
+
+    private IEnumerator PlayPumpSound()
+    {
+        yield return new WaitForSeconds(PumpDelay);
+        AudioLibrary.PlaySfx2D("escopeta_bombeo");
     }
 
     private void PlaySound(AudioClip clip)
