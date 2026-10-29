@@ -59,3 +59,6 @@ Assets/StreamingAssets/openai_key.txt.meta
 **/Assets/_Game/Settings/APISettings.asset.meta
 
 
+
+# graphify: el grafo se sube al repo, la cache no
+graphify-out/cache/

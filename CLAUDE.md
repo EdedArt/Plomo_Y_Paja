@@ -1,66 +1,41 @@
 # CLAUDE.md — Plomo y Paja
 
-## Contexto del proyecto
-Videojuego FPS noir en Unity 2022.3 LTS (C#). Inspirado en Mouse P.I. For Hire:
-estilo cartoon rubber-hose de los años 30, escenarios 3D, personajes como sprites billboard 2D.
-Historia de los 3 cerditos reinterpretada: noir, traición, decisiones morales, 3 finales.
+## Project
+- Plomo y Paja: first-person shooter, Unity 2022.3.62f3 LTS, URP, C#, old Input Manager. Unity project = `PLOMO_Y_PAJAV_1/`.
+- Story: Wilbur (pig, shotgun) hunts mob boss Don Lobo (wolf) to rescue his little brother Porky, who actually stole from Don Lobo and is held as collateral.
+- Scope: 2 levels (NivelPorky, Campamento), 5 clues, 3 interrogable guards, 3 endings. Deadline 2026-11-04.
+- Art direction: FULL COLOR 1930s Technicolor cartoon, rubber-hose 3D world + 2D billboard sprites, exaggerated Popeye-era cartoon violence.
+- All in-game text in Spanish.
 
-## Equipo
-- **David Cabezas** — Player, Escopeta, GameManager, integración
-- **Edgar Arteaga** — Enemigos (IA, estados, combate)
-- **Cristian** — Escenas, nivel, iluminación, NavMesh, UI
+## Where things are
+- Code: `Assets/_Game/Scripts/<area>/`; editor tools: `Assets/_Game/Scripts/Editor/`
+- Sprites: `Assets/_Game/Art/Characters/<characterId>/<anim>_<NN>.png`
+- Voices: `Assets/_Game/Audio/Voices/<characterId>/<lineId>.wav`; SFX: `Assets/_Game/Audio/SFX/<name>_<NN>.wav`
+- Generated scenes come from "Plomo y Paja/..." editor menus; never edit them by hand.
 
-## Estructura de carpetas
+## Hard rules
+- Code must compile against Unity 2022.3: compile-check both assemblies with the Editor's bundled Roslyn against the project DLLs before every commit.
+- Never hand-edit .unity/.prefab/.asset YAML; use Editor scripts (AssetDatabase/PrefabUtility).
+- Never `?.` or `??` on UnityEngine.Object; use explicit `!= null` / TryGetComponent.
+- Never read, print, log or stage `Assets/StreamingAssets/openai_key.txt`.
+- Extend existing scripts; don't duplicate systems; don't rename public members used elsewhere.
+- Every system must keep working when an art/audio asset is missing (placeholders stay).
+- Move files with `git mv` together with their .meta.
+- One local commit per part, message `<dayTag>(<owner>): <spanish summary>`. Never push unless the prompt says so.
+
+## How to work (token budget)
+- Before exploring code, read the graph report in `graphify-out/` to locate classes and callers. Open only the files you will change or whose API you must call. No full-repo greps when the graph answers it.
+- Don't re-read a file you just edited. Don't paste file contents into the report.
+- Unity can't be run here: list manual Editor steps instead of guessing they happened.
+
+## Report format (end of every task, nothing else)
 ```
-Assets/_Game/
-├── Scripts/
-│   ├── Player/          → David
-│   ├── Enemies/         → Edgar
-│   ├── AI/              → David (Claude API)
-│   ├── Dialogue/        → Edgar
-│   ├── Clues/           → Cristian
-│   ├── UI/              → Cristian
-│   ├── Core/            → David (GameManager, GameStateTracker)
-│   └── Audio/           → Todos
-├── Scenes/              → Cristian
-├── Prefabs/             → Todos
-├── Sprites/             → Todos (sprites 2D de personajes)
-└── Settings/            → APISettings.asset (GITIGNOREADO - cada uno crea el suyo)
+AUDIT <TASK>
+1. Archivos creados
+2. Archivos modificados (file - one line)
+3. Menús a ejecutar (in order)
+4. Compile check
+5. APIs dudosas
+6. Pasos manuales
+7. Commits (hash - message)
 ```
-
-## Convenciones de código
-- Idioma: español en comentarios, inglés en nombres de variables/métodos
-- Un script por archivo, nombre igual a la clase
-- Eventos con UnityEvent o Action (no coroutines para lógica de juego)
-- Singleton patrón: GameManager, GameStateTracker, UIManager, AudioManager
-- Scripts con [Header] y [Tooltip] en todos los campos del Inspector
-
-## Estilo visual (Mouse P.I.)
-- URP con Global Volume: Film Grain + Vignette + Color Grading (desaturado -70)
-- Enemigos: SpriteRenderer con BillboardSprite.cs (siempre miran a la cámara)
-- Escenarios: geometría 3D simple, materiales gris/negro con algunos acentos de color
-- Iluminación: direccional tenue + point lights naranjas/azules para el noir
-
-## IA del juego
-La voz "consciente" de Wilbur usa la API de Claude (Anthropic).
-- Script: Assets/_Game/Scripts/AI/AICompanion.cs
-- Requiere: Assets/_Game/Settings/APISettings.asset (NO subir al repo, cada dev crea el suyo)
-- Cómo crear APISettings: en Unity → clic derecho en _Game/Settings → Create → Game → APISettings
-- Obtener API key: https://console.anthropic.com
-
-## Ramas Git
-- `main` — versión estable, solo merge cuando algo funciona completo
-- `dev` — integración diaria
-- `player` — David
-- `enemies` — Edgar  
-- `levels` — Cristian
-
-## Flujo de trabajo diario
-1. `git pull origin dev` al empezar
-2. Trabajar en tu rama
-3. `git push origin tu-rama`
-4. Al final del día: merge a dev juntos (un video call de 15 min)
-
-## Versión Unity
-Unity 2022.3 LTS — TODOS deben usar EXACTAMENTE la misma versión menor.
-Verificar en Unity Hub → Installs.
