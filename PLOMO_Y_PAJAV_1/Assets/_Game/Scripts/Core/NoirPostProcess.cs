@@ -3,121 +3,124 @@ using UnityEngine.Rendering;
 using UnityEngine.Rendering.Universal;
 
 /// <summary>
-/// Configura el estilo visual noir inspirado en Mouse P.I. For Hire.
-/// DÓNDE VA: GameObject "PostProcessVolume" en la escena.
-/// Debe tener también un componente "Volume" (Unity URP).
+/// Post-procesado del juego: look Technicolor de los años 30 (a todo color, cálido)
+/// y pulso rojo en los bordes de la pantalla al recibir daño.
+/// DÓNDE VA: "Volume_Technicolor" en la escena (lo crea el LevelBuilder), junto al componente Volume.
 ///
-/// SETUP MANUAL (alternativa si el script da problemas):
-/// 1. Crear GameObject vacío → "PostProcessVolume"
-/// 2. Add Component → Volume → set Global = true
-/// 3. New Profile → se crea un archivo .asset de perfil
-/// 4. Add Override → Color Adjustments:
-///    - Saturation: -70 (casi blanco y negro)
-///    - Contrast: +30
-///    - Post Exposure: -0.3
-/// 5. Add Override → Vignette:
-///    - Intensity: 0.4
-///    - Smoothness: 0.5
-///    - Color: negro
-/// 6. Add Override → Film Grain:
-///    - Type: Thin
-///    - Intensity: 0.4
-///    - Response: 0.8
-///
-/// NOTA: Este script configura todo por código para que no tengan que
-/// hacerlo manualmente. Pero si Unity da errores, usar el método manual arriba.
+/// En Play sustituye el perfil del Volume por uno propio con los MISMOS valores que
+/// Assets/_Game/Settings/TechnicolorVolumeProfile.asset, para poder animar la viñeta sin tocar el asset.
+/// El nombre "Noir" se mantiene para no romper referencias.
 /// </summary>
 [RequireComponent(typeof(Volume))]
 public class NoirPostProcess : MonoBehaviour
 {
-    [Header("Intensidad del efecto noir")]
-    [Tooltip("0 = color normal, 1 = blanco y negro total")]
-    [SerializeField, Range(0f, 1f)] private float noirIntensity = 0.85f;
+    [Header("Pulso al recibir daño")]
+    [SerializeField] private Color damageVignetteColor = new Color32(0xB3, 0x00, 0x1B, 0xFF);
+    [SerializeField] private float damageVignetteIntensity = 0.45f;
+    [SerializeField] private float damageVignetteDuration = 0.25f;
 
-    [Header("Efecto de pulso al recibir daño")]
-    [SerializeField] private float damageVignetteIntensity = 0.7f;
-    [SerializeField] private float damageVignetteDuration = 0.3f;
-    private float _defaultVignetteIntensity = 0.35f;
-    private bool _damagePulseActive = false;
+    // Valores base: deben coincidir con NoirVolumeBuilder.GetOrCreateTechnicolorProfile
+    private const float BaseSaturation = 20f;
+    private const float BaseVignetteIntensity = 0.2f;
 
     private Volume _volume;
     private VolumeProfile _profile;
+    private PlayerHealth _playerHealth;
+    private Coroutine _pulseRoutine;
 
-    // Referencias a los efectos que vamos a modificar en runtime
     private ColorAdjustments _colorAdj;
     private Vignette _vignette;
-    private FilmGrain _filmGrain;
 
     private void Awake()
     {
         _volume = GetComponent<Volume>();
 
-        // Crear el perfil de post-proceso en runtime
         _profile = ScriptableObject.CreateInstance<VolumeProfile>();
         _volume.profile = _profile;
         _volume.isGlobal = true;
 
-        SetupNoirEffects();
+        SetupTechnicolorEffects();
     }
 
-    private void SetupNoirEffects()
+    private void Start()
     {
-        // ===== Color Adjustments (el efecto más importante para el noir) =====
-        _colorAdj = _profile.Add<ColorAdjustments>(true);
-        _colorAdj.saturation.value = -70f * noirIntensity; // Desaturar (-100 = B&N total)
-        _colorAdj.contrast.value = 25f * noirIntensity;    // Aumentar contraste
-        _colorAdj.postExposure.value = -0.2f;              // Ligeramente más oscuro
+        // Se conecta solo al daño del jugador (antes había que hacerlo a mano en el Inspector)
+        _playerHealth = FindObjectOfType<PlayerHealth>();
+        if (_playerHealth != null && _playerHealth.onDamageTaken != null)
+            _playerHealth.onDamageTaken.AddListener(TriggerDamagePulse);
+    }
 
-        // ===== Vignette (sombras en los bordes de la pantalla, clásico noir) =====
-        _vignette = _profile.Add<Vignette>(true);
-        _vignette.intensity.value = _defaultVignetteIntensity;
-        _vignette.smoothness.value = 0.5f;
-        _vignette.color.value = Color.black;
+    private void OnDestroy()
+    {
+        if (_playerHealth != null && _playerHealth.onDamageTaken != null)
+            _playerHealth.onDamageTaken.RemoveListener(TriggerDamagePulse);
+        if (_profile != null) Destroy(_profile);
+    }
 
-        // ===== Film Grain (grano de película, estilo años 30) =====
-        _filmGrain = _profile.Add<FilmGrain>(true);
-        _filmGrain.type.value = FilmGrainLookup.Thin1;
-        _filmGrain.intensity.value = 0.35f;
-        _filmGrain.response.value = 0.8f;
+    private void SetupTechnicolorEffects()
+    {
+        Tonemapping tonemapping = _profile.Add<Tonemapping>();
+        tonemapping.mode.Override(TonemappingMode.Neutral);
+
+        _colorAdj = _profile.Add<ColorAdjustments>();
+        _colorAdj.postExposure.Override(0.4f);
+        _colorAdj.contrast.Override(10f);
+        _colorAdj.saturation.Override(BaseSaturation);
+        _colorAdj.colorFilter.Override(new Color32(0xFF, 0xF4, 0xE6, 0xFF));
+
+        WhiteBalance whiteBalance = _profile.Add<WhiteBalance>();
+        whiteBalance.temperature.Override(8f);
+
+        Bloom bloom = _profile.Add<Bloom>();
+        bloom.threshold.Override(0.9f);
+        bloom.intensity.Override(0.6f);
+
+        _vignette = _profile.Add<Vignette>();
+        _vignette.intensity.Override(BaseVignetteIntensity);
+        _vignette.color.Override(Color.black);
+
+        FilmGrain grain = _profile.Add<FilmGrain>();
+        grain.type.Override(FilmGrainLookup.Thin1);
+        grain.intensity.Override(0.12f);
     }
 
     /// <summary>
-    /// Efecto de pantalla pulsando al recibir daño (vignette rojo momentáneo).
-    /// Conectar a PlayerHealth.onDamageTaken en el Inspector.
+    /// Viñeta roja corta al recibir daño. Se conecta sola a PlayerHealth.onDamageTaken.
+    /// Si llega otro golpe durante el pulso, el pulso vuelve a empezar.
     /// </summary>
     public void TriggerDamagePulse()
     {
-        if (!_damagePulseActive)
-            StartCoroutine(DamagePulseCoroutine());
+        if (_vignette == null) return;
+        if (_pulseRoutine != null) StopCoroutine(_pulseRoutine);
+        _pulseRoutine = StartCoroutine(DamagePulseCoroutine());
     }
 
     private System.Collections.IEnumerator DamagePulseCoroutine()
     {
-        _damagePulseActive = true;
+        _vignette.color.value = damageVignetteColor;
 
-        if (_vignette != null)
+        // Tiempo real: el pulso termina aunque haya pausa o hit-stop
+        float elapsed = 0f;
+        while (elapsed < damageVignetteDuration)
         {
-            _vignette.color.value = new Color(0.8f, 0.1f, 0.1f); // Rojo
-            _vignette.intensity.value = damageVignetteIntensity;
+            float t = elapsed / damageVignetteDuration;
+            _vignette.intensity.value = Mathf.Lerp(damageVignetteIntensity, BaseVignetteIntensity, t * t);
+            elapsed += Time.unscaledDeltaTime;
+            yield return null;
         }
 
-        yield return new WaitForSeconds(damageVignetteDuration);
-
-        if (_vignette != null)
-        {
-            _vignette.color.value = Color.black; // Volver al negro normal
-            _vignette.intensity.value = _defaultVignetteIntensity;
-        }
-
-        _damagePulseActive = false;
+        _vignette.color.value = Color.black;
+        _vignette.intensity.value = BaseVignetteIntensity;
+        _pulseRoutine = null;
     }
 
     /// <summary>
-    /// Cambiar la intensidad del noir en runtime (ej: durante flashbacks con color).
+    /// Baja la saturación para momentos especiales (ej: flashbacks).
+    /// 0 = Technicolor normal, 1 = saturación neutra (0). Nunca aplica saturación negativa.
     /// </summary>
     public void SetNoirIntensity(float intensity)
     {
         if (_colorAdj != null)
-            _colorAdj.saturation.value = -70f * Mathf.Clamp01(intensity);
+            _colorAdj.saturation.value = Mathf.Lerp(BaseSaturation, 0f, Mathf.Clamp01(intensity));
     }
 }

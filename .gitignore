@@ -66,3 +66,5 @@ graphify-out/.graphify_python
 graphify-out/.graphify_root
 # cache de graphify cuando se corre sobre la carpeta de Scripts
 **/graphify-out/cache/
+**/Assets/**/graphify-out/
+**/Assets/**/graphify-out.meta

@@ -122,14 +122,24 @@ public static class LevelBuilderUtils
 
     /// <summary>
     /// Carga Assets/Materials/Greybox/{name}.mat o lo crea (URP Lit) si no existe.
+    /// Con updateColor = true también repinta un material existente (paleta de la fase 3A).
     /// </summary>
-    public static Material GetOrCreateMaterial(string name, Color color, float smoothness = 0.1f)
+    public static Material GetOrCreateMaterial(string name, Color color, float smoothness = 0.1f, bool updateColor = false)
     {
         EnsureFolder(MaterialFolder);
         string path = $"{MaterialFolder}/{name}.mat";
 
         Material mat = AssetDatabase.LoadAssetAtPath<Material>(path);
-        if (mat != null) return mat;
+        if (mat != null)
+        {
+            if (updateColor)
+            {
+                if (mat.HasProperty("_BaseColor")) mat.SetColor("_BaseColor", color);
+                if (mat.HasProperty("_Color")) mat.SetColor("_Color", color);
+                EditorUtility.SetDirty(mat);
+            }
+            return mat;
+        }
 
         Shader shader = Shader.Find("Universal Render Pipeline/Lit");
         if (shader == null)

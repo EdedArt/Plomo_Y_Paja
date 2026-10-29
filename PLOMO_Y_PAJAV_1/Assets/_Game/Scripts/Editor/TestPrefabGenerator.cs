@@ -230,6 +230,23 @@ public static class TestPrefabGenerator
             {
                 cam.gameObject.tag = "MainCamera";
                 cam.GetUniversalAdditionalCameraData().renderPostProcessing = true;
+
+                // Sin skybox el fondo quedaba negro: cielo nocturno índigo (fase 3A)
+                cam.clearFlags = CameraClearFlags.SolidColor;
+                cam.backgroundColor = new Color32(0x2A, 0x26, 0x55, 0xFF);
+
+                // Luz de relleno suave que acompaña al jugador: nunca hay negro total delante
+                if (cam.transform.Find("FillLight") == null)
+                {
+                    var fillGo = new GameObject("FillLight");
+                    fillGo.transform.SetParent(cam.transform, false);
+                    Light fill = fillGo.AddComponent<Light>();
+                    fill.type = LightType.Point;
+                    fill.range = 6f;
+                    fill.intensity = 0.35f;
+                    fill.shadows = LightShadows.None;
+                    fill.color = new Color32(0xFF, 0xE9, 0xC7, 0xFF);
+                }
             }
 
             if (contents.GetComponentInChildren<ShotgunController>() == null)

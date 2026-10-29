@@ -32,8 +32,11 @@ public static class LevelBuilder_NivelPorky
     private const float DoorWidth = 1.6f;
     private const float DoorHeight = 2.4f;
 
-    // Materiales (se crean en Assets/Materials/Greybox si faltan)
-    private static Material _floor, _wall, _wood, _debris, _ground;
+    // Materiales (se crean en Assets/Materials/Greybox si faltan; la paleta se reaplica al regenerar)
+    // _straw = paredes y techo de la casa de Porky; _wall = muros ajenos (callejón, edificios)
+    private static Material _floor, _wall, _straw, _wood, _debris, _ground, _street, _door, _window;
+
+    private static readonly Color WarmLamp = new Color32(0xFF, 0xB0, 0x60, 0xFF);
 
     [MenuItem("Plomo y Paja/Generar Nivel Porky")]
     public static void Generate()
@@ -62,9 +65,10 @@ public static class LevelBuilder_NivelPorky
         BuildDestruction(environment);
         BuildFurniture(environment);
         BuildStreetLamp(environment, lighting);
+        BuildWarmLamps(environment, lighting);
         BuildLighting(lighting);
         BuildMarkers(markers);
-        NoirVolumeBuilder.CreateGlobalVolume(lighting);
+        NoirVolumeBuilder.CreateTechnicolorVolume(lighting);
         BuildActors();
 
         // Solo el entorno es estático; luces y marcadores no
@@ -83,11 +87,16 @@ public static class LevelBuilder_NivelPorky
 
     private static void LoadMaterials()
     {
-        _floor = GetOrCreateMaterial("Greybox_Suelo", new Color(0.42f, 0.42f, 0.42f));
-        _wall = GetOrCreateMaterial("Greybox_Pared", new Color(0.26f, 0.26f, 0.27f));
-        _wood = GetOrCreateMaterial("Greybox_Madera", new Color(0.36f, 0.24f, 0.15f), 0.2f);
-        _debris = GetOrCreateMaterial("Greybox_Escombros", new Color(0.33f, 0.31f, 0.29f));
-        _ground = GetOrCreateMaterial("Greybox_Exterior", new Color(0.17f, 0.17f, 0.19f));
+        // Paleta Technicolor (fase 3A)
+        _floor = GetOrCreateMaterial("Greybox_Suelo", new Color32(0xA6, 0x8B, 0x6B, 0xFF), 0.1f, true);
+        _wall = GetOrCreateMaterial("Greybox_Pared", new Color32(0x7A, 0x74, 0x86, 0xFF), 0.1f, true);
+        _straw = GetOrCreateMaterial("Greybox_Paja", new Color32(0xE8, 0xC3, 0x5A, 0xFF), 0.1f, true);
+        _wood = GetOrCreateMaterial("Greybox_Madera", new Color32(0x8A, 0x5A, 0x33, 0xFF), 0.2f, true);
+        _debris = GetOrCreateMaterial("Greybox_Escombros", new Color32(0x7A, 0x6A, 0x55, 0xFF), 0.1f, true);
+        _ground = GetOrCreateMaterial("Greybox_Exterior", new Color32(0x5E, 0x8C, 0x3A, 0xFF), 0.1f, true);
+        _street = GetOrCreateMaterial("Greybox_Adoquin", new Color32(0x6C, 0x7A, 0x96, 0xFF), 0.25f, true);
+        _door = GetOrCreateMaterial("Greybox_Puerta", new Color32(0xC0, 0x39, 0x2B, 0xFF), 0.3f, true);
+        _window = GetOrCreateMaterial("Greybox_Ventana", new Color32(0x2A, 0x9D, 0x8F, 0xFF), 0.3f, true);
     }
 
     // ============ Suelos ============
@@ -95,7 +104,7 @@ public static class LevelBuilder_NivelPorky
     private static void BuildGround(Transform env)
     {
         Transform ground = CreateGroup("Suelos", env);
-        CreateBox("Calle", new Vector3(0f, -0.1f, -15f), new Vector3(40f, 0.2f, 10f), _ground, ground);
+        CreateBox("Calle", new Vector3(0f, -0.1f, -15f), new Vector3(40f, 0.2f, 10f), _street, ground);
         // Patio delantero + pasillos laterales + patio trasero en una sola losa (z -10..21)
         CreateBox("Patios", new Vector3(0f, -0.1f, 5.5f), new Vector3(20f, 0.2f, 31f), _ground, ground);
         CreateBox("Callejon_Suelo", new Vector3(0f, -0.1f, 27f), new Vector3(4f, 0.2f, 12f), _ground, ground);
@@ -112,30 +121,57 @@ public static class LevelBuilder_NivelPorky
 
         // Fachada (z = -6): puerta delantera en x = -5, boquete de 3 m en x = 4.5
         CreateWallWithOpenings("Pared_Fachada", new Vector3(-8f - t / 2f, 0f, -6f), new Vector3(8f + t / 2f, 0f, -6f),
-            WallHeight, t, _wall, house,
+            WallHeight, t, _straw, house,
             new WallOpening(3.1f, DoorWidth, DoorHeight),     // x = -5
             new WallOpening(12.6f, 3f, WallHeight));          // x = 4.5 (boquete)
 
         // Fondo (z = 6): puerta trasera en x = -4
         CreateWallWithDoorway("Pared_Fondo", new Vector3(-8f - t / 2f, 0f, 6f), new Vector3(8f + t / 2f, 0f, 6f),
-            WallHeight, t, _wall, house, 4.1f, DoorWidth, DoorHeight);
+            WallHeight, t, _straw, house, 4.1f, DoorWidth, DoorHeight);
 
         // Laterales sólidos
-        CreateWallWithOpenings("Pared_Izquierda", new Vector3(-8f, 0f, -6f), new Vector3(-8f, 0f, 6f), WallHeight, t, _wall, house);
-        CreateWallWithOpenings("Pared_Derecha", new Vector3(8f, 0f, -6f), new Vector3(8f, 0f, 6f), WallHeight, t, _wall, house);
+        CreateWallWithOpenings("Pared_Izquierda", new Vector3(-8f, 0f, -6f), new Vector3(-8f, 0f, 6f), WallHeight, t, _straw, house);
+        CreateWallWithOpenings("Pared_Derecha", new Vector3(8f, 0f, -6f), new Vector3(8f, 0f, 6f), WallHeight, t, _straw, house);
 
         // Interiores
         CreateWallWithDoorway("Pared_Sala_Dormitorio", new Vector3(2f, 0f, -6f), new Vector3(2f, 0f, 2f),
-            WallHeight, t, _wall, house, 4f, DoorWidth, DoorHeight);          // puerta en z = -2
+            WallHeight, t, _straw, house, 4f, DoorWidth, DoorHeight);          // puerta en z = -2
         CreateWallWithDoorway("Pared_Sala_Cocina", new Vector3(-8f, 0f, 2f), new Vector3(2f, 0f, 2f),
-            WallHeight, t, _wall, house, 5f, DoorWidth, DoorHeight);          // puerta en x = -3
+            WallHeight, t, _straw, house, 5f, DoorWidth, DoorHeight);          // puerta en x = -3
         CreateWallWithDoorway("Pared_Dormitorio_Cocina", new Vector3(2f, 0f, 2f), new Vector3(8f, 0f, 2f),
-            WallHeight, t, _wall, house, 3f, DoorWidth, DoorHeight);          // puerta en x = 5
+            WallHeight, t, _straw, house, 3f, DoorWidth, DoorHeight);          // puerta en x = 5
 
         // Techo parcial: cocina completa y fondo de la sala; dormitorio y frente de la sala sin techo
         Transform roof = CreateGroup("Techo", house);
-        CreateBox("Techo_Cocina", new Vector3(0f, WallHeight + 0.1f, 4.05f), new Vector3(16.2f, 0.2f, 4.1f), _wall, roof);
-        CreateBox("Techo_Sala", new Vector3(-3f, WallHeight + 0.1f, -0.5f), new Vector3(10.2f, 0.2f, 5f), _wall, roof);
+        CreateBox("Techo_Cocina", new Vector3(0f, WallHeight + 0.1f, 4.05f), new Vector3(16.2f, 0.2f, 4.1f), _straw, roof);
+        CreateBox("Techo_Sala", new Vector3(-3f, WallHeight + 0.1f, -0.5f), new Vector3(10.2f, 0.2f, 5f), _straw, roof);
+
+        // Puerta delantera roja, abierta hacia dentro contra el borde izquierdo del vano (x = -5.8)
+        CreateBox("Puerta_Delantera", new Vector3(-5.75f, DoorHeight / 2f, -5.15f), new Vector3(0.08f, DoorHeight - 0.05f, 1.5f),
+            _door, house);
+
+        // Marcos de ventana (decorativos, sobre la cara exterior de las paredes)
+        Transform windows = CreateGroup("Ventanas", house);
+        BuildWindowFrame("Ventana_Fachada", new Vector3(-1f, 1.7f, -6f - t / 2f - 0.03f), false, windows);
+        BuildWindowFrame("Ventana_Fondo", new Vector3(3f, 1.7f, 6f + t / 2f + 0.03f), false, windows);
+        BuildWindowFrame("Ventana_Izquierda", new Vector3(-8f - t / 2f - 0.03f, 1.7f, -2f), true, windows);
+    }
+
+    /// <summary>Marco de 1.2 x 1 m con cruz central. alongZ = la ventana está en una pared lateral.</summary>
+    private static void BuildWindowFrame(string name, Vector3 center, bool alongZ, Transform parent)
+    {
+        const float w = 1.2f, h = 1f, bar = 0.1f, depth = 0.06f;
+        Transform frame = CreateGroup(name, parent);
+        Vector3 horizontal = alongZ ? new Vector3(depth, bar, w) : new Vector3(w, bar, depth);
+        Vector3 vertical = alongZ ? new Vector3(depth, h, bar) : new Vector3(bar, h, depth);
+        Vector3 side = alongZ ? Vector3.forward : Vector3.right;
+
+        CreateBox(name + "_Arriba", center + Vector3.up * (h / 2f), horizontal, _window, frame);
+        CreateBox(name + "_Abajo", center - Vector3.up * (h / 2f), horizontal, _window, frame);
+        CreateBox(name + "_Izq", center - side * (w / 2f), vertical, _window, frame);
+        CreateBox(name + "_Der", center + side * (w / 2f), vertical, _window, frame);
+        CreateBox(name + "_CruzH", center, horizontal, _window, frame);
+        CreateBox(name + "_CruzV", center, vertical, _window, frame);
     }
 
     // ============ Límites: valla, callejón, edificios de enfrente ============
@@ -172,10 +208,10 @@ public static class LevelBuilder_NivelPorky
         Transform ruins = CreateGroup("Escombros", env);
 
         // Pedazo de techo colgando dentro del dormitorio (apoyado en la pared derecha)
-        CreateBox("Losa_Techo_Colgante", new Vector3(6.6f, 1.5f, -0.5f), new Vector3(3.6f, 0.2f, 3f), _wall, ruins,
+        CreateBox("Losa_Techo_Colgante", new Vector3(6.6f, 1.5f, -0.5f), new Vector3(3.6f, 0.2f, 3f), _straw, ruins,
             new Vector3(0f, 0f, 50f));
         // Pedazo de fachada caído en el patio delantero, al lado del boquete (deja libre x 3..5 y z < -8.3)
-        CreateBox("Losa_Fachada_Caida", new Vector3(6.3f, 0.3f, -7.2f), new Vector3(2.6f, 0.2f, 1.8f), _wall, ruins,
+        CreateBox("Losa_Fachada_Caida", new Vector3(6.3f, 0.3f, -7.2f), new Vector3(2.6f, 0.2f, 1.8f), _straw, ruins,
             new Vector3(0f, 15f, 12f));
         // Viga caída en el patio trasero, lejos del camino a la valla
         CreateBox("Viga_Caida", new Vector3(7f, 0.15f, 16f), new Vector3(0.3f, 0.3f, 3.5f), _wood, ruins,
@@ -231,35 +267,72 @@ public static class LevelBuilder_NivelPorky
         CreateBox("Farol_Brazo", new Vector3(-6.6f, 4f, -10.6f), new Vector3(1f, 0.08f, 0.08f), _wall, lamp);
         CreateBox("Farol_Cabeza", new Vector3(-6.15f, 3.9f, -10.6f), new Vector3(0.3f, 0.15f, 0.3f), _wall, lamp);
 
-        Light light = CreatePointLight("Farol_Luz", new Vector3(-6.15f, 3.7f, -10.6f),
-            new Color32(0xFF, 0xB0, 0x60, 0xFF), 2.5f, 12f, lighting);
+        // Único farol que parpadea (el "roto")
+        Light light = CreatePointLight("Farol_Luz", new Vector3(-6.15f, 3.7f, -10.6f), WarmLamp, 2.5f, 12f, lighting);
         light.gameObject.AddComponent<LightFlicker>();
+    }
+
+    /// <summary>Tres faroles cálidos fijos: calle, patio trasero y puerta trasera.</summary>
+    private static void BuildWarmLamps(Transform env, Transform lighting)
+    {
+        Transform lamps = CreateGroup("Faroles", env);
+
+        // Calle, al otro lado de la entrada
+        BuildLampPost("Farol_Calle", new Vector3(7f, 0f, -10.6f), lamps);
+        CreatePointLight("Farol_Calle_Luz", new Vector3(7f, 3.7f, -10.6f), WarmLamp, 2.5f, 12f, lighting);
+
+        // Patio trasero, junto a la valla izquierda (lejos del camino a la salida)
+        BuildLampPost("Farol_Patio", new Vector3(-8.8f, 0f, 15f), lamps);
+        CreatePointLight("Farol_Patio_Luz", new Vector3(-8.8f, 3.7f, 15f), WarmLamp, 2.2f, 11f, lighting);
+
+        // Bombilla sobre la puerta trasera (x = -4, z = 6), por fuera
+        CreateBox("Farol_PuertaTrasera", new Vector3(-4f, 2.85f, 6.25f), new Vector3(0.25f, 0.15f, 0.2f), _wall, lamps);
+        CreatePointLight("Farol_PuertaTrasera_Luz", new Vector3(-4f, 2.65f, 6.6f), WarmLamp, 1.8f, 8f, lighting);
+    }
+
+    private static void BuildLampPost(string name, Vector3 basePosition, Transform parent)
+    {
+        GameObject pole = GameObject.CreatePrimitive(PrimitiveType.Cylinder);
+        pole.name = name + "_Poste";
+        pole.transform.SetParent(parent, false);
+        pole.transform.position = basePosition + Vector3.up * 2f;
+        pole.transform.localScale = new Vector3(0.15f, 2f, 0.15f);
+        pole.GetComponent<MeshRenderer>().sharedMaterial = _wall;
+
+        CreateBox(name + "_Cabeza", basePosition + Vector3.up * 4.05f, new Vector3(0.35f, 0.2f, 0.35f), _wall, parent);
     }
 
     private static void BuildLighting(Transform lighting)
     {
-        // Luna: direccional tenue y fría
+        // Luna: direccional fría pero con fuerza suficiente para ver siempre paredes y enemigos
         var moonGo = new GameObject("Luz_Luna");
         moonGo.transform.SetParent(lighting, false);
         moonGo.transform.rotation = Quaternion.Euler(50f, -30f, 0f);
         Light moon = moonGo.AddComponent<Light>();
         moon.type = LightType.Directional;
-        moon.color = new Color(0.6f, 0.7f, 1f);
-        moon.intensity = 0.15f;
+        moon.color = new Color32(0xBF, 0xD4, 0xFF, 0xFF);
+        moon.intensity = 0.5f;
         moon.shadows = LightShadows.Soft;
 
-        // Foco cálido y débil en la sala
-        CreatePointLight("Luz_Sala", new Vector3(-3f, 2.9f, -2f), new Color(1f, 0.78f, 0.5f), 0.8f, 7f, lighting);
+        // Interiores: focos cálidos y más fuertes que antes
+        Color interior = new Color32(0xFF, 0xB8, 0x70, 0xFF);
+        CreatePointLight("Luz_Sala", new Vector3(-3f, 2.9f, -2f), interior, 1.6f, 9f, lighting);
+        CreatePointLight("Luz_Cocina", new Vector3(0f, 3f, 4f), interior, 1.4f, 9f, lighting);
+        CreatePointLight("Luz_Dormitorio", new Vector3(5f, 2.9f, -2f), interior, 1.2f, 7f, lighting);
 
-        // Ambiente nocturno
+        // Ambiente nocturno en degradado (cielo índigo, horizonte violeta, suelo terroso)
         RenderSettings.sun = moon;
         RenderSettings.skybox = null;
-        RenderSettings.ambientMode = AmbientMode.Flat;
-        RenderSettings.ambientLight = new Color(0.07f, 0.08f, 0.11f);
+        RenderSettings.ambientMode = AmbientMode.Trilight;
+        RenderSettings.ambientSkyColor = new Color32(0x3A, 0x3F, 0x8F, 0xFF);
+        RenderSettings.ambientEquatorColor = new Color32(0x6B, 0x4A, 0x7A, 0xFF);
+        RenderSettings.ambientGroundColor = new Color32(0x4A, 0x33, 0x26, 0xFF);
+
+        // Niebla del color del horizonte y más ligera: el fondo se ve violeta, no negro
         RenderSettings.fog = true;
         RenderSettings.fogMode = FogMode.ExponentialSquared;
-        RenderSettings.fogColor = new Color(0.05f, 0.06f, 0.08f);
-        RenderSettings.fogDensity = 0.025f;
+        RenderSettings.fogColor = new Color32(0x3A, 0x30, 0x5A, 0xFF);
+        RenderSettings.fogDensity = 0.015f;
     }
 
     // ============ Marcadores ============
