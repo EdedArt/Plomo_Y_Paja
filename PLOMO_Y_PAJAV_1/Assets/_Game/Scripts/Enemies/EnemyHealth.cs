@@ -1,3 +1,4 @@
+using System;
 using UnityEngine;
 using UnityEngine.Events;
 
@@ -6,29 +7,61 @@ using UnityEngine.Events;
 /// DÓNDE VA: misma raíz del enemigo junto con EnemyAI.
 ///
 /// SETUP:
-/// - Asignar surrenderThreshold igual al del EnemyAI
+/// - canSurrender = true y npcId (ej: "guardia_porky") para guardias interrogables
+///   (agregar también DialogueNPC al mismo GameObject)
+/// - Conectar onSurrender → cambio de sprite a "manos arriba" (más adelante)
 /// - Conectar onEnemyDied → GameStateTracker.OnEnemyKilled (para tracking narrativo)
+///
+/// RENDICIÓN:
+/// La primera vez que la vida baja a ≤ surrenderThreshold (y sigue vivo) se rinde:
+/// la IA se detiene y no ataca. Si el jugador lo remata, cuenta como muerto (no interrogado).
 /// </summary>
 public class EnemyHealth : MonoBehaviour
 {
     [Header("Salud")]
+    [Tooltip("Vida máxima del enemigo")]
     [SerializeField] private float maxHealth = 60f;
+    [Tooltip("Vida actual (visible en Inspector para debug)")]
     [SerializeField] private float currentHealth;
 
-    [Header("Umbral de rendición")]
-    [Tooltip("Si la vida baja de este % llama a TriggerSurrender en EnemyAI")]
+    [Header("Rendición")]
+    [Tooltip("Si es true, el guardia se rinde al llegar al umbral en vez de pelear hasta morir")]
+    [SerializeField] private bool canSurrender = false;
+
+    [Tooltip("ID del guardia en DialogueDatabase (ej: guardia_porky, guardia_barracon, guardia_registro)")]
+    [SerializeField] private string npcId = "";
+
+    [Tooltip("Se rinde cuando la vida baja a este % (0 a 1)")]
     [SerializeField, Range(0f, 0.5f)] private float surrenderThreshold = 0.3f;
-    private bool _surrenderTriggered = false;
 
     [Header("Eventos")]
+    [Tooltip("Se dispara cada vez que recibe daño")]
     public UnityEvent onDamageTaken;
+    [Tooltip("Se dispara al morir")]
     public UnityEvent onEnemyDied;
+    [Tooltip("Se dispara al rendirse (para cambiar el sprite a manos arriba)")]
+    public UnityEvent onSurrender;
+
+    /// <summary>El enemigo se rindió (desde código).</summary>
+    public event Action OnSurrender;
+
+    /// <summary>El enemigo murió (desde código).</summary>
+    public event Action OnDeath;
 
     [Header("Opciones")]
     [Tooltip("Tiempo en segundos antes de destruir el GameObject al morir")]
     [SerializeField] private float destroyDelay = 3f;
 
     private EnemyAI _ai;
+    private bool _isSurrendered = false;
+    private bool _isDead = false;
+
+    // ============ Propiedades públicas ============
+    public string NpcId => npcId;
+    public bool CanSurrender => canSurrender;
+    public bool IsSurrendered => _isSurrendered && !_isDead;
+    public bool IsDead => _isDead;
+    public float HealthPercentage => maxHealth > 0 ? currentHealth / maxHealth : 0f;
 
     private void Awake()
     {
@@ -41,32 +74,43 @@ public class EnemyHealth : MonoBehaviour
     /// </summary>
     public bool TakeDamage(float damage)
     {
-        if (currentHealth <= 0) return false; // Ya está muerto
+        if (_isDead) return false; // Ya está muerto
 
         currentHealth -= damage;
         currentHealth = Mathf.Max(0, currentHealth);
         onDamageTaken?.Invoke();
 
-        // ¿Se rinde?
-        if (!_surrenderTriggered && currentHealth / maxHealth <= surrenderThreshold)
-        {
-            _surrenderTriggered = true;
-            _ai?.TriggerSurrender();
-        }
-
-        // ¿Murió?
+        // ¿Murió? (también si ya estaba rendido: cuenta como muerto)
         if (currentHealth <= 0)
         {
             Die();
             return true;
         }
 
+        // ¿Se rinde? Solo la primera vez que cruza el umbral
+        if (canSurrender && !_isSurrendered && HealthPercentage <= surrenderThreshold)
+        {
+            Surrender();
+        }
+
         return false;
+    }
+
+    private void Surrender()
+    {
+        _isSurrendered = true;
+        _ai?.TriggerSurrender();
+
+        OnSurrender?.Invoke();
+        onSurrender?.Invoke();
     }
 
     private void Die()
     {
+        _isDead = true;
+
         onEnemyDied?.Invoke();
+        OnDeath?.Invoke();
         _ai?.Die();
 
         // Notificar al tracker de estado del juego
@@ -78,7 +122,4 @@ public class EnemyHealth : MonoBehaviour
         // Destruir el GameObject después de unos segundos (para que el sprite de muerte se vea)
         Destroy(gameObject, destroyDelay);
     }
-
-    // Getter para que EnemyAI pueda leer la vida
-    public float HealthPercentage => currentHealth / maxHealth;
 }

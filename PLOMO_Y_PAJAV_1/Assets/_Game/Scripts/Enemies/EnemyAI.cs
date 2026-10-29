@@ -63,9 +63,7 @@ public class EnemyAI : MonoBehaviour
 
     [Tooltip("Segundos entre ataques")]
     [SerializeField] private float attackCooldown = 1.5f;
-
-    [Tooltip("Se rinde cuando le queda este % de vida (0 = nunca se rinde)")]
-    [SerializeField, Range(0f, 0.5f)] private float surrenderThreshold = 0.3f;
+    // La rendición (canSurrender + umbral) se configura en EnemyHealth
 
     [Header("Velocidades")]
     [SerializeField] private float patrolSpeed = 2f;
@@ -294,12 +292,20 @@ public class EnemyAI : MonoBehaviour
                 _agent.isStopped = false;
                 break;
             case EnemyState.Surrender:
-                _agent.isStopped = true;
+                // Cortar patrulla/alerta pendientes para que nada lo vuelva a mover
+                StopAllCoroutines();
+                _waitingAtPoint = false;
+                if (_agent.isOnNavMesh)
+                {
+                    _agent.isStopped = true;
+                    _agent.ResetPath();
+                }
                 _agent.velocity = Vector3.zero;
                 billboardSprite?.PlayWalk(); // Frame de rendición
                 break;
             case EnemyState.Dead:
-                _agent.isStopped = true;
+                StopAllCoroutines(); // la espera de patrulla tocaría un agente ya desactivado
+                if (_agent.isOnNavMesh) _agent.isStopped = true;
                 _agent.enabled = false;
                 billboardSprite?.PlayDeath();
                 break;
@@ -314,14 +320,13 @@ public class EnemyAI : MonoBehaviour
     }
 
     /// <summary>
-    /// Llamado desde EnemyHealth cuando la vida baja del umbral de rendición.
+    /// Llamado desde EnemyHealth cuando se rinde (EnemyHealth decide si puede rendirse).
+    /// Se queda quieto y deja de atacar; Update() no corre en estado Surrender.
     /// </summary>
     public void TriggerSurrender()
     {
-        if (surrenderThreshold > 0)
-            ChangeState(EnemyState.Surrender);
-        else
-            ChangeState(EnemyState.Chase); // No se rinde, sigue peleando
+        if (currentState == EnemyState.Dead) return;
+        ChangeState(EnemyState.Surrender);
     }
 
     /// <summary>
