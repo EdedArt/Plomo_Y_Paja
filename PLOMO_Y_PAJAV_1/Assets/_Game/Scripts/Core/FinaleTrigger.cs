@@ -78,7 +78,7 @@ public class FinaleTrigger : MonoBehaviour
         // 3. La IA comenta según cuántas pistas tiene el jugador
         int cluesFound = GameStateTracker.Instance?.CluesFound ?? 0;
         string aiComment = cluesFound >= 3 ? aiCommentManyClues : aiCommentFewClues;
-        AICompanion.Instance?.TriggerComment(AICompanion.AITrigger.ApproachingWolf, aiComment);
+        AICompanion.Instance?.Speak(AITrigger.FinalConfrontation, aiComment);
 
         yield return new WaitForSeconds(2f);
 
@@ -96,7 +96,7 @@ public class FinaleTrigger : MonoBehaviour
 
         // 6. Iniciar el contador de decisión
         UIManager.Instance?.ShowAISubtitle("¿Qué decidimos, Wilbur?");
-        AICompanion.Instance?.TriggerComment(AICompanion.AITrigger.FinalDecision);
+        AICompanion.Instance?.Speak(AITrigger.FinalConfrontation, "Wilbur debe decidir si dispara a Don Lobo o lo perdona");
 
         // 7. Esperar la decisión del jugador
         StartCoroutine(WaitForDecision());

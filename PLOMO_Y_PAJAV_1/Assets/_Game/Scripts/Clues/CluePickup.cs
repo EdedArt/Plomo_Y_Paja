@@ -121,10 +121,7 @@ public class CluePickup : MonoBehaviour
     private IEnumerator NotifyAIWithDelay(float delay)
     {
         yield return new WaitForSeconds(delay);
-        AICompanion.Instance?.TriggerComment(
-            AICompanion.AITrigger.ClueFound,
-            $"La pista dice: '{shortDescription}'"
-        );
+        AICompanion.Instance?.Speak(AITrigger.ClueFound, $"{displayName}: {shortDescription}");
     }
 
     private void OnDrawGizmosSelected()

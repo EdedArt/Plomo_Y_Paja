@@ -72,6 +72,9 @@ public class EnemyHealth : MonoBehaviour
         // Notificar al tracker de estado del juego
         GameStateTracker.Instance?.RegisterEnemyKilled(gameObject.name);
 
+        // La IA puede comentar la muerte (AICompanion decide si habla o calla)
+        AICompanion.Instance?.Speak(AITrigger.EnemyKilled);
+
         // Destruir el GameObject después de unos segundos (para que el sprite de muerte se vea)
         Destroy(gameObject, destroyDelay);
     }

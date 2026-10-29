@@ -188,10 +188,7 @@ public class DialogueNPC : MonoBehaviour
         GameStateTracker.Instance?.RegisterInterrogation(npcName, outcome.ToString());
 
         // Notificar a la IA
-        AICompanion.Instance?.TriggerComment(
-            AICompanion.AITrigger.InterrogationDone,
-            $"El interrogatorio a {npcName} resultó en: {outcome}"
-        );
+        AICompanion.Instance?.Speak(AITrigger.InterrogationEnded, $"{npcName}: {outcome}");
 
         // Restaurar movimiento del jugador
         FindObjectOfType<PlayerController>()?.SetCanMove(true);

@@ -48,3 +48,12 @@ UserSettings/
 
 # Crash reports
 crashlytics-build.properties
+
+# API key de OpenAI (AICompanion) - NUNCA subir
+Assets/StreamingAssets/openai_key.txt
+Assets/StreamingAssets/openai_key.txt.meta
+# El proyecto Unity vive en una subcarpeta: las rutas con "/" quedan ancladas a la raíz del repo
+**/Assets/StreamingAssets/openai_key.txt
+**/Assets/StreamingAssets/openai_key.txt.meta
+**/Assets/_Game/Settings/APISettings.asset
+**/Assets/_Game/Settings/APISettings.asset.meta

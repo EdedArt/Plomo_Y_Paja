@@ -1,3 +1,4 @@
+using System;
 using System.Collections;
 using UnityEngine;
 using UnityEngine.Events;
@@ -9,7 +10,11 @@ using UnityEngine.Events;
 /// SETUP EN INSPECTOR:
 /// - Conectar onHealthChanged → UIManager.UpdateHealthUI
 /// - Conectar onPlayerDied → GameManager.PlayerDied
-/// - Asignar damageVignette (opcional, efecto visual de daño)
+///
+/// DESDE CÓDIGO:
+/// - OnHealthChanged (current, max) y OnDeath para sistemas que no usan el Inspector
+/// - Al bajar del 30% la IA comenta (AITrigger.LowHealth) una sola vez;
+///   se rearma cuando la vida vuelve a superar el 40%
 /// </summary>
 public class PlayerHealth : MonoBehaviour
 {
@@ -23,6 +28,13 @@ public class PlayerHealth : MonoBehaviour
     [Tooltip("Tiempo de invencibilidad después de recibir daño (para no morir instantáneo)")]
     [SerializeField] private float invincibilityTime = 0.3f;
 
+    [Header("Aviso de poca vida (IA)")]
+    [Tooltip("Porcentaje (0 a 1) por debajo del cual la IA comenta que Wilbur está herido")]
+    [SerializeField, Range(0f, 1f)] private float lowHealthThreshold = 0.3f;
+
+    [Tooltip("Porcentaje (0 a 1) que hay que superar para que el aviso pueda volver a sonar")]
+    [SerializeField, Range(0f, 1f)] private float lowHealthRearmThreshold = 0.4f;
+
     [Header("Eventos (conectar en Inspector)")]
     [Tooltip("Se dispara cuando la vida cambia → float es el porcentaje (0 a 1)")]
     public UnityEvent<float> onHealthChanged;
@@ -33,17 +45,20 @@ public class PlayerHealth : MonoBehaviour
     [Tooltip("Se dispara cuando recibe daño (para efectos visuales)")]
     public UnityEvent onDamageTaken;
 
-    [Header("Efecto visual de daño")]
-    [Tooltip("Duración del parpadeo rojo de la pantalla al recibir daño")]
-    [SerializeField] private float damageFlashDuration = 0.2f;
+    /// <summary>Vida cambió: (vida actual, vida máxima).</summary>
+    public event Action<float, float> OnHealthChanged;
+
+    /// <summary>El jugador murió.</summary>
+    public event Action OnDeath;
 
     private bool _isDead = false;
     private bool _isInvincible = false;
+    private bool _lowHealthArmed = true;
 
     private void Start()
     {
         currentHealth = maxHealth;
-        onHealthChanged?.Invoke(1f); // 100%
+        NotifyHealthChanged();
     }
 
     /// <summary>
@@ -56,8 +71,7 @@ public class PlayerHealth : MonoBehaviour
         currentHealth -= damage;
         currentHealth = Mathf.Max(0, currentHealth);
 
-        // Notificar a la UI con el porcentaje de vida (0 a 1)
-        onHealthChanged?.Invoke(currentHealth / maxHealth);
+        NotifyHealthChanged();
         onDamageTaken?.Invoke();
 
         if (currentHealth <= 0)
@@ -66,6 +80,7 @@ public class PlayerHealth : MonoBehaviour
         }
         else
         {
+            CheckLowHealth();
             // Breve invencibilidad para que los ataques no apilen demasiado daño
             StartCoroutine(InvincibilityCoroutine());
         }
@@ -78,7 +93,32 @@ public class PlayerHealth : MonoBehaviour
     {
         if (_isDead) return;
         currentHealth = Mathf.Min(currentHealth + amount, maxHealth);
-        onHealthChanged?.Invoke(currentHealth / maxHealth);
+        NotifyHealthChanged();
+        CheckLowHealth();
+    }
+
+    /// <summary>
+    /// Avisar a la IA al cruzar hacia abajo el umbral de poca vida (una vez por cruce).
+    /// </summary>
+    private void CheckLowHealth()
+    {
+        float percent = HealthPercentage;
+
+        if (percent > lowHealthRearmThreshold)
+        {
+            _lowHealthArmed = true;
+        }
+        else if (_lowHealthArmed && percent <= lowHealthThreshold && currentHealth > 0)
+        {
+            _lowHealthArmed = false;
+            AICompanion.Instance?.Speak(AITrigger.LowHealth);
+        }
+    }
+
+    private void NotifyHealthChanged()
+    {
+        onHealthChanged?.Invoke(HealthPercentage);
+        OnHealthChanged?.Invoke(currentHealth, maxHealth);
     }
 
     private void Die()
@@ -86,11 +126,13 @@ public class PlayerHealth : MonoBehaviour
         if (_isDead) return;
         _isDead = true;
 
-        // Desactivar el movimiento
+        // Desactivar el movimiento y el arma (la escopeta es hija de la cámara)
         GetComponent<PlayerController>()?.SetCanMove(false);
-        GetComponent<ShotgunController>().enabled = false;
+        ShotgunController shotgun = GetComponentInChildren<ShotgunController>();
+        if (shotgun != null) shotgun.enabled = false;
 
         onPlayerDied?.Invoke();
+        OnDeath?.Invoke();
     }
 
     private IEnumerator InvincibilityCoroutine()
@@ -103,7 +145,7 @@ public class PlayerHealth : MonoBehaviour
     // Getters
     public float CurrentHealth => currentHealth;
     public float MaxHealth => maxHealth;
-    public float HealthPercentage => currentHealth / maxHealth;
+    public float HealthPercentage => maxHealth > 0 ? currentHealth / maxHealth : 0f;
     public bool IsDead => _isDead;
 
     /// <summary>
@@ -113,9 +155,11 @@ public class PlayerHealth : MonoBehaviour
     {
         _isDead = false;
         _isInvincible = false;
+        _lowHealthArmed = true;
         currentHealth = maxHealth;
-        onHealthChanged?.Invoke(1f);
+        NotifyHealthChanged();
         GetComponent<PlayerController>()?.SetCanMove(true);
-        GetComponent<ShotgunController>().enabled = true;
+        ShotgunController shotgun = GetComponentInChildren<ShotgunController>();
+        if (shotgun != null) shotgun.enabled = true;
     }
 }
