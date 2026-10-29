@@ -1,0 +1,1 @@
+Crear aquí openai_key.txt con la API key de OpenAI. Nunca subirlo a git.

@@ -13,6 +13,15 @@
 - Voices: `Assets/_Game/Audio/Voices/<characterId>/<lineId>.wav`; SFX: `Assets/_Game/Audio/SFX/<name>_<NN>.wav`
 - Generated scenes come from "Plomo y Paja/..." editor menus; never edit them by hand.
 
+## Team & branches
+- David Cabezas: Player, shotgun, GameManager, AI companion, integration.
+- Edgar Arteaga: enemies (AI, states, combat), dialogue.
+- Cristian: scenes, level, lighting, NavMesh, UI.
+- Branches: `main` (stable, merge only when a feature works end to end), `dev` (daily integration), `player` (David), `enemies` (Edgar), `levels` (Cristian).
+- Daily flow: `git pull origin dev` at start; work on your own branch; push your branch; at end of day merge into `dev` together (15-min call).
+- Everyone must use exactly the same Unity 2022.3 minor version (Unity Hub -> Installs).
+- Pushing is only done when the prompt says so (overrides "push at end of day" for Claude sessions).
+
 ## Hard rules
 - Code must compile against Unity 2022.3: compile-check both assemblies with the Editor's bundled Roslyn against the project DLLs before every commit.
 - Never hand-edit .unity/.prefab/.asset YAML; use Editor scripts (AssetDatabase/PrefabUtility).
