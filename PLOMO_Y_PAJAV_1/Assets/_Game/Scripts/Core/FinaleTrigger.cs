@@ -66,24 +66,24 @@ public class FinaleTrigger : MonoBehaviour
     {
         // 1. Detener al jugador momentáneamente
         PlayerController playerController = player.GetComponent<PlayerController>();
-        playerController?.SetCanMove(false);
+        if (playerController != null) playerController.SetCanMove(false);
 
         yield return new WaitForSeconds(0.5f);
-        playerController?.SetCanMove(true);
+        if (playerController != null) playerController.SetCanMove(true);
 
         // 2. Don Lobo se activa / aparece
         if (donLoboGameObject != null)
             donLoboGameObject.SetActive(true);
 
         // 3. La IA comenta según cuántas pistas tiene el jugador
-        int cluesFound = GameStateTracker.Instance?.CluesFound ?? 0;
+        int cluesFound = GameStateTracker.Instance != null ? GameStateTracker.Instance.CluesFound : 0;
         string aiComment = cluesFound >= 3 ? aiCommentManyClues : aiCommentFewClues;
-        AICompanion.Instance?.Speak(AITrigger.FinalConfrontation, aiComment);
+        if (AICompanion.Instance != null) AICompanion.Instance.Speak(AITrigger.FinalConfrontation, aiComment);
 
         yield return new WaitForSeconds(2f);
 
         // 4. Don Lobo habla
-        UIManager.Instance?.ShowAISubtitle($"Don Lobo: \"{wolfFinalSpeech}\"");
+        if (UIManager.Instance != null) UIManager.Instance.ShowAISubtitle($"Don Lobo: \"{wolfFinalSpeech}\"");
 
         // 5. Mostrar la pista final (evidencia de la traición de Porky)
         if (finalClueObject != null)
@@ -95,8 +95,8 @@ public class FinaleTrigger : MonoBehaviour
         yield return new WaitForSeconds(2f);
 
         // 6. Iniciar el contador de decisión
-        UIManager.Instance?.ShowAISubtitle("¿Qué decidimos, Wilbur?");
-        AICompanion.Instance?.Speak(AITrigger.FinalConfrontation, "Wilbur debe decidir si dispara a Don Lobo o lo perdona");
+        if (UIManager.Instance != null) UIManager.Instance.ShowAISubtitle("¿Qué decidimos, Wilbur?");
+        if (AICompanion.Instance != null) AICompanion.Instance.Speak(AITrigger.FinalConfrontation, "Wilbur debe decidir si dispara a Don Lobo o lo perdona");
 
         // 7. Esperar la decisión del jugador
         StartCoroutine(WaitForDecision());
@@ -127,23 +127,23 @@ public class FinaleTrigger : MonoBehaviour
     {
         if (_decisionMade) return;
         _decisionMade = true;
-        GameStateTracker.Instance?.RegisterWolfDecision(true);
+        if (GameStateTracker.Instance != null) GameStateTracker.Instance.RegisterWolfDecision(true);
         StartCoroutine(TransitionToEnding(1.5f));
     }
 
     private void SparedWolf()
     {
         _decisionMade = true;
-        GameStateTracker.Instance?.RegisterWolfDecision(false);
+        if (GameStateTracker.Instance != null) GameStateTracker.Instance.RegisterWolfDecision(false);
 
         // Mostrar escena corta de reconciliación
-        UIManager.Instance?.ShowAISubtitle("Don Lobo: \"Gracias, Wilbur. Hay mucho que contarte.\"");
+        if (UIManager.Instance != null) UIManager.Instance.ShowAISubtitle("Don Lobo: \"Gracias, Wilbur. Hay mucho que contarte.\"");
         StartCoroutine(TransitionToEnding(3f));
     }
 
     private IEnumerator TransitionToEnding(float delay)
     {
         yield return new WaitForSeconds(delay);
-        GameManager.Instance?.TriggerEnding();
+        if (GameManager.Instance != null) GameManager.Instance.TriggerEnding();
     }
 }

@@ -241,7 +241,7 @@ public class DialogueNPC : MonoBehaviour
         OnInterrogationCompleted?.Invoke(_tree.npcId, result, awarded);
         onDialogueCompleted?.Invoke(_tree.npcId, result);
 
-        AICompanion.Instance?.Speak(AITrigger.InterrogationEnded, $"{_tree.displayName}: {ResultToSpanish(result)}");
+        if (AICompanion.Instance != null) AICompanion.Instance.Speak(AITrigger.InterrogationEnded, $"{_tree.displayName}: {ResultToSpanish(result)}");
     }
 
     private static string ResultToSpanish(InterrogationResult result)

@@ -111,7 +111,7 @@ public class PlayerHealth : MonoBehaviour
         else if (_lowHealthArmed && percent <= lowHealthThreshold && currentHealth > 0)
         {
             _lowHealthArmed = false;
-            AICompanion.Instance?.Speak(AITrigger.LowHealth);
+            if (AICompanion.Instance != null) AICompanion.Instance.Speak(AITrigger.LowHealth);
         }
     }
 
@@ -127,7 +127,7 @@ public class PlayerHealth : MonoBehaviour
         _isDead = true;
 
         // Desactivar el movimiento y el arma (la escopeta es hija de la cámara)
-        GetComponent<PlayerController>()?.SetCanMove(false);
+        if (TryGetComponent(out PlayerController controller)) controller.SetCanMove(false);
         ShotgunController shotgun = GetComponentInChildren<ShotgunController>();
         if (shotgun != null) shotgun.enabled = false;
 
@@ -158,7 +158,7 @@ public class PlayerHealth : MonoBehaviour
         _lowHealthArmed = true;
         currentHealth = maxHealth;
         NotifyHealthChanged();
-        GetComponent<PlayerController>()?.SetCanMove(true);
+        if (TryGetComponent(out PlayerController controller)) controller.SetCanMove(true);
         ShotgunController shotgun = GetComponentInChildren<ShotgunController>();
         if (shotgun != null) shotgun.enabled = true;
     }

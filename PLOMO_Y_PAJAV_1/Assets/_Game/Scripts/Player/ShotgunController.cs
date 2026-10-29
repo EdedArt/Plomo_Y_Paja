@@ -88,8 +88,10 @@ public class ShotgunController : MonoBehaviour
 
     private void Awake()
     {
-        _animator = GetComponent<Animator>();
-        _audioSource = GetComponent<AudioSource>();
+        // TryGetComponent: si falta el componente, GetComponent devuelve un "null falso" de Unity
+        // con el que "?." no funciona
+        TryGetComponent(out _animator);
+        TryGetComponent(out _audioSource);
 
         // Si no se asignó la cámara en el Inspector, buscarla automáticamente
         if (playerCamera == null)
@@ -134,9 +136,9 @@ public class ShotgunController : MonoBehaviour
         _canFire = false;
 
         // 1. Efectos inmediatos
-        muzzleFlash?.Play();
+        if (muzzleFlash != null) muzzleFlash.Play(); // ?. no sirve con campos de Unity sin asignar
         PlaySound(fireSound);
-        _animator?.SetTrigger(FireHash);
+        if (_animator != null) _animator.SetTrigger(FireHash);
 
         // 2. Disparar cada perdigón como un raycast
         for (int i = 0; i < pelletsPerShot; i++)
@@ -216,7 +218,7 @@ public class ShotgunController : MonoBehaviour
     {
         _isReloading = true;
         PlaySound(reloadSound);
-        _animator?.SetTrigger(ReloadHash);
+        if (_animator != null) _animator.SetTrigger(ReloadHash);
 
         yield return new WaitForSeconds(reloadTime);
 

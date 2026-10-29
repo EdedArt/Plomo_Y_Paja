@@ -57,7 +57,8 @@ public class CluePickup : MonoBehaviour
 
     private void Start()
     {
-        _playerTransform = GameObject.FindWithTag("Player")?.transform;
+        GameObject playerObject = GameObject.FindWithTag("Player");
+        if (playerObject != null) _playerTransform = playerObject.transform;
 
         // Activar el highlight para que la pista sea visible en el mundo
         if (highlightEffect != null)
@@ -77,7 +78,7 @@ public class CluePickup : MonoBehaviour
             // Mostrar/ocultar el prompt de interacción
             if (_playerInRange)
             {
-                UIManager.Instance?.ShowInteractPrompt(interactPrompt);
+                if (UIManager.Instance != null) UIManager.Instance.ShowInteractPrompt(interactPrompt);
 
                 // Recoger al presionar E
                 if (Input.GetKeyDown(KeyCode.E))
@@ -85,7 +86,7 @@ public class CluePickup : MonoBehaviour
             }
             else
             {
-                UIManager.Instance?.HideInteractPrompt();
+                if (UIManager.Instance != null) UIManager.Instance.HideInteractPrompt();
             }
         }
     }
@@ -96,11 +97,11 @@ public class CluePickup : MonoBehaviour
         _collected = true;
 
         // 1. Registrar en el tracker de estado del juego
-        GameStateTracker.Instance?.RegisterClueCollected(clueId, shortDescription);
+        if (GameStateTracker.Instance != null) GameStateTracker.Instance.RegisterClueCollected(clueId, shortDescription);
 
         // 2. Mostrar el texto de la pista en pantalla
-        UIManager.Instance?.ShowClueUI(displayName, fullText, displayDuration);
-        UIManager.Instance?.HideInteractPrompt();
+        if (UIManager.Instance != null) UIManager.Instance.ShowClueUI(displayName, fullText, displayDuration);
+        if (UIManager.Instance != null) UIManager.Instance.HideInteractPrompt();
 
         // 3. Notificar a la IA para que comente (con delay para no solaparse con la UI)
         StartCoroutine(NotifyAIWithDelay(2f));
@@ -121,7 +122,7 @@ public class CluePickup : MonoBehaviour
     private IEnumerator NotifyAIWithDelay(float delay)
     {
         yield return new WaitForSeconds(delay);
-        AICompanion.Instance?.Speak(AITrigger.ClueFound, $"{displayName}: {shortDescription}");
+        if (AICompanion.Instance != null) AICompanion.Instance.Speak(AITrigger.ClueFound, $"{displayName}: {shortDescription}");
     }
 
     private void OnDrawGizmosSelected()

@@ -106,7 +106,7 @@ public class EnemyHealth : MonoBehaviour
     {
         _isSurrendered = true;
         _graceUntil = Time.time + surrenderGraceTime;
-        _ai?.TriggerSurrender();
+        if (_ai != null) _ai.TriggerSurrender();
 
         OnSurrender?.Invoke();
         onSurrender?.Invoke();
@@ -118,13 +118,13 @@ public class EnemyHealth : MonoBehaviour
 
         onEnemyDied?.Invoke();
         OnDeath?.Invoke();
-        _ai?.Die();
+        if (_ai != null) _ai.Die();
 
         // Notificar al tracker de estado del juego
-        GameStateTracker.Instance?.RegisterEnemyKilled(gameObject.name);
+        if (GameStateTracker.Instance != null) GameStateTracker.Instance.RegisterEnemyKilled(gameObject.name);
 
         // La IA puede comentar la muerte (AICompanion decide si habla o calla)
-        AICompanion.Instance?.Speak(AITrigger.EnemyKilled);
+        if (AICompanion.Instance != null) AICompanion.Instance.Speak(AITrigger.EnemyKilled);
 
         // Destruir el GameObject después de unos segundos (para que el sprite de muerte se vea)
         Destroy(gameObject, destroyDelay);

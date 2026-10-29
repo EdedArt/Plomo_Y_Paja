@@ -92,18 +92,18 @@ public class UIManager : MonoBehaviour
     private void Start()
     {
         // Ocultar paneles al iniciar
-        aiSubtitlePanel?.SetActive(false);
-        clueReadPanel?.SetActive(false);
-        dialoguePanel?.SetActive(false);
-        deathScreen?.SetActive(false);
-        pauseMenu?.SetActive(false);
-        interactPromptPanel?.SetActive(false);
+        if (aiSubtitlePanel != null) aiSubtitlePanel.SetActive(false);
+        if (clueReadPanel != null) clueReadPanel.SetActive(false);
+        if (dialoguePanel != null) dialoguePanel.SetActive(false);
+        if (deathScreen != null) deathScreen.SetActive(false);
+        if (pauseMenu != null) pauseMenu.SetActive(false);
+        if (interactPromptPanel != null) interactPromptPanel.SetActive(false);
 
         // Conectar botones
-        retryButton?.onClick.AddListener(GameManager.Instance.RetryCurrentLevel);
-        mainMenuButtonDeath?.onClick.AddListener(GameManager.Instance.GoToMainMenu);
-        resumeButton?.onClick.AddListener(() => GameManager.Instance.TogglePause());
-        mainMenuButtonPause?.onClick.AddListener(GameManager.Instance.GoToMainMenu);
+        if (retryButton != null) retryButton.onClick.AddListener(GameManager.Instance.RetryCurrentLevel);
+        if (mainMenuButtonDeath != null) mainMenuButtonDeath.onClick.AddListener(GameManager.Instance.GoToMainMenu);
+        if (resumeButton != null) resumeButton.onClick.AddListener(() => GameManager.Instance.TogglePause());
+        if (mainMenuButtonPause != null) mainMenuButtonPause.onClick.AddListener(GameManager.Instance.GoToMainMenu);
     }
 
     // ============ HUD ============
@@ -144,7 +144,7 @@ public class UIManager : MonoBehaviour
 
     public void HideInteractPrompt()
     {
-        interactPromptPanel?.SetActive(false);
+        if (interactPromptPanel != null) interactPromptPanel.SetActive(false);
     }
 
     // ============ IA SUBTÍTULO ============
@@ -162,7 +162,7 @@ public class UIManager : MonoBehaviour
 
     private IEnumerator ShowAISubtitleCoroutine(string text)
     {
-        aiSubtitlePanel?.SetActive(true);
+        if (aiSubtitlePanel != null) aiSubtitlePanel.SetActive(true);
 
         if (aiSubtitleText != null)
         {
@@ -191,7 +191,7 @@ public class UIManager : MonoBehaviour
             }
         }
 
-        aiSubtitlePanel?.SetActive(false);
+        if (aiSubtitlePanel != null) aiSubtitlePanel.SetActive(false);
     }
 
     // ============ PANEL DE PISTA ============
@@ -208,7 +208,7 @@ public class UIManager : MonoBehaviour
     private IEnumerator HideClueAfterDelay(float delay)
     {
         yield return new WaitForSeconds(delay);
-        clueReadPanel?.SetActive(false);
+        if (clueReadPanel != null) clueReadPanel.SetActive(false);
     }
 
     // ============ DIÁLOGO / INTERROGACIÓN ============
@@ -246,7 +246,7 @@ public class UIManager : MonoBehaviour
 
     public void HideDialogue()
     {
-        dialoguePanel?.SetActive(false);
+        if (dialoguePanel != null) dialoguePanel.SetActive(false);
         if (crosshair != null) crosshair.SetActive(true);
         Cursor.lockState = CursorLockMode.Locked;
         Cursor.visible = false;
@@ -256,13 +256,13 @@ public class UIManager : MonoBehaviour
 
     public void ShowDeathScreen()
     {
-        deathScreen?.SetActive(true);
+        if (deathScreen != null) deathScreen.SetActive(true);
         Cursor.lockState = CursorLockMode.None;
         Cursor.visible = true;
     }
 
     public void ShowPauseMenu(bool show)
     {
-        pauseMenu?.SetActive(show);
+        if (pauseMenu != null) pauseMenu.SetActive(show);
     }
 }

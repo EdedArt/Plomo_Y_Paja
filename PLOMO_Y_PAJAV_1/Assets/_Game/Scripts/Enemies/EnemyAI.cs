@@ -202,7 +202,7 @@ public class EnemyAI : MonoBehaviour
     {
         // Centinela: espera mirando hacia su dirección inicial. No hace nada hasta detectar al jugador.
         transform.rotation = Quaternion.Slerp(transform.rotation, _homeRotation, Time.deltaTime * 3f);
-        billboardSprite?.PlayWalk(); // Animación idle (primer frame del walk)
+        if (billboardSprite != null) billboardSprite.PlayWalk(); // Animación idle (primer frame del walk)
     }
 
     private void UpdatePatrol()
@@ -213,7 +213,7 @@ public class EnemyAI : MonoBehaviour
         // Moverse hacia el punto actual de patrulla (el destino se da una sola vez por punto:
         // repetirlo cada frame deja la ruta "pendiente" y remainingDistance no sirve)
         _agent.speed = patrolSpeed;
-        billboardSprite?.PlayWalk();
+        if (billboardSprite != null) billboardSprite.PlayWalk();
 
         if (!_hasPatrolDestination)
         {
@@ -244,7 +244,7 @@ public class EnemyAI : MonoBehaviour
     private void UpdateAlert()
     {
         // Breve estado de alerta antes de perseguir
-        billboardSprite?.PlayAlert();
+        if (billboardSprite != null) billboardSprite.PlayAlert();
         _agent.isStopped = true;
 
         // Después de 0.5 segundos pasa a perseguir
@@ -258,7 +258,7 @@ public class EnemyAI : MonoBehaviour
         _agent.isStopped = false;
         _agent.speed = chaseSpeed;
         _agent.SetDestination(playerTransform.position);
-        billboardSprite?.PlayAlert();
+        if (billboardSprite != null) billboardSprite.PlayAlert();
 
         // Atacar si está en rango
         if (_playerInAttackRange)
@@ -299,8 +299,8 @@ public class EnemyAI : MonoBehaviour
         _lastAttackTime = Time.time;
 
         // Buscar al jugador y hacerle daño
-        PlayerHealth playerHealth = playerTransform?.GetComponent<PlayerHealth>();
-        playerHealth?.TakeDamage(attackDamage);
+        if (playerTransform != null && playerTransform.TryGetComponent(out PlayerHealth playerHealth))
+            playerHealth.TakeDamage(attackDamage);
     }
 
     /// <summary>
@@ -337,13 +337,13 @@ public class EnemyAI : MonoBehaviour
                     _agent.ResetPath();
                 }
                 _agent.velocity = Vector3.zero;
-                billboardSprite?.PlayWalk(); // Frame de rendición
+                if (billboardSprite != null) billboardSprite.PlayWalk(); // Frame de rendición
                 break;
             case EnemyState.Dead:
                 StopAllCoroutines(); // la espera de patrulla tocaría un agente ya desactivado
                 if (_agent.isOnNavMesh) _agent.isStopped = true;
                 _agent.enabled = false;
-                billboardSprite?.PlayDeath();
+                if (billboardSprite != null) billboardSprite.PlayDeath();
                 break;
         }
     }

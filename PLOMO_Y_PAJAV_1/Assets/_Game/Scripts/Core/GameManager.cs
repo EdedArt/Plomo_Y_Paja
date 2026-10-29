@@ -57,7 +57,7 @@ public class GameManager : MonoBehaviour
     private IEnumerator ShowDeathScreen()
     {
         yield return new WaitForSeconds(deathScreenDelay);
-        UIManager.Instance?.ShowDeathScreen();
+        if (UIManager.Instance != null) UIManager.Instance.ShowDeathScreen();
     }
 
     /// <summary>
@@ -66,7 +66,7 @@ public class GameManager : MonoBehaviour
     public void RetryCurrentLevel()
     {
         gameIsOver = false;
-        GameStateTracker.Instance?.ResetState();
+        if (GameStateTracker.Instance != null) GameStateTracker.Instance.ResetState();
         Time.timeScale = 1f;
         SceneManager.LoadScene(SceneManager.GetActiveScene().buildIndex);
     }
@@ -77,7 +77,7 @@ public class GameManager : MonoBehaviour
     public void GoToMainMenu()
     {
         gameIsOver = false;
-        GameStateTracker.Instance?.ResetState();
+        if (GameStateTracker.Instance != null) GameStateTracker.Instance.ResetState();
         Time.timeScale = 1f;
         SceneManager.LoadScene(0); // MainMenu
     }
@@ -106,7 +106,9 @@ public class GameManager : MonoBehaviour
     {
         yield return new WaitForSeconds(endingScreenDelay);
 
-        GameEnding ending = GameStateTracker.Instance?.DetermineEnding() ?? GameEnding.BlindJustice;
+        GameEnding ending = GameStateTracker.Instance != null
+            ? GameStateTracker.Instance.DetermineEnding()
+            : GameEnding.BlindJustice;
 
         Debug.Log($"[GameManager] Final determinado: {ending}");
 
@@ -130,7 +132,7 @@ public class GameManager : MonoBehaviour
     {
         gameIsPaused = !gameIsPaused;
         Time.timeScale = gameIsPaused ? 0f : 1f;
-        UIManager.Instance?.ShowPauseMenu(gameIsPaused);
+        if (UIManager.Instance != null) UIManager.Instance.ShowPauseMenu(gameIsPaused);
 
         Cursor.lockState = gameIsPaused ? CursorLockMode.None : CursorLockMode.Locked;
         Cursor.visible = gameIsPaused;
