@@ -5,8 +5,10 @@ using UnityEngine;
 /// DÓNDE VA: raíz del Player (lo añade "Crear Prefabs de Prueba" con el material Fx_Lluvia).
 ///
 /// - Una caja de gotas sobre la cámara que se mueve con ella; las gotas viven lo justo para llegar al piso.
-/// - Bajo techo se apaga: cada 0.3 s se lanzan 5 rayos hacia arriba y, si alguno topa con un cielorraso o un techo,
-///   no se emite lluvia. Bajo un agujero del techo se queda apagada también (las goteras las pone el nivel).
+/// - Bajo techo se apaga: cada 0.1 s se lanzan 5 rayos hacia arriba y, si alguno topa con un cielorraso o un techo,
+///   no se emite lluvia. Los rayos ignoran triggers, los colliders del propio jugador, otros personajes y las mallas
+///   sin collider (conos de luz, cielo, fondos, la lluvia misma). El cambio de estado necesita 0.3 s seguidos con el
+///   mismo resultado (histéresis) para que la lluvia no parpadee en los umbrales de las puertas.
 /// - Sin material asignado no hace nada.
 /// </summary>
 public class RainEmitter : MonoBehaviour
@@ -23,7 +25,16 @@ public class RainEmitter : MonoBehaviour
     private ParticleSystem _rain;
     private Transform _camera;
     private float _nextCheck;
-    private bool _indoors;
+    private bool _indoors;          // estado aplicado
+    private bool _rawIndoors;       // última lectura de los rayos
+    private float _rawSince;        // desde cuándo se mantiene esa lectura
+
+    private const float CheckInterval = 0.1f;
+    private const float Hysteresis = 0.3f;
+    private const float ProbeLength = 9f;
+    // Todas las capas menos "Ignore Raycast" (2) y "UI" (5); el resto se filtra por componente (ver ProbeIndoors)
+    private static readonly int RoofMask = ~((1 << 2) | (1 << 5));
+    private static readonly RaycastHit[] Hits = new RaycastHit[8];
 
     private static readonly Vector3[] ProbeOffsets =
     {
@@ -87,22 +98,36 @@ public class RainEmitter : MonoBehaviour
 
         if (Time.unscaledTime >= _nextCheck)
         {
-            _nextCheck = Time.unscaledTime + 0.3f;
-            bool indoors = false;
-            foreach (Vector3 offset in ProbeOffsets)
+            _nextCheck = Time.unscaledTime + CheckInterval;
+            bool raw = ProbeIndoors();
+            if (raw != _rawIndoors)
             {
-                if (Physics.Raycast(_camera.position + offset, Vector3.up, 9f, Physics.DefaultRaycastLayers, QueryTriggerInteraction.Ignore))
-                {
-                    indoors = true;
-                    break;
-                }
+                _rawIndoors = raw;
+                _rawSince = Time.unscaledTime;
             }
-            if (indoors != _indoors)
+            if (_rawIndoors != _indoors && Time.unscaledTime - _rawSince >= Hysteresis)
             {
-                _indoors = indoors;
+                _indoors = _rawIndoors;
                 var emission = _rain.emission;
                 emission.enabled = !_indoors;
             }
         }
+    }
+
+    private bool ProbeIndoors()
+    {
+        foreach (Vector3 offset in ProbeOffsets)
+        {
+            int count = Physics.RaycastNonAlloc(_camera.position + offset, Vector3.up, Hits, ProbeLength, RoofMask,
+                QueryTriggerInteraction.Ignore);
+            for (int i = 0; i < count; i++)
+            {
+                Collider c = Hits[i].collider;
+                if (c == null || c.isTrigger || c.transform.IsChildOf(transform)) continue;           // el propio jugador
+                if (c.GetComponentInParent<EnemyHealth>() != null) continue;                           // otros personajes
+                return true;                                                                           // cielorraso, techo, alero...
+            }
+        }
+        return false;
     }
 }

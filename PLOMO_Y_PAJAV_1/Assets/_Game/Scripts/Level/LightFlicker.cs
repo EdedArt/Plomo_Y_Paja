@@ -56,9 +56,14 @@ public class LightFlicker : MonoBehaviour
         _seed = Random.value * 100f;
     }
 
+    /// <summary>Probabilidad de que ocurra un evento de "rate" por segundo en un frame de dt segundos (independiente del FPS).</summary>
+    private static float Chance(float ratePerSecond, float dt) => 1f - Mathf.Exp(-Mathf.Max(0f, ratePerSecond) * dt);
+
     private void Update()
     {
-        float dt = Time.deltaTime;
+        // Tiempo de juego (se congela con el hit-stop o la pausa); un tirón de FPS no dispara rachas
+        float dt = Mathf.Min(Time.deltaTime, 0.1f);
+        if (dt <= 0f) return;
 
         // Racha de apagones: alterna apagado / encendido breve
         if (_offTimer > 0f)
@@ -75,7 +80,7 @@ public class LightFlicker : MonoBehaviour
             if (_gapTimer <= 0f && _blinksRemaining > 0)
                 StartBlink();
         }
-        else if (Random.value < offChancePerSecond * dt)
+        else if (Random.value < Chance(offChancePerSecond, dt))
         {
             _blinksRemaining = Random.Range(1, maxBlinks + 1);
             StartBlink();
@@ -89,14 +94,14 @@ public class LightFlicker : MonoBehaviour
             _dipTimer -= dt;
             if (_dipTimer <= 0f) _dipMultiplier = 1f;
         }
-        else if (Random.value < dipChancePerSecond * dt)
+        else if (Random.value < Chance(dipChancePerSecond, dt))
         {
             _dipTimer = Random.Range(dipDuration.x, dipDuration.y);
             _dipMultiplier = Random.Range(dipMinMultiplier, 0.8f);
         }
 
         float noise = 1f - noiseAmount * Mathf.PerlinNoise(Time.time * noiseSpeed, _seed);
-        _light.intensity = baseIntensity * noise * _dipMultiplier;
+        _light.intensity = Mathf.Max(0f, baseIntensity * noise * _dipMultiplier);
     }
 
     private void StartBlink()

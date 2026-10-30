@@ -99,38 +99,94 @@ public class BillboardSprite : MonoBehaviour
         RefreshMode();
     }
 
+    // ============ Pies al suelo (fase 3A4-fix) ============
+    // El NavMesh queda unos centímetros por encima del piso real (voxelización), así que el agente flota sobre su
+    // sombra. Se mide el piso con un rayo y se compensa con NavMeshAgent.baseOffset.
+    //  - Mide al aparecer y luego cada 0.5 s; el cambio se aplica suavizado (0.4 m/s), nunca de golpe ni cada frame.
+    //  - La corrección total se limita a ±0.3 m respecto al baseOffset original. Si no hay piso, conserva el último valor.
+    //  - No actúa con el agente apagado, fuera del NavMesh ni durante la muerte.
+    private const float GroundProbeStart = 0.6f;
+    private const float GroundProbeLength = 1.6f;
+    private const float MaxCorrection = 0.3f;
+    private const float MeasureInterval = 0.5f;
+    private const float SmoothSpeed = 0.4f;
+    private const float FeetTolerance = 0.02f;
+
+    // Máscara del piso: todas las capas menos "Ignore Raycast" (2) y "UI" (5). Los personajes comparten la capa Default
+    // con el escenario, así que además se descartan por componente (EnemyHealth, PlayerController, CharacterController),
+    // los colliders propios, los triggers (QueryTriggerInteraction.Ignore) y las superficies no horizontales.
+    // BlobShadow, LightCone, cielo y fondos son mallas sin collider: un raycast nunca las toca.
+    private static readonly int GroundMask = ~((1 << 2) | (1 << 5));
+    private static readonly RaycastHit[] GroundHits = new RaycastHit[8];
+
+    private NavMeshAgent _agent;
+    private EnemyHealth _owner;
+    private EnemyAI _ai;
+    private Transform _root;
+    private float _originalBaseOffset;
+    private float _targetBaseOffset;
+    private float _nextMeasure;
+
     private void Start()
     {
-        if (unlitLook) AlignFeetToGround();
+        if (!unlitLook) return;
+        _owner = GetComponentInParent<EnemyHealth>();
+        _ai = GetComponentInParent<EnemyAI>();
+        _root = _owner != null ? _owner.transform : (transform.parent != null ? transform.parent : transform);
+        if (!_root.TryGetComponent(out _agent)) return;
+
+        _originalBaseOffset = _agent.baseOffset;
+        _targetBaseOffset = _agent.baseOffset;
+        if (CanAlign()) MeasureGround(true);
+        _nextMeasure = Time.time + MeasureInterval;
     }
 
-    /// <summary>
-    /// El NavMesh queda unos centímetros por encima del piso real (voxelización), así que el agente flota sobre su
-    /// sombra. Se mide con un rayo hacia abajo y se compensa con baseOffset (o bajando el visual si no hay agente).
-    /// Tolerancia 2 cm; ignora los colliders del propio personaje.
-    /// </summary>
-    private void AlignFeetToGround()
+    private bool CanAlign()
     {
-        EnemyHealth owner = GetComponentInParent<EnemyHealth>();
-        Transform root = owner != null ? owner.transform : (transform.parent != null ? transform.parent : transform);
-        RaycastHit[] hits = Physics.RaycastAll(root.position + Vector3.up * 0.6f, Vector3.down, 1.6f,
-            Physics.DefaultRaycastLayers, QueryTriggerInteraction.Ignore);
+        return _agent != null && _agent.enabled && _agent.isOnNavMesh
+               && (_owner == null || !_owner.IsDead)
+               && (_ai == null || _ai.CurrentState != EnemyAI.EnemyState.Dead);
+    }
+
+    private void UpdateGroundOffset()
+    {
+        if (_agent == null || !CanAlign()) return;
+
+        if (Time.time >= _nextMeasure)
+        {
+            _nextMeasure = Time.time + MeasureInterval;
+            MeasureGround(false);
+        }
+        if (!Mathf.Approximately(_agent.baseOffset, _targetBaseOffset))
+            _agent.baseOffset = Mathf.MoveTowards(_agent.baseOffset, _targetBaseOffset, SmoothSpeed * Time.deltaTime);
+    }
+
+    private void MeasureGround(bool immediate)
+    {
+        int count = Physics.RaycastNonAlloc(_root.position + Vector3.up * GroundProbeStart, Vector3.down, GroundHits,
+            GroundProbeLength, GroundMask, QueryTriggerInteraction.Ignore);
 
         float groundY = float.NegativeInfinity;
-        foreach (RaycastHit hit in hits)
+        for (int i = 0; i < count; i++)
         {
-            if (hit.collider.transform.IsChildOf(root)) continue;
+            RaycastHit hit = GroundHits[i];
+            Collider c = hit.collider;
+            if (c == null || c.transform.IsChildOf(_root)) continue;
+            if (hit.normal.y < 0.7f) continue;                                           // solo superficies de piso
+            if (c.GetComponentInParent<EnemyHealth>() != null || c.GetComponentInParent<PlayerController>() != null
+                || c.GetComponent<CharacterController>() != null) continue;               // otros personajes
             if (hit.point.y > groundY) groundY = hit.point.y;
         }
-        if (float.IsNegativeInfinity(groundY)) return;
+        if (float.IsNegativeInfinity(groundY)) return;                                    // sin piso: se conserva el valor
 
-        float gap = root.position.y - groundY;
-        if (gap < 0.02f || gap > 0.5f) return;
-
-        if (root.TryGetComponent(out NavMeshAgent agent) && agent.enabled)
-            agent.baseOffset -= gap;
+        float feetHeight = _root.position.y - groundY;                                    // > 0 = flotando
+        if (Mathf.Abs(feetHeight) >= FeetTolerance)
+            _targetBaseOffset = Mathf.Clamp(_agent.baseOffset - feetHeight,
+                _originalBaseOffset - MaxCorrection, _originalBaseOffset + MaxCorrection);
         else
-            (transform.parent != null ? transform.parent : transform).localPosition -= Vector3.up * gap;
+            _targetBaseOffset = _agent.baseOffset;
+
+        if (immediate) _agent.baseOffset = _targetBaseOffset;
     }
 
     private void ApplyUnlitLook()
@@ -185,6 +241,7 @@ public class BillboardSprite : MonoBehaviour
         // LateUpdate se ejecuta después de Update: perfecto para billboards
         // porque así los enemigos ya movieron antes de que actualizemos la rotación
 
+        UpdateGroundOffset();
         RotateTowardsCamera();
         if (_useSet) UpdateSetAnimation();
         else UpdateAnimation();
