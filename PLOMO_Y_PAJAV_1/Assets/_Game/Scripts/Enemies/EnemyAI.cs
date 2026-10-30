@@ -8,7 +8,7 @@ using UnityEngine.AI;            // NavMesh: navegación automática por el nive
 /// DÓNDE VA: GameObject raíz del enemigo.
 ///
 /// MÁQUINA DE ESTADOS (un estado a la vez; cada frame se ejecuta la lógica del actual):
-///   Idle ──┐                      (solo Centinela: quieto hasta ver/oír al jugador)
+///   Idle ──┐                      (solo Centinela: vuelve a su puesto y vigila hasta ver/oír al jugador)
 ///   Patrol ┴→ Alert → Chase ⇄ Attack
 ///                       │
 ///   (EnemyHealth, vida baja) → Surrender → el jugador puede interrogarlo (DialogueNPC)
@@ -82,6 +82,7 @@ public class EnemyAI : MonoBehaviour
     // ===================== Estado interno =====================
 
     private NavMeshAgent _agent;                    // Mueve al enemigo por el NavMesh
+    private EnemyHealth _health;                    // Su vida (para reaccionar a los golpes)
     private PlayerController _playerController;     // Para saber si el jugador corre (oído)
     private int _currentPatrolIndex = 0;            // Punto de patrulla al que va
     private bool _waitingAtPoint = false;           // true mientras espera en un punto
@@ -89,7 +90,9 @@ public class EnemyAI : MonoBehaviour
     private bool _playerInSightRange = false;       // ¿Lo vio este frame?
     private bool _playerInAttackRange = false;      // ¿Está al alcance del golpe?
     private bool _hasPatrolDestination = false;     // Ya se le dio el destino del punto actual
-    private Quaternion _homeRotation;               // Hacia dónde mira el centinela en reposo
+    private Vector3 _homePosition;                  // Puesto del centinela (donde empezó)
+    private Quaternion _homeRotation;               // Hacia dónde mira el centinela en su puesto
+    private bool _returningHome = false;            // true mientras el centinela camina de vuelta a su puesto
 
     // ===================== API pública =====================
 
@@ -108,6 +111,7 @@ public class EnemyAI : MonoBehaviour
     private void Awake()
     {
         _agent = GetComponent<NavMeshAgent>();                  // Siempre existe por el RequireComponent
+        TryGetComponent(out _health);                           // Opcional: sin EnemyHealth solo no reacciona a golpes
 
         if (playerTransform == null)                            // No lo asignaron en el Inspector
         {
@@ -118,9 +122,27 @@ public class EnemyAI : MonoBehaviour
             _playerController = playerTransform.GetComponent<PlayerController>();
     }
 
+    private void OnEnable()
+    {
+        if (_health != null) _health.OnDamaged += HandleDamaged;    // Escuchar los golpes
+    }
+
+    private void OnDisable()
+    {
+        if (_health != null) _health.OnDamaged -= HandleDamaged;    // Dejar de escuchar (evita llamadas a un objeto apagado)
+    }
+
+    /// <summary>Recibió un golpe: mostrar la pose hit un instante.</summary>
+    private void HandleDamaged(float damage)
+    {
+        if (currentState == EnemyState.Dead) return;                // Muerto: se queda el dibujo de muerte
+        if (billboardSprite != null) billboardSprite.PlayHit();
+    }
+
     private void Start()
     {
-        _homeRotation = transform.rotation;                     // El centinela volverá a mirar hacia aquí
+        _homePosition = transform.position;                     // El centinela volverá a este puesto...
+        _homeRotation = transform.rotation;                     // ...y a mirar hacia aquí
         if (enemyType == EnemyType.Centinela)
         {
             ChangeState(EnemyState.Idle);                       // Centinela: empieza quieto
@@ -195,6 +217,9 @@ public class EnemyAI : MonoBehaviour
         Vector3 eye = transform.position + Vector3.up;                          // Ojos: 1 m sobre los pies
         Vector3 toTarget = (playerTransform.position + Vector3.up) - eye;       // Hacia el pecho del jugador
 
+        // OJO: solo la capa "Default" tapa la vista. Si Cristian pone las paredes
+        // del nivel en otra capa (p. ej. "Walls"), hay que agregarla a este LayerMask:
+        // LayerMask.GetMask("Default", "Walls"). Si no, el lobo verá a través de ellas.
         if (Physics.Raycast(eye, toTarget.normalized, out RaycastHit hit, toTarget.magnitude,
             LayerMask.GetMask("Default")))                                      // Solo choca con la capa Default (paredes)
         {
@@ -207,9 +232,36 @@ public class EnemyAI : MonoBehaviour
 
     private void UpdateIdle()
     {
-        // Centinela: espera mirando hacia su dirección inicial, girando suave (Slerp)
+        // 1) Si viene de perseguir, primero camina de vuelta a su puesto
+        if (_returningHome)
+        {
+            if (billboardSprite != null) billboardSprite.PlayWalk();           // Pose caminando
+            if (!AgentReady()) { _returningHome = false; return; }             // Sin NavMesh no puede volver: vigila desde aquí
+            if (_agent.pathPending || _agent.remainingDistance > 0.5f) return;  // Aún en camino (el agente gira solo hacia donde va)
+
+            _returningHome = false;                                            // Llegó al puesto
+            _agent.isStopped = true;                                           // Plantarse
+        }
+
+        // 2) En su puesto: girar suave (Slerp) hasta su rotación de origen y vigilar
         transform.rotation = Quaternion.Slerp(transform.rotation, _homeRotation, Time.deltaTime * 3f);
-        if (billboardSprite != null) billboardSprite.PlayWalk();               // Pose normal (respira gracias a RubberHoseAnimator)
+        if (billboardSprite != null) billboardSprite.PlayIdle();               // Pose quieto (respira gracias a RubberHoseAnimator)
+    }
+
+    /// <summary>Al entrar en Idle: si el centinela está lejos de su puesto, mandarlo de vuelta.</summary>
+    private void StartReturnHome()
+    {
+        _returningHome = false;
+        if (!AgentReady()) return;                                             // Sin NavMesh no se puede caminar
+        if (Vector3.Distance(transform.position, _homePosition) <= 0.5f)        // Ya está en su puesto
+        {
+            _agent.isStopped = true;
+            return;
+        }
+        _agent.speed = patrolSpeed;                                            // Vuelve caminando, no corriendo
+        _agent.isStopped = false;
+        _agent.SetDestination(_homePosition);                                  // Ruta al puesto
+        _returningHome = true;
     }
 
     private void UpdatePatrol()
@@ -243,6 +295,7 @@ public class EnemyAI : MonoBehaviour
     {
         _waitingAtPoint = true;                                                 // Bloquea UpdatePatrol mientras espera
         SetAgentStopped(true);                                                  // Quieto
+        if (billboardSprite != null) billboardSprite.PlayIdle();               // Pose quieto mientras espera
         yield return new WaitForSeconds(waitTimeAtPoint);                       // Esperar sin congelar el juego
         AdvancePatrolPoint();                                                   // Elegir el siguiente punto
         SetAgentStopped(false);                                                 // Puede volver a moverse
@@ -257,9 +310,9 @@ public class EnemyAI : MonoBehaviour
 
     private void UpdateAlert()
     {
-        // "¡Ahí está!": se detiene un momento con pose de alerta.
+        // "¡Ahí está!": se detiene un momento (el estirón de sorpresa lo pone RubberHoseAnimator).
         // El paso a Chase lo hace la corrutina AlertTransition (ver ChangeState).
-        if (billboardSprite != null) billboardSprite.PlayAlert();
+        if (billboardSprite != null) billboardSprite.PlayIdle();
         SetAgentStopped(true);
     }
 
@@ -270,7 +323,7 @@ public class EnemyAI : MonoBehaviour
         _agent.isStopped = false;                                               // Correr
         _agent.speed = chaseSpeed;
         _agent.SetDestination(playerTransform.position);                        // Ir a donde está el jugador AHORA
-        if (billboardSprite != null) billboardSprite.PlayAlert();              // Pose agresiva
+        if (billboardSprite != null) billboardSprite.PlayWalk();               // Pose caminando (el rebote se acelera al correr)
 
         if (_playerInAttackRange)                                               // Ya lo alcanzó
         {
@@ -286,6 +339,7 @@ public class EnemyAI : MonoBehaviour
     private void UpdateAttack()
     {
         SetAgentStopped(true);                                                  // Se planta para golpear
+        if (billboardSprite != null) billboardSprite.PlayAttack();             // Pose shoot (golpe cuerpo a cuerpo)
 
         if (playerTransform != null)                                            // Girar hacia el jugador
         {
@@ -326,7 +380,7 @@ public class EnemyAI : MonoBehaviour
         switch (newState)
         {
             case EnemyState.Idle:
-                SetAgentStopped(true);                                          // Centinela quieto
+                StartReturnHome();                                              // Centinela: volver al puesto (o quedarse si ya está)
                 break;
             case EnemyState.Patrol:
                 _hasPatrolDestination = false;                                  // Pedir de nuevo el destino al volver
