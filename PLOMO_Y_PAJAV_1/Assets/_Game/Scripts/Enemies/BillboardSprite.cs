@@ -223,14 +223,4 @@ public class BillboardSprite : MonoBehaviour
         _currentAnimation = null;                                       // Ya no hay pose que animar
         _isDead = true;                                                 // Bloquear cualquier cambio de pose posterior
     }
-
-    /// <summary>
-    /// Ya no hace nada: los sprites son siempre de frente y no se voltean
-    /// (la sombra pintada quedaría al revés). Se conserva para no romper
-    /// a quien lo llame; EnemyAI deja de usarlo en el paso 2.
-    /// </summary>
-    public void SetFacingDirection(Vector3 movementDirection)
-    {
-        // Intencionalmente vacío.
-    }
 }
