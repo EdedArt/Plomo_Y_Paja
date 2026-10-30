@@ -397,8 +397,23 @@ public static partial class CartoonKit
         if (parent != null) go.transform.SetParent(parent, false);
         go.transform.SetPositionAndRotation(position, rotation);
         go.AddComponent<MeshFilter>().sharedMesh = mesh;
-        go.AddComponent<MeshRenderer>().sharedMaterials = mats;
+        go.AddComponent<MeshRenderer>().sharedMaterials = FitMaterials(mesh, mats);
         return go;
+    }
+
+    /// <summary>
+    /// Un material por submalla, ni más ni menos (si no, Unity avisa "has more materials than submeshes").
+    /// Las piezas con varias variantes (ej: DanoPared con y sin tablas) comparten la lista de materiales aunque cada
+    /// variante use menos submallas: sobran los últimos. Si faltan, se repite el último, como haría Unity al dibujar.
+    /// </summary>
+    public static Material[] FitMaterials(Mesh mesh, Material[] mats)
+    {
+        if (mesh == null || mats == null) return mats;
+        int count = Mathf.Max(1, mesh.subMeshCount);
+        if (mats.Length == count) return mats;
+        var fitted = new Material[count];
+        for (int i = 0; i < count; i++) fitted[i] = mats[Mathf.Min(i, mats.Length - 1)];
+        return fitted;
     }
 
     /// <summary>Malla de caja redondeada del tamaño exacto (sin escalar el transform, así el bisel no se deforma).</summary>
