@@ -3,7 +3,7 @@
 - **Day:** Fri 30 Oct
 - **Model:** Opus 5.5
 - **Commit tag:** `dia3b`
-- **Gate:** `docs/audits/PHASE-3A-audit.md` must start with `ESTADO: LUZ VERDE`. If not, stop.
+- **Gate:** `docs/audits/PHASE-3A2-audit.md` must start with `ESTADO: LUZ VERDE`. If not, stop.
 - **Audit file:** `docs/audits/PHASE-3B-audit.md`
 
 ## Goal
@@ -139,8 +139,9 @@ Commit: `dia3b(cristian): Nivel Porky completo con HUD y salida`
    Add the missing markers to the generator.
 2. HUD (runtime-built or prefab via the generator; reuse UIManager's HUD only if wiring is
    cheap, otherwise a new `HUD` component and mark the HUD parts of UIManager obsolete — record
-   the decision): health bar bottom-left, shells `6 / 18` bottom-right, small clue counter
-   `Pistas: 2` top-left, crosshair. Cartoon style: thick black outlines, cream and red.
+   the decision): HUD in the style of 1930s cartoon badges: health = round portrait medallion
+   bottom-left with a number on a ribbon; ammo = round medallion bottom-right with loaded/reserve
+   numbers; objective text top-left in a rounded cartoon font; no bars.
 3. `LevelExit` trigger: if Build Settings has a next scene, `GameManager.LoadNextLevel()`;
    otherwise show a centered title card `Continuará...` for 3 s. GameStateTracker survives the
    scene change.

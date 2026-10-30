@@ -21,6 +21,9 @@ using UnityEngine;
 /// TIPOS DE BILLBOARD:
 /// - Full: el sprite rota en todos los ejes para mirar a la cámara
 /// - YAxis: solo rota en Y (el sprite "voltea" pero no se inclina) — más natural para personajes
+///
+/// LOOK (fase 3A2): el sprite y el accesorio usan el shader sin iluminación (CharacterLook), el
+/// placeholder se ve plano con contorno negro, y la raíz recibe una BlobShadow.
 /// </summary>
 public class BillboardSprite : MonoBehaviour
 {
@@ -38,6 +41,9 @@ public class BillboardSprite : MonoBehaviour
 
     [Tooltip("¿Voltear el sprite horizontalmente según el movimiento?")]
     [SerializeField] private bool flipWithMovement = true;
+
+    [Tooltip("Personaje sin iluminación + contorno en el placeholder + sombra blob (regla de legibilidad)")]
+    [SerializeField] private bool unlitLook = true;
 
     [Header("Set de sprites (pipeline de arte)")]
     [Tooltip("Animaciones del personaje. Vacío = se ve el placeholder")]
@@ -84,11 +90,25 @@ public class BillboardSprite : MonoBehaviour
     {
         _mainCamera = Camera.main;
         _spriteRenderer = GetComponent<SpriteRenderer>();
+        if (unlitLook) ApplyUnlitLook();
 
         if (walkSprites != null && walkSprites.Length > 0)
             _currentAnimation = walkSprites;
 
         RefreshMode();
+    }
+
+    private void ApplyUnlitLook()
+    {
+        CharacterLook.ApplySprite(_spriteRenderer);
+        if (placeholderRenderers != null)
+            foreach (Renderer r in placeholderRenderers)
+                CharacterLook.ApplyPlaceholder(r);
+
+        // La sombra va en la raíz del personaje (no en el sprite, que gira)
+        EnemyHealth owner = GetComponentInParent<EnemyHealth>();
+        Transform root = owner != null ? owner.transform : (transform.parent != null ? transform.parent : transform);
+        if (root.GetComponent<BlobShadow>() == null) root.gameObject.AddComponent<BlobShadow>();
     }
 
     /// <summary>Cambia el set en runtime (ej: informantes de la fase 3B).</summary>
@@ -110,6 +130,9 @@ public class BillboardSprite : MonoBehaviour
             _accessoryRenderer = go.AddComponent<SpriteRenderer>();
             _accessoryRenderer.sortingLayerID = _spriteRenderer.sortingLayerID;
             _accessoryRenderer.sortingOrder = _spriteRenderer.sortingOrder + 1;
+            if (unlitLook) CharacterLook.ApplySprite(_accessoryRenderer);
+            // Un pelín delante del sprite: con alpha clip ambos escriben profundidad
+            go.transform.localPosition = new Vector3(0f, 0f, -0.005f);
         }
         if (_accessoryRenderer != null) _accessoryRenderer.enabled = false;
 

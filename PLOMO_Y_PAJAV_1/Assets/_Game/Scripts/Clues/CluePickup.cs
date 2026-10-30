@@ -60,6 +60,9 @@ public class CluePickup : MonoBehaviour
         GameObject playerObject = GameObject.FindWithTag("Player");
         if (playerObject != null) _playerTransform = playerObject.transform;
 
+        // Sin iluminación + contorno + vaivén: se lee como interactuable (fase 3A2)
+        if (GetComponent<PickupPresentation>() == null) gameObject.AddComponent<PickupPresentation>();
+
         // Activar el highlight para que la pista sea visible en el mundo
         if (highlightEffect != null)
             highlightEffect.SetActive(true);

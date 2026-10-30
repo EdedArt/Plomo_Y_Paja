@@ -42,6 +42,7 @@ public static class TestPrefabGenerator
     public static void EnsurePrefabs(bool regenerate)
     {
         LevelBuilderUtils.EnsureFolder(PrefabFolder);
+        CharacterLookBuilder.CreateAll(); // materiales sin iluminación de personajes (fase 3A2)
 
         if (regenerate || !File.Exists(AICompanionPath)) CreateAICompanionPrefab();
         if (regenerate || !File.Exists(GuardPath)) CreateGuardPrefab();

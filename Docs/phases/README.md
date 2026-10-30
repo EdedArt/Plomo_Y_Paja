@@ -6,6 +6,7 @@ a phase may only start when the previous phase's audit file carries the green-li
 | Phase | Day | Title | Model |
 |---|---|---|---|
 | [3A](PHASE-3A.md) | Thu 29 Oct | Technicolor look, asset pipeline, combat juice, barks, UI split | Opus 5.5 |
+| [3A2](PHASE-3A2.md) | Fri 30 Oct | "Mouse P.I." look: unlit 2D characters, painted 3D cartoon environment | Opus 5.5 |
 | [3B](PHASE-3B.md) | Fri 30 Oct | Informants, GameStateTracker wiring, clues, Level 1 complete | Opus 5.5 |
 | [4](PHASE-4.md) | Sat 31 Oct | Level 2 (Campamento), Don Lobo boss, final decision | Opus 5.5 |
 | [5](PHASE-5.md) | Sun 1 Nov | Intro storybook, 3 endings, menus, death/retry | Sonnet 5.5 |

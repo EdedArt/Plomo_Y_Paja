@@ -133,19 +133,26 @@ public class EnemyCombatFx : MonoBehaviour
 
     private void Flash()
     {
-        if (_renderers == null || CartoonFx.Instance == null) return;
+        if (_renderers == null) return;
         if (_flashRoutine != null) StopCoroutine(_flashRoutine);
         _flashRoutine = StartCoroutine(FlashRoutine());
     }
 
     private IEnumerator FlashRoutine()
     {
-        Material meshFlash = CartoonFx.Instance.FlashMeshMaterial;
-        Material spriteFlash = CartoonFx.Instance.FlashSpriteMaterial;
+        // Shaders de personaje (fase 3A2): _FlashAmount por renderer. Otros materiales: cambio de
+        // material por uno blanco (truco de 3A), si CartoonFx los tiene.
+        Material meshFlash = CartoonFx.Instance != null ? CartoonFx.Instance.FlashMeshMaterial : null;
+        Material spriteFlash = CartoonFx.Instance != null ? CartoonFx.Instance.FlashSpriteMaterial : null;
         for (int i = 0; i < _renderers.Length; i++)
         {
             Renderer r = _renderers[i];
             if (r == null) continue;
+            if (CharacterLook.SupportsFlash(r))
+            {
+                CharacterLook.SetFlash(r, 1f);
+                continue;
+            }
             Material flash = r is SpriteRenderer ? spriteFlash : meshFlash;
             if (flash != null) r.sharedMaterial = flash;
         }
@@ -159,7 +166,12 @@ public class EnemyCombatFx : MonoBehaviour
     {
         if (_renderers == null) return;
         for (int i = 0; i < _renderers.Length; i++)
-            if (_renderers[i] != null) _renderers[i].sharedMaterial = _originalMaterials[i];
+        {
+            Renderer r = _renderers[i];
+            if (r == null) continue;
+            r.sharedMaterial = _originalMaterials[i];
+            CharacterLook.SetFlash(r, 0f);
+        }
     }
 
     // ============ Muerte ============
