@@ -6,6 +6,11 @@ using UnityEngine.UI;
 /// Frases de los enemigos: globo de diálogo sobre la cabeza + voz (AudioLibrary.PlayVoice).
 /// DÓNDE VA: raíz del enemigo, junto a EnemyHealth y EnemyAI (lo añade "Crear Prefabs de Prueba").
 /// Sin audio grabado solo se ve el globo. Un solo globo por enemigo a la vez.
+///
+/// DISCIPLINA DE VOZ (3A7): todas las voces de enemigos pasan por AudioLibrary.TryPlayEnemyVoice (un solo canal,
+/// prioridad muerte > rendición > daño > ver > patrulla, enfriamiento global). Probabilidades y tiempos en
+/// AudioLibrary → Mix. Al morir el sonido NO verbal lo pone EnemyCombatFx siempre (caida_silbato + golpe_cartoon);
+/// aquí solo se decide si además dice una frase. El globo sale solo si la frase se aceptó.
 /// </summary>
 [RequireComponent(typeof(EnemyHealth))]
 public class EnemyBarks : MonoBehaviour
@@ -13,7 +18,6 @@ public class EnemyBarks : MonoBehaviour
     [SerializeField] private string voiceSet = BarkDatabase.DefaultSet;
     [SerializeField] private float bubbleHeight = 2.3f;
     [SerializeField] private float bubbleSeconds = 2f;
-    [SerializeField] private float damageCooldown = 3f;
     [SerializeField] private Vector2 patrolInterval = new Vector2(15f, 30f);
     [SerializeField] private float patrolRange = 15f;
 
@@ -24,7 +28,8 @@ public class EnemyBarks : MonoBehaviour
     private GameObject _bubble;
     private TextMeshProUGUI _label;
     private float _bubbleUntil;
-    private float _nextDamageBark;
+    private float _nextHurtAttempt;
+    private static float _lastDeathPhrase = -999f;
     private float _nextPatrolBark;
     private bool _seenPlayer;
     private bool _dead;
@@ -59,16 +64,22 @@ public class EnemyBarks : MonoBehaviour
         if (!_seenPlayer && (state == EnemyAI.EnemyState.Alert || state == EnemyAI.EnemyState.Chase
                              || state == EnemyAI.EnemyState.Attack))
         {
-            _seenPlayer = true;
-            Say("ver");
+            _seenPlayer = true;                                  // una sola vez por episodio de alerta (con o sin suerte)
+            if (Roll(AudioLibrary.Mix.spottedPhraseChance)) Say("ver", AudioLibrary.PrioritySpotted);
+        }
+        else if (_seenPlayer && (state == EnemyAI.EnemyState.Patrol || state == EnemyAI.EnemyState.Idle))
+        {
+            _seenPlayer = false;                                 // volvió a la calma: puede avisar en la próxima alerta
         }
 
         if (state == EnemyAI.EnemyState.Patrol && Time.time >= _nextPatrolBark)
         {
             _nextPatrolBark = Time.time + Random.Range(patrolInterval.x, patrolInterval.y);
             Camera cam = Camera.main;
-            if (cam != null && (cam.transform.position - transform.position).sqrMagnitude <= patrolRange * patrolRange)
-                Say("patrulla");
+            if (cam != null && (cam.transform.position - transform.position).sqrMagnitude <= patrolRange * patrolRange
+                && AudioLibrary.SecondsSinceEnemyPhrase >= AudioLibrary.Mix.patrolQuietSeconds
+                && Roll(AudioLibrary.Mix.patrolPhraseChance))
+                Say("patrulla", AudioLibrary.PriorityPatrol);
         }
     }
 
@@ -84,26 +95,43 @@ public class EnemyBarks : MonoBehaviour
 
     private void OnDamage()
     {
-        if (_dead || Time.time < _nextDamageBark) return;
-        if (_health.HealthPercentage <= 0f) return; // si muere habla "morir"
-        _nextDamageBark = Time.time + damageCooldown;
-        Say("dano");
+        // Los 8 perdigones llaman a la vez: el enfriamiento se gasta en el intento, haya suerte o no
+        if (_dead || Time.time < _nextHurtAttempt) return;
+        if (_health.HealthPercentage <= 0f) return; // el golpe mortal no hace quejido: habla (o no) la muerte
+        _nextHurtAttempt = Time.time + AudioLibrary.Mix.hurtPhraseCooldown;
+        if (Roll(AudioLibrary.Mix.hurtPhraseChance)) Say("dano", AudioLibrary.PriorityHurt);
     }
 
-    private void OnSurrender() { if (!_dead) Say("rendir"); }
+    private void OnSurrender()
+    {
+        if (!_dead && Roll(AudioLibrary.Mix.surrenderPhraseChance)) Say("rendir", AudioLibrary.PrioritySurrender);
+    }
 
     private void OnDeath()
     {
         if (_dead) return;
         _dead = true;
-        Say("morir");
+        AudioLibrary.CutEnemyVoiceBelow(AudioLibrary.PriorityDeath);   // ningún quejido pendiente suena encima
+        if (_bubble != null) _bubble.SetActive(false);                 // y su globo de daño desaparece
+
+        AudioLibrary.MixSettings mix = AudioLibrary.Mix;
+        if (Time.time - _lastDeathPhrase >= mix.deathPhraseCooldown && Roll(mix.deathPhraseChance))
+        {
+            _lastDeathPhrase = Time.time;
+            Say("morir", AudioLibrary.PriorityDeath);
+        }
     }
 
-    private void Say(string evt)
+    private static bool Roll(float chance)
+    {
+        return chance >= 1f || Random.value < chance;
+    }
+
+    private void Say(string evt, int priority)
     {
         if (!BarkDatabase.GetRandom(voiceSet, evt, out string lineId, out string text)) return;
+        if (!AudioLibrary.TryPlayEnemyVoice(lineId, transform.position + Vector3.up * 1.6f, priority)) return;
         ShowBubble(text);
-        AudioLibrary.PlayVoice(lineId, transform.position + Vector3.up * 1.6f);
     }
 
     private void ShowBubble(string text)

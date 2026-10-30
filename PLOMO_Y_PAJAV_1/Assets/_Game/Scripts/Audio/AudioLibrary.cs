@@ -61,6 +61,24 @@ public class AudioLibrary : ScriptableObject
         public float thunderMaxInterval = 60f;
         [Tooltip("Segundos mínimos entre quejidos de Wilbur (la escopeta no los apila)")]
         public float hurtVoiceCooldown = 0.6f;
+
+        [Header("Voces de enemigos (3A7)")]
+        [Tooltip("Segundos mínimos entre frases de enemigos (cualquiera). Una frase de MAYOR prioridad que la anterior se salta este tiempo")]
+        public float enemyPhraseCooldown = 4f;
+        [Tooltip("Mismo efecto exacto (mismo id) como máximo 1 vez cada tantos segundos: 8 perdigones = 1 impacto")]
+        public float sfxDedupeSeconds = 0.08f;
+        [Tooltip("Probabilidad de frase al morir (el sonido de muerte no verbal suena SIEMPRE)")]
+        [Range(0f, 1f)] public float deathPhraseChance = 0.25f;
+        [Tooltip("Segundos mínimos entre dos frases de muerte (de cualquier enemigo)")]
+        public float deathPhraseCooldown = 20f;
+        [Range(0f, 1f)] public float surrenderPhraseChance = 1f;
+        [Range(0f, 1f)] public float hurtPhraseChance = 0.4f;
+        [Tooltip("Segundos mínimos entre quejidos del MISMO enemigo")]
+        public float hurtPhraseCooldown = 1.5f;
+        [Range(0f, 1f)] public float spottedPhraseChance = 0.5f;
+        [Range(0f, 1f)] public float patrolPhraseChance = 0.3f;
+        [Tooltip("La frase de patrulla solo sale si ningún enemigo habló en los últimos segundos")]
+        public float patrolQuietSeconds = 15f;
     }
 
     [SerializeField] private MixSettings mix = new MixSettings();
@@ -110,6 +128,88 @@ public class AudioLibrary : ScriptableObject
     }
 #endif
 
+    // ============ Voz de enemigos: un solo canal ============
+    // Un único AudioSource para todos los enemigos: nunca hay dos voces de enemigo a la vez.
+    // Prioridad: patrulla < ver < daño < rendición < muerte. Una voz nueva solo interrumpe si tiene MAYOR prioridad
+    // (la muerte siempre corta). Entre frases hay un enfriamiento global, salvo que la nueva tenga mayor prioridad.
+
+    public const int PriorityPatrol = 0, PrioritySpotted = 1, PriorityHurt = 2, PrioritySurrender = 3, PriorityDeath = 4;
+
+    private static AudioSource _enemyVoice;
+    private static float _voiceBusyUntil;          // fin estimado de la frase en curso (2 s si no hay clip)
+    private static int _voicePriority = -1;
+    private static float _lastPhraseTime = -999f;  // cuándo empezó la última frase de cualquier enemigo
+    private static int _lastPhrasePriority = -1;
+
+    /// <summary>Segundos desde la última frase de cualquier enemigo.</summary>
+    public static float SecondsSinceEnemyPhrase => Time.time - _lastPhraseTime;
+
+    /// <summary>
+    /// Pide hablar a un enemigo. Devuelve true si la frase se acepta (suena el clip si existe; sin clip solo se
+    /// registra, para que globos y reglas se comporten igual con o sin audio). False = se omite.
+    /// </summary>
+    public static bool TryPlayEnemyVoice(string lineId, Vector3 position, int priority)
+    {
+        float now = Time.time;
+        bool busy = now < _voiceBusyUntil;
+        if (priority < PriorityDeath)
+        {
+            if (busy && priority <= _voicePriority) return false;                     // canal ocupado por algo igual o mayor
+            if (now - _lastPhraseTime < Mix.enemyPhraseCooldown && priority <= _lastPhrasePriority) return false;
+        }
+
+        AudioClip clip = _active != null ? _active.FindVoice(lineId) : null;
+        if (clip == null) LogMissingOnce("voz", lineId);
+
+        if (_enemyVoice == null)
+        {
+            var go = new GameObject("AudioLibrary_EnemyVoice");
+            _enemyVoice = go.AddComponent<AudioSource>();
+            _enemyVoice.playOnAwake = false;
+            _enemyVoice.rolloffMode = AudioRolloffMode.Linear;
+            _enemyVoice.minDistance = 2f;
+            _enemyVoice.dopplerLevel = 0f;
+        }
+        _enemyVoice.Stop();                                                           // corta la anterior
+        _voicePriority = priority;
+        _lastPhraseTime = now;
+        _lastPhrasePriority = priority;
+        _voiceBusyUntil = now + (clip != null ? clip.length : 2f);
+        if (clip != null)
+        {
+            _enemyVoice.transform.position = position;
+            _enemyVoice.spatialBlend = 1f;
+            _enemyVoice.maxDistance = _active.maxDistance;
+            _enemyVoice.clip = clip;
+            _enemyVoice.volume = _active.voiceVolume;
+            _enemyVoice.pitch = 1f;
+            _enemyVoice.Play();
+        }
+        return true;
+    }
+
+    /// <summary>Corta la voz de enemigo en curso si es de menor prioridad que la dada (ej: al morir un enemigo).</summary>
+    public static void CutEnemyVoiceBelow(int priority)
+    {
+        if (_enemyVoice != null && _voicePriority < priority)
+        {
+            _enemyVoice.Stop();
+            _voiceBusyUntil = 0f;
+            _voicePriority = -1;
+        }
+    }
+
+    // Anti-apilado de efectos idénticos
+    private static readonly Dictionary<string, float> LastSfxTime = new Dictionary<string, float>();
+
+    private static bool SfxTooSoon(string name)
+    {
+        float now = Time.unscaledTime;
+        if (LastSfxTime.TryGetValue(name, out float last) && now - last < Mix.sfxDedupeSeconds) return true;
+        LastSfxTime[name] = now;
+        return false;
+    }
+
     // ============ API estática ============
 
     /// <summary>Reproduce una línea de voz en una posición del mundo. Devuelve false si no hay clip.</summary>
@@ -128,6 +228,7 @@ public class AudioLibrary : ScriptableObject
     /// <summary>Reproduce una variante al azar de un efecto en una posición del mundo.</summary>
     public static bool PlaySfx(string name, Vector3 position)
     {
+        if (SfxTooSoon(name)) return true;
         AudioClip clip = _active != null ? _active.PickSfx(name) : null;
         if (clip == null)
         {
@@ -141,6 +242,7 @@ public class AudioLibrary : ScriptableObject
     /// <summary>Reproduce un efecto sin posición (sonidos del propio jugador: escopeta, pistas).</summary>
     public static bool PlaySfx2D(string name)
     {
+        if (SfxTooSoon(name)) return true;
         AudioClip clip = _active != null ? _active.PickSfx(name) : null;
         if (clip == null)
         {
@@ -154,6 +256,7 @@ public class AudioLibrary : ScriptableObject
     /// <summary>Efecto sin posición con el volumen multiplicado (ej: truenos con Mix.thunder).</summary>
     public static bool PlaySfx2D(string name, float volumeScale)
     {
+        if (SfxTooSoon(name)) return true;
         AudioClip clip = _active != null ? _active.PickSfx(name) : null;
         if (clip == null)
         {
