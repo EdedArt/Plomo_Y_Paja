@@ -132,7 +132,7 @@ public static class TestPrefabGenerator
         root.AddComponent<EnemyHealth>(); // canSurrender = false por defecto
         EnemyAI ai = root.AddComponent<EnemyAI>();
 
-        // Todo lo visible cuelga de "Visual": RubberHoseMotion lo deforma sin tocar el collider
+        // Todo lo visible cuelga de "Visual" (sin collider): EnemyCombatFx lo hace volar al morir
         var visual = new GameObject("Visual");
         visual.transform.SetParent(root.transform, false);
 
@@ -164,13 +164,19 @@ public static class TestPrefabGenerator
         placeholders.arraySize = 2;
         placeholders.GetArrayElementAtIndex(0).objectReferenceValue = body.GetComponent<MeshRenderer>();
         placeholders.GetArrayElementAtIndex(1).objectReferenceValue = head.GetComponent<MeshRenderer>();
+        billboardSo.FindProperty("anchorFeet").boolValue = false;       // el importador ya pone el pivote en los pies
+        billboardSo.FindProperty("flipWithMovement").boolValue = false; // sombra pintada: nunca se voltea
         billboardSo.ApplyModifiedPropertiesWithoutUndo();
+
+        // Goma de Edgar en el mismo objeto que el sprite: su origen son los pies (raíz en los pies + pivote del
+        // importador), así que estira/aplasta desde el piso y el ancho va en el eje de pantalla del billboard.
+        // Escucha sola a EnemyAI.OnStateChanged y EnemyHealth.OnDamaged (los busca en los padres).
+        spriteHolder.AddComponent<RubberHoseAnimator>();
 
         var aiSo = new SerializedObject(ai);
         aiSo.FindProperty("billboardSprite").objectReferenceValue = billboard;
         aiSo.ApplyModifiedPropertiesWithoutUndo();
 
-        root.AddComponent<RubberHoseMotion>();
         root.AddComponent<EnemyCombatFx>();
         root.AddComponent<EnemyBarks>();
 

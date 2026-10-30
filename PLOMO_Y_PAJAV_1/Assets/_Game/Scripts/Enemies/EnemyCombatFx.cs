@@ -9,8 +9,11 @@ using UnityEngine.AI;
 /// GOLPE (una vez por disparo aunque entren los 8 perdigones):
 ///   empujón de 1.5 m/s durante 0.15 s, destello blanco 0.08 s, aplastón, chorro de sangre.
 /// MUERTE:
-///   hit-stop de 50 ms, sale volando hacia atrás girando, aplastón al caer, humo + estrellitas +
-///   dientes + charco, y a los 2 s se encoge hasta desaparecer (EnemyHealth lo destruye después).
+///   hit-stop de 50 ms, sale volando hacia atrás girando, al caer humo + estrellitas + dientes + charco
+///   y RubberHoseAnimator lo aplasta (el ÚNICO aplastado del cadáver; aquí ya no se deforma), y a los 2 s
+///   se encoge hasta desaparecer (EnemyHealth lo destruye después).
+/// El aplastón de cada golpe lo pone RubberHoseAnimator (escucha EnemyHealth.OnDamaged); RubberHoseMotion
+/// solo se usa si un prefab viejo todavía lo tiene.
 /// </summary>
 [RequireComponent(typeof(EnemyHealth))]
 public class EnemyCombatFx : MonoBehaviour
@@ -34,7 +37,8 @@ public class EnemyCombatFx : MonoBehaviour
 
     private EnemyHealth _health;
     private NavMeshAgent _agent;
-    private RubberHoseMotion _motion;
+    private RubberHoseMotion _motion;       // prefabs viejos (3A); los nuevos usan RubberHoseAnimator
+    private RubberHoseAnimator _hose;
     private BillboardSprite _billboard;
     private Transform _visual;
 
@@ -52,6 +56,7 @@ public class EnemyCombatFx : MonoBehaviour
         _health = GetComponent<EnemyHealth>();
         TryGetComponent(out _agent);
         TryGetComponent(out _motion);
+        _hose = GetComponentInChildren<RubberHoseAnimator>(true);
         _billboard = GetComponentInChildren<BillboardSprite>(true);
         _visual = transform.Find("Visual");
         if (_visual == null) _visual = transform;
@@ -224,16 +229,9 @@ public class EnemyCombatFx : MonoBehaviour
         Vector3 head = landed - away * (headHeight - 0.2f) + Vector3.up * 0.3f;
         CartoonFx.DeathBurst(head, landed);
 
+        // Un solo aplastado: el de RubberHoseAnimator (desde los pies). Aquí ya no se escala el cuerpo.
+        if (_hose != null) _hose.PlayDeathSquash();
         Vector3 baseScale = _visual.localScale;
-        float squash = 0f;
-        while (squash < 0.15f)
-        {
-            squash += Time.deltaTime;
-            float s = Mathf.Sin(Mathf.Clamp01(squash / 0.15f) * Mathf.PI);
-            _visual.localScale = new Vector3(baseScale.x * (1f + 0.35f * s), baseScale.y * (1f - 0.3f * s), baseScale.z * (1f + 0.35f * s));
-            yield return null;
-        }
-        _visual.localScale = baseScale;
 
         // 3. A los 2 s se encoge y desaparece
         while (Time.time - start < fadeOutAfter) yield return null;

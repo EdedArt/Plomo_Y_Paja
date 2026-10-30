@@ -92,7 +92,8 @@ public class RubberHoseAnimator : MonoBehaviour
     private float _springVelocity;           // Velocidad del resorte
     private bool _surrendered;               // ¿Está temblando de miedo?
     private bool _dead;                      // ¿Está muerto?
-    private float _deathTimer;               // Tiempo desde que murió
+    private float _deathTimer;               // Tiempo desde que empezó a aplastarse (< 0 = esperando a aterrizar)
+    private bool _deathOnLanding;            // Hay EnemyCombatFx: el cuerpo vuela y el aplastado llega al aterrizar
 
     // ===================== Ciclo de vida =====================
 
@@ -103,6 +104,17 @@ public class RubberHoseAnimator : MonoBehaviour
         _baseScale = transform.localScale;                              // Recordar la forma original
         _basePosition = transform.localPosition;
         _phaseOffset = Random.value * 10f;                              // Número al azar entre 0 y 10
+        _deathOnLanding = GetComponentInParent<EnemyCombatFx>() != null; // Él avisa con PlayDeathSquash al tocar el piso
+    }
+
+    /// <summary>
+    /// 6. Empezar el aplastado de muerte ya (EnemyCombatFx lo llama cuando el cuerpo aterriza).
+    /// Es el ÚNICO aplastado del cadáver: EnemyCombatFx ya no deforma el cuerpo.
+    /// </summary>
+    public void PlayDeathSquash()
+    {
+        _dead = true;
+        if (_deathTimer < 0f) _deathTimer = 0f;
     }
 
     private void OnEnable()
@@ -143,7 +155,7 @@ public class RubberHoseAnimator : MonoBehaviour
                 break;
             case EnemyAI.EnemyState.Dead:                               // 6. Empieza a aplastarse
                 _dead = true;
-                _deathTimer = 0f;
+                _deathTimer = _deathOnLanding ? -1f : 0f;               // Con vuelo: forma normal hasta aterrizar
                 break;
         }
     }
@@ -211,6 +223,12 @@ public class RubberHoseAnimator : MonoBehaviour
     /// <summary>6. Aplastarse hasta quedar como tortilla, con un pequeño rebote al final.</summary>
     private void UpdateDeath(float dt)
     {
+        if (_deathTimer < 0f)                                           // Volando: sin goma, forma normal
+        {
+            ApplyShape(1f);
+            transform.localPosition = _basePosition;
+            return;
+        }
         _deathTimer += dt;
         float t = Mathf.Clamp01(_deathTimer / deathDuration);           // 0 → 1 durante deathDuration
         float eased = EaseOutBack(t);                                   // Se pasa un poquito y vuelve: efecto goma
