@@ -74,6 +74,7 @@ public static class LevelBuilder_NivelPorky
         BuildBoundaries(environment);
         BuildDestruction(environment);
         BuildYardProps(environment);
+        Transform story = BuildStory(environment, lighting);
         BuildStreetLamps(environment, lighting);
         Light moon = BuildLighting(lighting);
         BuildMarkers(markers);
@@ -83,6 +84,7 @@ public static class LevelBuilder_NivelPorky
 
         // Solo el entorno es estático; luces, haces, cielo y marcadores no
         MarkStaticRecursive(environment.gameObject);
+        CartoonKit.ExcludeFromNavMesh(story); // cartas, manchas y huellas no cuentan para el NavMesh
 
         // Guardar antes de hornear: el NavMesh se guarda junto a la escena
         EditorSceneManager.SaveScene(scene, ScenePath);
@@ -118,6 +120,11 @@ public static class LevelBuilder_NivelPorky
 
     private const float FloorTop = 0.06f;
 
+    // Goteras: agujeros del cielorraso (rect x,z) y del techo de paja (x, z, radio). Fuera de pistas y puertas.
+    private static readonly Rect LeakKitchenA = new Rect(-1.5f, 3.9f, 1.4f, 1.4f);      // centro (-0.8, 4.6)
+    private static readonly Rect LeakKitchenB = new Rect(4.6f, 3.0f, 1f, 1f);           // centro (5.1, 3.5)
+    private static readonly Rect LeakSala = new Rect(-5.35f, -2.75f, 1.5f, 1.5f);       // centro (-4.6, -2.0)
+
     private static void BuildGround(Transform env)
     {
         Transform ground = CreateGroup("Suelos", env);
@@ -130,7 +137,7 @@ public static class LevelBuilder_NivelPorky
         CartoonKit.DirtPath("Camino_Trasero", BackPath, 1.7f, ground);
 
         // Piso de tablas de la casa, 6 cm sobre el patio
-        CartoonKit.PlankFloor("Casa_Piso", new Vector3(0f, FloorTop, 0f), new Vector2(16.2f, 12.2f), ground);
+        CartoonKit.PlankFloor("Casa_Piso", new Vector3(0f, FloorTop, 0f), new Vector2(16.2f, 12.2f), ground, 1f);
     }
 
     /// <summary>0 = plano (casa, caminos, bordes de la losa), 1 = ondulado.</summary>
@@ -195,24 +202,43 @@ public static class LevelBuilder_NivelPorky
 
         // Cielorraso de madera con vigas (cocina completa y fondo de la sala) + techo de paja encima
         Transform roof = CreateGroup("Techo", house);
-        CreateBox("Techo_Cocina", new Vector3(0f, WallHeight + 0.1f, 4.05f), new Vector3(16.2f, 0.2f, 4.1f), CartoonKit.M("Cielorraso"), roof);
-        CreateBox("Techo_Sala", new Vector3(-3f, WallHeight + 0.1f, -0.5f), new Vector3(10.2f, 0.2f, 5f), CartoonKit.M("Cielorraso"), roof);
+        CartoonKit.CeilingWithHoles("Techo_Cocina", new Vector3(0f, WallHeight + 0.1f, 4.05f), new Vector2(16.2f, 4.1f), 0.2f,
+            CartoonKit.M("Cielorraso"), roof, LeakKitchenA, LeakKitchenB);
+        CartoonKit.CeilingWithHoles("Techo_Sala", new Vector3(-3f, WallHeight + 0.1f, -0.5f), new Vector2(10.2f, 5f), 0.2f,
+            CartoonKit.M("Cielorraso"), roof, LeakSala);
         for (int i = 0; i < 4; i++)
-            CreateBox($"Viga_Cocina_{i}", new Vector3(-6f + i * 4f, WallHeight - 0.08f, 4.05f), new Vector3(0.22f, 0.18f, 4f), _wood, roof);
+        {
+            // Una viga de la cocina cedió: más baja e inclinada
+            bool sagging = i == 2;
+            CreateBox($"Viga_Cocina_{i}", new Vector3(-6f + i * 4f, WallHeight - (sagging ? 0.2f : 0.08f), 4.05f), new Vector3(0.22f, 0.18f, 4f), _wood, roof,
+                sagging ? new Vector3(3.5f, 0f, 0f) : Vector3.zero);
+        }
         for (int i = 0; i < 3; i++)
             CreateBox($"Viga_Sala_{i}", new Vector3(-6.5f + i * 3.5f, WallHeight - 0.08f, -0.5f), new Vector3(0.22f, 0.18f, 4.9f), _wood, roof);
-        CartoonKit.ThatchedRoof("TechoPaja_Cocina", new Vector3(0f, WallHeight + 0.2f, 4.1f), 17.2f, 5.2f, 1.6f, roof);
-        CartoonKit.ThatchedRoof("TechoPaja_Sala", new Vector3(-3f, WallHeight + 0.22f, -0.6f), 10.9f, 5.8f, 1.9f, roof);
+        CartoonKit.ThatchedRoof("TechoPaja_Cocina", new Vector3(0f, WallHeight + 0.2f, 4.1f), 17.2f, 5.2f, 1.6f, roof,
+            new Vector3(-0.8f, 4.6f, 0.85f), new Vector3(5.1f, 3.5f, 0.65f));
+        CartoonKit.ThatchedRoof("TechoPaja_Sala", new Vector3(-3f, WallHeight + 0.22f, -0.6f), 10.9f, 5.8f, 1.9f, roof,
+            new Vector3(-4.6f, -2.0f, 0.9f));
 
-        // Puerta delantera roja, abierta hacia dentro contra el borde izquierdo del vano (x = -5.8)
-        CartoonKit.DoorLeaf("Puerta_Delantera", new Vector3(-5.72f, FloorTop + (DoorHeight - 0.08f) / 2f, -5.15f),
-            Quaternion.Euler(0f, 90f, 0f), 1.5f, DoorHeight - 0.08f, _door, house);
+        // Puerta delantera pateada: cuelga de una sola bisagra (arriba, pegada a la pared) y su lado libre cae
+        const float doorH = DoorHeight - 0.08f;
+        var hinge = new GameObject("Puerta_Delantera_Bisagra").transform;
+        hinge.SetParent(house, false);
+        hinge.position = new Vector3(-5.72f, DoorHeight + 0.05f, -5.85f);
+        GameObject leaf = CartoonKit.DoorLeaf("Puerta_Delantera", hinge.position + new Vector3(0f, -doorH * 0.5f, 0.75f),
+            Quaternion.Euler(0f, 90f, 0f), 1.5f, doorH, _door, hinge);
+        hinge.rotation = Quaternion.Euler(10f, 0f, 0f);
+        leaf.GetComponent<BoxCollider>().enabled = false;          // contra la jamba, nunca estorba el paso
+        // Astillas del marco en el piso
+        for (int k = 0; k < 4; k++)
+            CreateBox($"Astilla_Puerta_{k}", new Vector3(-5.55f + k * 0.17f, FloorTop + 0.02f, -5.55f + (k % 2) * 0.25f), new Vector3(0.05f, 0.03f, 0.4f),
+                CartoonKit.M("MaderaClara"), house, new Vector3(0f, 25f + k * 40f, 0f)).GetComponent<BoxCollider>().enabled = false;
 
         // Ventanas (decorativas, hundidas entre los fardos de la cara exterior). +Z local = hacia afuera
         Transform windows = CreateGroup("Ventanas", house);
-        CartoonKit.WindowFrame("Ventana_Fachada", new Vector3(-1f, 1.7f, -6f - t / 2f - 0.05f), Quaternion.LookRotation(Vector3.back), 1.2f, 1f, windows);
-        CartoonKit.WindowFrame("Ventana_Fondo", new Vector3(3f, 1.7f, 6f + t / 2f + 0.05f), Quaternion.LookRotation(Vector3.forward), 1.2f, 1f, windows);
-        CartoonKit.WindowFrame("Ventana_Izquierda", new Vector3(-8f - t / 2f - 0.05f, 1.7f, -2f), Quaternion.LookRotation(Vector3.left), 1.2f, 1f, windows);
+        CartoonKit.WindowFrame("Ventana_Fachada", new Vector3(-1f, 1.7f, -6f - t / 2f - 0.05f), Quaternion.LookRotation(Vector3.back), 1.2f, 1f, windows, false, CartoonKit.WindowDamage.Boarded);
+        CartoonKit.WindowFrame("Ventana_Fondo", new Vector3(3f, 1.7f, 6f + t / 2f + 0.05f), Quaternion.LookRotation(Vector3.forward), 1.2f, 1f, windows, true, CartoonKit.WindowDamage.Cracked);
+        CartoonKit.WindowFrame("Ventana_Izquierda", new Vector3(-8f - t / 2f - 0.05f, 1.7f, -2f), Quaternion.LookRotation(Vector3.left), 1.2f, 1f, windows, false, CartoonKit.WindowDamage.Cracked);
     }
 
     // ============ Interior: muebles y lámparas ============
@@ -224,30 +250,107 @@ public static class LevelBuilder_NivelPorky
     {
         Transform furniture = CreateGroup("Muebles", env);
 
-        // Sala: alfombra, sofá contra la pared izquierda, cajita con el contrato, planta
+        // ---- Sala: alfombra, sofá, cajita del contrato, caja de mesita con las facturas
         CartoonKit.Rug("Alfombra_Sala", new Vector3(-4.2f, FloorTop, -2.4f), new Vector2(3.4f, 2.4f), 0f, furniture);
         CartoonKit.Sofa("Sofa", new Vector3(-7.35f, FloorTop, -1f), 90f, furniture, 2.2f);
         CartoonKit.Crate("Caja_Contrato", new Vector3(-6.5f, FloorTop, -2.5f), 15f, furniture, 0.24f); // la pista queda encima (y 0.3)
-        CartoonKit.PottedPlant("Planta_Sala", new Vector3(1.4f, FloorTop, -5.4f), furniture, 0);
-        CartoonKit.HangingLamp("Lampara_Sala", new Vector3(-3.5f, WallHeight, -1.2f), 0.55f, furniture, lighting, InteriorLamp, 1.7f, 5.5f);
-        CartoonKit.WallLamp("Aplique_Sala", new Vector3(-7.9f, 2.1f, -3.6f), 90f, furniture, lighting, InteriorLamp, 1f, 3.5f);
+        CartoonKit.Crate("Caja_Mesita", new Vector3(-7.4f, FloorTop, -3.9f), -8f, furniture, 0.5f);      // la caja hace de mesita
+        // Maceta tumbada con la tierra regada
+        GameObject plant = CartoonKit.PottedPlant("Planta_Tumbada", new Vector3(1.2f, FloorTop + 0.2f, -5.3f), furniture, 0);
+        plant.transform.rotation = Quaternion.Euler(0f, 40f, 82f);
+        // Silla patas arriba (volcada de lado)
+        GameObject tipped = CartoonKit.Chair("Silla_Volcada_Sala", new Vector3(0.5f, FloorTop + 0.24f, -3.8f), 0f, furniture, true);
+        tipped.transform.rotation = Quaternion.Euler(0f, 25f, 90f);
+        CartoonKit.BareBulb("Bombilla_Sala", new Vector3(-3.5f, WallHeight, -1.2f), 0.75f, furniture, lighting, InteriorLamp, 1.7f, 5.5f);
 
-        // Cocina: mesa redonda con dos sillas, nevera, barril y caja en el rincón, dos lámparas colgantes
-        CartoonKit.RoundTable("Mesa", new Vector3(2f, FloorTop, 4f), furniture, 0.55f);
-        CartoonKit.Chair("Silla_Izq", new Vector3(1.05f, FloorTop, 4f), 90f, furniture);
-        CartoonKit.Chair("Silla_Der", new Vector3(2.95f, FloorTop, 4.1f), -90f, furniture);
-        CartoonKit.IceBox("Nevera", new Vector3(7.4f, FloorTop, 5.25f), 180f, furniture);
+        // ---- Cocina: mesa volcada, silla coja, silla volcada, nevera de los años 30, barril y caja en el rincón
+        GameObject table = CartoonKit.RoundTable("Mesa_Volcada", new Vector3(2f, FloorTop + 0.35f, 4f), furniture, 0.55f);
+        table.transform.rotation = Quaternion.Euler(0f, 20f, 80f);
+        CartoonKit.Chair("Silla_Coja", new Vector3(0.9f, FloorTop, 4.1f), 90f, furniture, true);
+        GameObject tipped2 = CartoonKit.Chair("Silla_Volcada_Cocina", new Vector3(3.3f, FloorTop + 0.24f, 3.3f), 0f, furniture, true);
+        tipped2.transform.rotation = Quaternion.Euler(0f, -60f, 90f);
+        CartoonKit.IceBox("Nevera", new Vector3(7.4f, FloorTop, 5.25f), 180f, furniture, lighting);
         CartoonKit.Barrel("Barril_Cocina", new Vector3(-7.3f, FloorTop, 5.3f), 0f, furniture, 0);
         CartoonKit.Crate("Caja_Cocina", new Vector3(-6.35f, FloorTop, 5.35f), 8f, furniture, 0.7f);
-        CartoonKit.HangingLamp("Lampara_Cocina_A", new Vector3(-4f, WallHeight, 4f), 0.5f, furniture, lighting, InteriorLamp, 1.6f, 5f);
-        CartoonKit.HangingLamp("Lampara_Cocina_B", new Vector3(2f, WallHeight, 4f), 0.5f, furniture, lighting, InteriorLamp, 1.5f, 5f);
+        Light kitchenBulb = CartoonKit.BareBulb("Bombilla_Cocina", new Vector3(0f, WallHeight, 3.3f), 0.6f, furniture, lighting, InteriorLamp, 2f, 6.5f);
+        MakeSubtleFlicker(kitchenBulb);                                  // la única que parpadea, apenas
 
-        // Dormitorio: cómoda (la nota queda encima, y 1.1), cama y aplique; sin techo
-        CartoonKit.Dresser("Cajonera", new Vector3(2.45f, FloorTop, 0.8f), 90f, furniture, new Vector3(1.2f, 1f - FloorTop, 0.55f));
-        CartoonKit.WallLamp("Aplique_Dormitorio", new Vector3(7.9f, 2.1f, 0.4f), -90f, furniture, lighting, InteriorLamp, 1.1f, 4f);
-        CartoonKit.Box("Cama", new Vector3(6.6f, FloorTop + 0.25f, 1.1f), new Vector3(2f, 0.5f, 1.4f), _wood, furniture, default, 0.1f);
-        CartoonKit.Box("Cama_Colchon", new Vector3(6.6f, FloorTop + 0.58f, 1.1f), new Vector3(1.9f, 0.18f, 1.3f), CartoonKit.M("Yeso"), furniture, default, 0.08f, false);
-        CartoonKit.Box("Cama_Cabecera", new Vector3(7.75f, FloorTop + 0.75f, 1.1f), new Vector3(0.12f, 1f, 1.45f), _wood, furniture, default, 0.06f);
+        // ---- Dormitorio: cómoda saqueada (la nota queda encima, y 1.1), colchón en el piso, caja de mesita de noche
+        CartoonKit.Dresser("Cajonera", new Vector3(2.45f, FloorTop, 0.8f), 90f, furniture, new Vector3(1.2f, 1f - FloorTop, 0.55f), true);
+        CartoonKit.FloorMattress("Colchon", new Vector3(6.7f, FloorTop, 0.9f), 12f, furniture);
+        CartoonKit.Crate("Caja_Mesita_Noche", new Vector3(7.55f, FloorTop, 0.05f), 30f, furniture, 0.45f);
+        CreateBox("Tablon_Bombilla", new Vector3(7.25f, WallHeight - 0.15f, -0.6f), new Vector3(1.5f, 0.1f, 0.1f), _wood, furniture);
+        CartoonKit.BareBulb("Bombilla_Dormitorio", new Vector3(6.6f, WallHeight - 0.2f, -0.6f), 0.7f, furniture, lighting, InteriorLamp, 1.1f, 4.5f);
+    }
+
+    /// <summary>Parpadeo suave y raro: un bajón de vez en cuando, casi nunca un apagón.</summary>
+    private static void MakeSubtleFlicker(Light light)
+    {
+        LightFlicker flicker = light.gameObject.AddComponent<LightFlicker>();
+        var so = new SerializedObject(flicker);
+        so.FindProperty("noiseAmount").floatValue = 0.08f;
+        so.FindProperty("dipChancePerSecond").floatValue = 0.35f;
+        so.FindProperty("dipMinMultiplier").floatValue = 0.6f;
+        so.FindProperty("offChancePerSecond").floatValue = 0.02f;
+        so.ApplyModifiedPropertiesWithoutUndo();
+    }
+
+    // ============ Historia: casa de un jugador endeudado, saqueada ============
+    // Todo es decorativo (sin colliders) y sale del NavMesh. Nada tapa las dos pistas ni las puertas.
+
+    private static Transform BuildStory(Transform env, Transform lighting)
+    {
+        Transform story = CreateGroup("Narrativa", env);
+        float y = FloorTop + 0.012f;
+
+        // Vicio: cartas, dados, boletos y botellas que llevan la vista hacia las pistas
+        CartoonKit.GamblerClutter("Vicio_Puerta", new Vector3(-5.2f, y, -4.8f), 0.45f, 1, story, 8, 2, 5, 1);
+        CartoonKit.GamblerClutter("Vicio_Sofa", new Vector3(-5.9f, y, -3.5f), 0.5f, 2, story, 7, 2, 4, 2);
+        CartoonKit.GamblerClutter("Vicio_Alfombra", new Vector3(-5.4f, y + 0.012f, -2.0f), 0.5f, 3, story, 6, 1, 3, 2);
+        CartoonKit.GamblerClutter("Vicio_Dormitorio_A", new Vector3(3.2f, y, -1.6f), 0.5f, 4, story, 8, 2, 4, 1);
+        CartoonKit.GamblerClutter("Vicio_Dormitorio_B", new Vector3(3.6f, y, -0.2f), 0.45f, 5, story, 6, 1, 4, 1);
+        CartoonKit.GamblerClutter("Vicio_Cocina_A", new Vector3(-6.4f, y, 3.0f), 0.5f, 6, story, 3, 0, 2, 3);
+        CartoonKit.GamblerClutter("Vicio_Cocina_B", new Vector3(4.3f, y, 4.7f), 0.45f, 7, story, 6, 2, 3, 1);
+        CartoonKit.GamblerClutter("Vicio_Mesita_Noche", new Vector3(7.55f, FloorTop + 0.45f, 0.05f), 0.1f, 8, story, 2, 1, 1, 1);
+        CartoonKit.OverdueBills("Facturas_Mesita", new Vector3(-7.4f, FloorTop + 0.5f, -3.9f), 20f, story);
+        CartoonKit.OverdueBills("Facturas_Cocina", new Vector3(3.6f, y, 5.3f), -30f, story);
+
+        // Escena del crimen: platos rotos, rasguños de lobo, huellas embarradas de la puerta a la salida
+        CartoonKit.BrokenPlates("Platos_Cocina", new Vector3(2.9f, y, 4.4f), 0.7f, 1, story);
+        CartoonKit.BrokenPlates("Platos_Cocina_2", new Vector3(0.9f, y, 2.9f), 0.5f, 2, story);
+        CartoonKit.BrokenPlates("Platos_Sala", new Vector3(0.7f, y, -3.0f), 0.45f, 3, story);
+        CartoonKit.ClawMarks("Rasgunos_Sala", new Vector3(-7.866f, 1.7f, -4.7f), 90f, story);
+        CartoonKit.ClawMarks("Rasgunos_Cocina", new Vector3(-1.9f, 1.6f, 5.866f), 180f, story, 0.9f);
+
+        // Paredes pobres: papel roto con la paja a la vista y huecos tapados con tablas
+        CartoonKit.WallDamage("Dano_Sala_Oeste_A", new Vector3(-7.866f, 1.9f, 0.9f), 90f, story, 1, true);
+        CartoonKit.WallDamage("Dano_Sala_Oeste_B", new Vector3(-7.866f, 2.3f, -1.0f), 90f, story, 2, false);
+        CartoonKit.WallDamage("Dano_Sala_Fachada_A", new Vector3(-1.5f, 2.0f, -5.866f), 0f, story, 3, false);
+        CartoonKit.WallDamage("Dano_Sala_Fachada_B", new Vector3(0.2f, 1.9f, -5.866f), 0f, story, 4, true);
+        CartoonKit.WallDamage("Dano_Sala_Cocina", new Vector3(-6.0f, 2.3f, 1.866f), 180f, story, 5, false);
+        CartoonKit.WallDamage("Dano_Cocina_Sala", new Vector3(1.0f, 1.9f, 2.134f), 0f, story, 6, true);
+        CartoonKit.WallDamage("Dano_Cocina_Fondo_A", new Vector3(0.9f, 1.9f, 5.866f), 180f, story, 7, true);
+        CartoonKit.WallDamage("Dano_Cocina_Fondo_B", new Vector3(3.8f, 2.4f, 5.866f), 180f, story, 8, false);
+        CartoonKit.WallDamage("Dano_Cocina_Este", new Vector3(7.866f, 2.3f, 3.3f), -90f, story, 9, false);
+        CartoonKit.WallDamage("Dano_Dormitorio_Oeste", new Vector3(2.134f, 2.2f, -4.6f), 90f, story, 10, false);
+        CartoonKit.WallDamage("Dano_Dormitorio_Este", new Vector3(7.866f, 1.9f, -3.2f), -90f, story, 11, true);
+
+        // Huellas de lobo: del umbral de la puerta delantera, por la sala y la cocina, hasta la puerta trasera y la salida
+        var paws = new[]
+        {
+            new Vector3(-5f, 0f, -7.4f), new Vector3(-5f, 0f, -6.2f), new Vector3(-4.9f, FloorTop, -5.2f), new Vector3(-4.3f, FloorTop, -3.0f),
+            new Vector3(-3.4f, FloorTop, -0.5f), new Vector3(-3.05f, FloorTop, 2.0f), new Vector3(-3.1f, FloorTop, 3.5f),
+            new Vector3(-4.0f, FloorTop, 5.2f), new Vector3(-4.0f, FloorTop, 6.2f), new Vector3(-3.4f, 0f, 10f), new Vector3(-1.4f, 0f, 15.5f),
+            new Vector3(0f, 0f, 21f), new Vector3(0f, 0f, 27f), new Vector3(0f, 0f, 31f),
+        };
+        CartoonKit.WolfPawPrints("Huellas_Lobo", paws, story);
+
+        // Manchas de la casa y charcos de las goteras
+        CartoonKit.Stain("Mancha_Sala", new Vector3(-3.2f, y, -4.0f), 0.55f, 1, story);
+        CartoonKit.Stain("Mancha_Cocina", new Vector3(-2.4f, y, 3.2f), 0.6f, 2, story);
+        CartoonKit.Stain("Mancha_Dormitorio", new Vector3(4.6f, y, -4.2f), 0.7f, 3, story);
+        CartoonKit.Stain("Tierra_Maceta", new Vector3(1.55f, y, -5.0f), 0.3f, 4, story, "Tierra");
+        return story;
     }
 
     // ============ Límites: cerca, callejón, edificios de enfrente ============
@@ -330,6 +433,15 @@ public static class LevelBuilder_NivelPorky
         CartoonKit.PottedPlant("Maceta_Puerta_Der", new Vector3(-3.55f, 0f, -6.75f), props, 2);
         CartoonKit.StrawBale("Fardo_Delantero_A", new Vector3(6.9f, 0f, -9.35f), 8f, props);
         CartoonKit.StrawBale("Fardo_Delantero_B", new Vector3(-2.2f, 0f, -9.4f), -12f, props);
+
+        // Fardos caídos del muro de la fachada
+        GameObject fallen;
+        fallen = CartoonKit.StrawBale("Fardo_Caido_A", new Vector3(-7.4f, 0.2f, -6.85f), 20f, props);
+        fallen.transform.rotation = Quaternion.Euler(8f, 20f, 14f);
+        fallen = CartoonKit.StrawBale("Fardo_Caido_B", new Vector3(-0.6f, 0.22f, -6.8f), -30f, props);
+        fallen.transform.rotation = Quaternion.Euler(-6f, -30f, 20f);
+        fallen = CartoonKit.StrawBale("Fardo_Caido_C", new Vector3(1.6f, 0.15f, -7.1f), 70f, props);
+        fallen.transform.rotation = Quaternion.Euler(0f, 70f, 4f);
 
         CartoonKit.Barrel("Barril_Patio_A", new Vector3(7.4f, 0f, 18.2f), 0f, props, 1);
         CartoonKit.Barrel("Barril_Patio_B", new Vector3(6.6f, 0f, 18.9f), 40f, props, 2);

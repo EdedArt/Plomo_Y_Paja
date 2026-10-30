@@ -322,6 +322,24 @@ public static partial class CartoonKit
         { "PisoTabla", new Color32(0x4A, 0x34, 0x26, 0xFF) },
         { "PisoTablaClara", new Color32(0x5A, 0x41, 0x2F, 0xFF) },
         { "Cielorraso", new Color32(0x2C, 0x2A, 0x3E, 0xFF) },
+        // Vicio y escena del crimen (fase 3A4)
+        { "Carta", new Color32(0xEF, 0xE6, 0xCF, 0xFF) },
+        { "CartaRoja", new Color32(0xB8, 0x35, 0x2B, 0xFF) },
+        { "Boleto", new Color32(0xD9, 0x7A, 0x3A, 0xFF) },
+        { "Factura", new Color32(0xC9, 0xB2, 0x7A, 0xFF) },
+        { "Sello", new Color32(0xB3, 0x00, 0x1B, 0xFF) },
+        { "Botella", new Color32(0x3E, 0x7A, 0x4A, 0xFF) },
+        { "BotellaAmbar", new Color32(0x9A, 0x5A, 0x1E, 0xFF) },
+        { "Plato", new Color32(0xE8, 0xE8, 0xF0, 0xFF) },
+        { "PlatoAzul", new Color32(0x3C, 0x6E, 0xA5, 0xFF) },
+        { "Barro", new Color32(0x3A, 0x2A, 0x20, 0xFF) },
+        { "Mancha", new Color32(0x24, 0x1B, 0x16, 0xFF) },
+        { "Charco", new Color32(0x2A, 0x35, 0x50, 0xFF) },
+        { "Rasguno", new Color32(0x16, 0x12, 0x1E, 0xFF) },
+        { "Colchon", new Color32(0xB0, 0xA2, 0x80, 0xFF) },
+        { "Manta", new Color32(0x7A, 0x3B, 0x3B, 0xFF) },
+        { "Cromo", new Color32(0xC9, 0xD1, 0xD6, 0xFF) },
+        { "NeveraAbollada", new Color32(0xBD, 0xB7, 0x9F, 0xFF) },
         { "Pasto", new Color32(0x5E, 0x8C, 0x3A, 0xFF) },
         { "PastoLejano", new Color32(0x3E, 0x5A, 0x3A, 0xFF) },
     };
@@ -340,6 +358,7 @@ public static partial class CartoonKit
         { "VidrioCalido", new Color(1.6f, 0.95f, 0.45f) },
         { "Bombilla", new Color(3.2f, 2.1f, 1.1f) },
         { "VentanaApagada", new Color(0.05f, 0.04f, 0.08f) },
+        { "InteriorNevera", new Color(0.42f, 0.5f, 0.36f) },
     };
 
     /// <summary>Material del kit por nombre (ver Palette/Emissive). Desconocido = gris.</summary>

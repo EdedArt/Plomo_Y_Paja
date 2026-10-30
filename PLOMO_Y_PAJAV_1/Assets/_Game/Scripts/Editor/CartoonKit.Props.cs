@@ -160,28 +160,37 @@ public static partial class CartoonKit
         }, "MaderaClara", "MaderaOscura");
     }
 
-    /// <summary>Silla con respaldo curvo. yaw = hacia dónde mira quien se sienta.</summary>
-    public static GameObject Chair(string name, Vector3 position, float yaw, Transform parent)
+    /// <summary>
+    /// Silla con respaldo curvo. yaw = hacia dónde mira quien se sienta. wobbly = una pata más corta, asiento y
+    /// respaldo chuecos (casa pobre).
+    /// </summary>
+    public static GameObject Chair(string name, Vector3 position, float yaw, Transform parent, bool wobbly = false)
     {
-        return Prop("silla", name, position, yaw, parent, "Silla", b =>
+        return Prop("silla", name, position, yaw, parent, wobbly ? "SillaCoja" : "Silla", b =>
         {
             b.Submesh = 0;
-            AddBox(b, new Vector3(0f, 0.46f, 0f), new Vector3(0.46f, 0.07f, 0.46f), Quaternion.identity, 0.03f, 2);
+            Quaternion seatTilt = wobbly ? Quaternion.Euler(2.5f, 0f, 3.5f) : Quaternion.identity;
+            AddBox(b, new Vector3(0f, wobbly ? 0.44f : 0.46f, 0f), new Vector3(0.46f, 0.07f, 0.46f), seatTilt, 0.03f, 2);
             b.Submesh = 1;
             foreach (int sx in new[] { -1, 1 })
             foreach (int sz in new[] { -1, 1 })
-                AddBox(b, new Vector3(sx * 0.18f, 0.21f, sz * 0.18f), new Vector3(0.06f, 0.44f, 0.06f), Quaternion.Euler(sz * 3f, 0f, -sx * 3f), 0.02f);
-            // Respaldo curvo: travesaño en arco + 3 barrotes
+            {
+                bool shortLeg = wobbly && sx > 0 && sz < 0;
+                float legH = shortLeg ? 0.34f : 0.44f;
+                AddBox(b, new Vector3(sx * 0.18f, legH * 0.5f, sz * 0.18f), new Vector3(0.06f, legH, 0.06f), Quaternion.Euler(sz * 3f, 0f, -sx * 3f), 0.02f);
+            }
+            // Respaldo curvo: travesaño en arco + 3 barrotes (torcido si es coja)
             const int pieces = 7;
+            float lean = wobbly ? 9f : 0f;
             for (int i = 0; i < pieces; i++)
             {
                 float a = Mathf.Lerp(-55f, 55f, i / (pieces - 1f)) * Mathf.Deg2Rad;
-                Vector3 p = new Vector3(Mathf.Sin(a) * 0.26f, 0.95f, -0.08f - Mathf.Cos(a) * 0.15f);
-                AddBox(b, p, new Vector3(0.1f, 0.09f, 0.05f), Quaternion.Euler(0f, a * Mathf.Rad2Deg * 0.8f, 0f), 0.02f);
+                Vector3 p = new Vector3(Mathf.Sin(a) * 0.26f, 0.95f - (wobbly ? Mathf.Sin(a) * 0.05f : 0f), -0.08f - Mathf.Cos(a) * 0.15f);
+                AddBox(b, p, new Vector3(0.1f, 0.09f, 0.05f), Quaternion.Euler(0f, a * Mathf.Rad2Deg * 0.8f, lean), 0.02f);
             }
             for (int i = -1; i <= 1; i++)
-                AddBox(b, new Vector3(i * 0.15f, 0.71f, -0.21f - (1 - Mathf.Abs(i)) * 0.02f), new Vector3(0.05f, 0.44f, 0.04f),
-                    Quaternion.Euler(-6f, 0f, 0f), 0.015f);
+                AddBox(b, new Vector3(i * 0.15f, 0.71f, -0.21f - (1 - Mathf.Abs(i)) * 0.02f), new Vector3(0.05f, wobbly && i == 0 ? 0.3f : 0.44f, 0.04f),
+                    Quaternion.Euler(-6f, 0f, lean * 0.5f), 0.015f);
         }, "MaderaClara", "Madera");
     }
 
@@ -206,38 +215,84 @@ public static partial class CartoonKit
         }, "Sofa", "Cojin", "MaderaOscura");
     }
 
-    /// <summary>Cómoda con 3 cajones y pomos de latón. La tapa queda exactamente a "height".</summary>
-    public static GameObject Dresser(string name, Vector3 position, float yaw, Transform parent, Vector3 size)
+    /// <summary>
+    /// Cómoda con 3 cajones y pomos de latón. La tapa queda exactamente a "height". drawersOut = saqueada: dos cajones
+    /// sacados y uno a medias (no tapan la parte de arriba, donde queda la pista).
+    /// </summary>
+    public static GameObject Dresser(string name, Vector3 position, float yaw, Transform parent, Vector3 size, bool drawersOut = false)
     {
-        return Prop(null, name, position, yaw, parent, $"Comoda_{Cm(size.x)}x{Cm(size.y)}x{Cm(size.z)}", b =>
+        return Prop(null, name, position, yaw, parent, $"Comoda_{Cm(size.x)}x{Cm(size.y)}x{Cm(size.z)}{(drawersOut ? "_Saqueada" : "")}", b =>
         {
             b.Submesh = 0;
             AddBox(b, new Vector3(0f, (size.y - 0.06f) * 0.5f, 0f), new Vector3(size.x, size.y - 0.06f, size.z), Quaternion.identity, 0.05f, 2);
             AddBox(b, new Vector3(0f, size.y - 0.03f, 0f), new Vector3(size.x + 0.06f, 0.06f, size.z + 0.06f), Quaternion.identity, 0.025f, 2);
             b.Submesh = 1;
+            float[] pull = { 0.3f, 0.1f, 0.26f };
             for (int i = 0; i < 3; i++)
             {
                 float y = 0.12f + (size.y - 0.2f) * (i + 0.5f) / 3f;
-                AddBox(b, new Vector3(0f, y, size.z * 0.5f + 0.01f), new Vector3(size.x * 0.86f, (size.y - 0.3f) / 3f, 0.03f), Quaternion.identity, 0.015f);
-                b.Submesh = 2;
-                AddLathe(b, new Vector3(0f, y, size.z * 0.5f + 0.025f), Quaternion.Euler(90f, 0f, 0f), new[] { 0f, 0.02f, 0.045f }, new[] { 0.02f, 0.04f, 0f }, 8);
+                float out_ = drawersOut ? pull[i] : 0f;
+                float h = (size.y - 0.3f) / 3f;
                 b.Submesh = 1;
+                AddBox(b, new Vector3(0f, y, size.z * 0.5f + 0.01f + out_), new Vector3(size.x * 0.86f, h, 0.03f),
+                    drawersOut ? Quaternion.Euler(0f, 0f, i == 1 ? 0f : (i - 1) * 2f) : Quaternion.identity, 0.015f);
+                if (drawersOut)
+                {
+                    // Cajón sacado: fondo y paredes bajas
+                    AddBox(b, new Vector3(0f, y - h * 0.4f, size.z * 0.5f + out_ * 0.5f), new Vector3(size.x * 0.84f, 0.02f, out_ + 0.04f), Quaternion.identity, 0.008f, 1);
+                    foreach (int sx in new[] { -1, 1 })
+                        AddBox(b, new Vector3(sx * size.x * 0.42f, y - h * 0.1f, size.z * 0.5f + out_ * 0.5f), new Vector3(0.02f, h * 0.7f, out_ + 0.04f), Quaternion.identity, 0.008f, 1);
+                }
+                b.Submesh = 2;
+                AddLathe(b, new Vector3(0f, y, size.z * 0.5f + 0.025f + out_), Quaternion.Euler(90f, 0f, 0f), new[] { 0f, 0.02f, 0.045f }, new[] { 0.02f, 0.04f, 0f }, 8);
             }
         }, "Madera", "MaderaClara", "Laton");
     }
 
-    /// <summary>Nevera de los años 30: caja alta muy redondeada con manija gorda.</summary>
-    public static GameObject IceBox(string name, Vector3 position, float yaw, Transform parent)
+    /// <summary>
+    /// Nevera de los años 30: cuerpo gordito y redondeado, manija cromada, un poco abollada, con la puerta
+    /// entreabierta y una luz tenue adentro. +Z local = el lado de la puerta. lighting = grupo de luces (opcional).
+    /// </summary>
+    public static GameObject IceBox(string name, Vector3 position, float yaw, Transform parent, Transform lighting = null)
     {
-        return Prop(null, name, position, yaw, parent, "Nevera", b =>
+        GameObject go = Prop(null, name, position, yaw, parent, "NeveraAbierta", b =>
         {
+            const float w = 0.8f, h = 1.7f, d = 0.7f, wall = 0.07f;
             b.Submesh = 0;
-            AddBox(b, new Vector3(0f, 0.92f, 0f), new Vector3(0.8f, 1.7f, 0.75f), Quaternion.identity, 0.18f, 3);
-            b.Submesh = 1;
-            AddBox(b, new Vector3(0.28f, 1.05f, 0.4f), new Vector3(0.07f, 0.3f, 0.07f), Quaternion.identity, 0.03f);
-            foreach (int s in new[] { -1, 1 })
-                AddLathe(b, new Vector3(s * 0.3f, 0f, 0.25f), Quaternion.identity, new[] { 0f, 0.08f }, new[] { 0.05f, 0.04f }, 8);
-        }, "Nevera", "Laton");
+            // Carcasa hueca por delante: laterales, fondo, tapa abultada y base
+            foreach (int sx in new[] { -1, 1 })
+                AddBox(b, new Vector3(sx * (w * 0.5f - wall * 0.5f), h * 0.5f + 0.06f, 0f), new Vector3(wall, h - 0.1f, d), Quaternion.identity, 0.035f, 2);
+            AddBox(b, new Vector3(0f, h * 0.5f + 0.06f, -d * 0.5f + wall * 0.5f), new Vector3(w, h - 0.1f, wall), Quaternion.identity, 0.035f, 2);
+            AddBox(b, new Vector3(0f, h - 0.04f, 0f), new Vector3(w + 0.04f, 0.2f, d + 0.04f), Quaternion.identity, 0.09f, 3);       // tapa abultada
+            AddBox(b, new Vector3(0f, 0.1f, 0f), new Vector3(w, 0.2f, d), Quaternion.identity, 0.06f, 2);                             // base
+            b.Submesh = 3;                                       // estantes
+            for (int i = 0; i < 3; i++)
+                AddBox(b, new Vector3(0f, 0.45f + i * 0.4f, 0.02f), new Vector3(w - 2 * wall, 0.02f, d - 0.12f), Quaternion.identity, 0.005f, 0);
+            b.Submesh = 2;                                       // interior que brilla tenue
+            AddBox(b, new Vector3(0f, h * 0.5f + 0.06f, -d * 0.5f + wall + 0.005f), new Vector3(w - 2 * wall, h - 0.3f, 0.01f), Quaternion.identity, 0f, 0);
+
+            // Puerta entreabierta: bisagra en el lado derecho (x = +w/2), abre ~28° hacia afuera
+            Quaternion open = Quaternion.Euler(0f, 28f, 0f);
+            Vector3 hinge = new Vector3(w * 0.5f - 0.02f, h * 0.5f + 0.06f, d * 0.5f);
+            Matrix4x4 saved = b.Matrix;
+            b.Matrix = saved * Matrix4x4.TRS(hinge, open, Vector3.one);
+            b.Submesh = 0;
+            AddBox(b, new Vector3(-(w - 0.04f) * 0.5f, 0f, 0.03f), new Vector3(w - 0.04f, h - 0.12f, 0.07f), Quaternion.identity, 0.06f, 3);
+            b.Submesh = 4;                                       // abolladura: placa hundida, algo torcida
+            AddBox(b, new Vector3(-0.26f, -0.2f, 0.07f), new Vector3(0.28f, 0.22f, 0.012f), Quaternion.Euler(0f, 0f, 14f), 0.05f, 2, 0.01f, 4);
+            b.Submesh = 1;                                       // manija cromada gorda
+            AddBox(b, new Vector3(-(w - 0.04f) + 0.1f, 0.12f, 0.1f), new Vector3(0.05f, 0.38f, 0.05f), Quaternion.identity, 0.02f, 2);
+            foreach (int sy in new[] { -1, 1 })
+                AddBox(b, new Vector3(-(w - 0.04f) + 0.1f, 0.12f + sy * 0.15f, 0.07f), new Vector3(0.04f, 0.04f, 0.05f), Quaternion.identity, 0.015f, 1);
+            b.Matrix = saved;
+        }, "Nevera", "Cromo", "InteriorNevera", "Metal", "NeveraAbollada");
+
+        if (lighting != null)
+        {
+            Vector3 inside = position + Quaternion.Euler(0f, yaw, 0f) * new Vector3(0f, 1.1f, 0.12f);
+            CreatePointLight(name + "_LuzInterior", inside, new Color32(0xCF, 0xE8, 0xB8, 0xFF), 0.7f, 2.4f, lighting);
+        }
+        return go;
     }
 
     /// <summary>Alfombra: rectángulo redondeado con borde de otro color. Sin collider (se camina encima).</summary>
@@ -436,14 +491,14 @@ public static partial class CartoonKit
 
     /// <summary>Farol de calle: poste torneado, brazo curvo, farolillo de campana + luz + haz. armYaw = hacia dónde sale el brazo.</summary>
     public static Light StreetLamp(string name, Vector3 basePos, float armYaw, Transform parent, Transform lighting, Color color,
-        float intensity, float range, float tilt = 0f)
+        float intensity, float range, float tilt = 0f, bool broken = false)
     {
         Quaternion rot = Quaternion.Euler(0f, armYaw, tilt);
         Vector3 lanternLocal = new Vector3(0f, 3.75f, 1.0f);
         GameObject model = TryModel("farol", name, basePos, rot, parent);
         if (model == null)
         {
-            Mesh mesh = GetMesh("Farol", b =>
+            Mesh mesh = GetMesh(broken ? "FarolRoto" : "Farol", b =>
             {
                 b.Submesh = 0;
                 b.Lathe(new[] { 0f, 0.12f, 0.3f, 0.45f, 2.5f, 4.0f, 4.15f, 4.25f },
@@ -458,6 +513,12 @@ public static partial class CartoonKit
                 }
                 // Voluta decorativa bajo el brazo
                 AddLathe(b, new Vector3(0f, 3.7f, 0.18f), Quaternion.Euler(0f, 0f, 90f), new[] { -0.03f, 0.03f }, new[] { 0.12f, 0.12f }, 12, true, true);
+                if (broken)
+                {
+                    // Cable pelado que cuelga del farolillo y un pedazo de vidrio roto
+                    AddBox(b, new Vector3(0.05f, 3.2f, 1.0f), new Vector3(0.02f, 0.9f, 0.02f), Quaternion.Euler(0f, 0f, 12f), 0.005f, 0);
+                    AddBox(b, new Vector3(0.18f, 2.8f, 1.02f), new Vector3(0.1f, 0.14f, 0.02f), Quaternion.Euler(0f, 0f, 28f), 0.005f, 0);
+                }
                 b.Submesh = 1;
                 AddLathe(b, new Vector3(0f, 3.95f, 1.0f), Quaternion.identity, new[] { -0.32f, -0.26f, -0.1f, 0f, 0.05f },
                     new[] { 0.26f, 0.25f, 0.14f, 0.05f, 0.02f }, 14, false, true);
@@ -479,24 +540,54 @@ public static partial class CartoonKit
     // ==================================================================
 
     /// <summary>
-    /// Techo de paja: "cono" de 4 lados (a dos aguas en las cuatro direcciones) abultado, con dos capas de flecos
-    /// dentados colgando del alero. center = centro del alero. Sin collider.
+    /// Techo de paja ralo: cuatro aguas abultadas hechas con una malla de facetas (cada celda ~0.6 m), con agujeros
+    /// de gotera (holes: x,z de MUNDO y radio en y), celdas que faltan al azar, parches de paja oscura, la cara de abajo
+    /// oscura y flecos dentados colgando del alero. center = centro del alero. Sin collider.
     /// </summary>
-    public static GameObject ThatchedRoof(string name, Vector3 center, float sizeX, float sizeZ, float height, Transform parent)
+    public static GameObject ThatchedRoof(string name, Vector3 center, float sizeX, float sizeZ, float height, Transform parent,
+        params Vector3[] holes)
     {
-        string key = $"TechoPaja_{name}_{Cm(sizeX)}x{Cm(sizeZ)}x{Cm(height)}";
+        string key = $"TechoPaja_{name}_{Cm(sizeX)}x{Cm(sizeZ)}x{Cm(height)}_h{holes.Length}";
         Mesh mesh = GetMesh(key, b =>
         {
             System.Random rng = Rng(key);
-            const float R = 1f;
-            float side = R * Mathf.Sqrt(2f);
-            b.Submesh = 0;
-            b.SetTRS(Vector3.zero, Quaternion.identity, new Vector3(sizeX / side, 1f, sizeZ / side));
-            b.Lathe(new[] { -0.15f, 0f, height * 0.35f, height * 0.75f, height },
-                new[] { R * 1.02f, R, R * 0.68f, R * 0.3f, 0f }, 4, true, false, false, 45f);
-            b.ResetMatrix();
+            int nx = Mathf.Max(8, Mathf.CeilToInt(sizeX / 0.6f)), nz = Mathf.Max(6, Mathf.CeilToInt(sizeZ / 0.6f));
+            var grid = new Vector3[nx + 1, nz + 1];
+            for (int j = 0; j <= nz; j++)
+            for (int i = 0; i <= nx; i++)
+            {
+                float u = i / (float)nx * 2f - 1f, v = j / (float)nz * 2f - 1f;
+                float r = Mathf.Max(Mathf.Abs(u), Mathf.Abs(v));
+                float wx = center.x + u * sizeX * 0.5f, wz = center.z + v * sizeZ * 0.5f;
+                float hgt = height * Mathf.Pow(1f - r, 0.85f);
+                hgt += (Mathf.PerlinNoise(wx * 1.3f + 5f, wz * 1.3f + 9f) - 0.5f) * 0.2f * Mathf.Clamp01(1f - r);
+                grid[i, j] = new Vector3(u * sizeX * 0.5f, Mathf.Max(hgt, r > 0.97f ? -0.06f : 0f), v * sizeZ * 0.5f);
+            }
 
-            // Flecos: dientes de sierra irregulares en cada borde, dos capas
+            for (int j = 0; j < nz; j++)
+            for (int i = 0; i < nx; i++)
+            {
+                Vector3 pa = grid[i, j], pb = grid[i + 1, j], pc = grid[i + 1, j + 1], pd = grid[i, j + 1];
+                float cx = center.x + (pa.x + pc.x) * 0.5f, cz = center.z + (pa.z + pc.z) * 0.5f;
+                float ru = Mathf.Max(Mathf.Abs((pa.x + pc.x) / sizeX), Mathf.Abs((pa.z + pc.z) / sizeZ));
+
+                bool hole = false;
+                foreach (Vector3 hl in holes)
+                {
+                    float d = Vector2.Distance(new Vector2(cx, cz), new Vector2(hl.x, hl.z));
+                    if (d < hl.y * (0.8f + 0.5f * Mathf.PerlinNoise(cx * 3f + 1f, cz * 3f + 2f))) hole = true;
+                }
+                if (hole || (ru < 0.85f && rng.NextDouble() < 0.05)) continue;                  // agujero o celda perdida
+
+                b.Submesh = rng.NextDouble() < 0.3 ? 1 : 0;
+                Tri3(b, pa, pd, pc);
+                Tri3(b, pa, pc, pb);
+                b.Submesh = 2;                                                                   // cara de abajo, oscura
+                Tri3(b, pa, pc, pd, true);
+                Tri3(b, pa, pb, pc, true);
+            }
+
+            // Flecos dentados en el alero, dos capas
             for (int layer = 0; layer < 2; layer++)
             {
                 b.Submesh = layer == 0 ? 1 : 0;
@@ -520,15 +611,24 @@ public static partial class CartoonKit
                             pts.Add(mid + Vector3.down * (Range(rng, 0.22f, 0.42f) + layer * 0.06f));
                         }
                     }
-                    // Tira en zigzag: triángulos entre la línea del alero y cada punta
                     for (int t = 0; t + 2 < pts.Count; t += 2)
-                        b.Card(new[] { pts[t], pts[t + 2], pts[t + 1] }, outward);
+                        if (rng.NextDouble() > 0.12) b.Card(new[] { pts[t], pts[t + 2], pts[t + 1] }, outward); // fleco que falta
                 }
             }
+            b.Submesh = 2;
         });
-        GameObject go = MeshObject(name, mesh, new[] { M("Paja"), M("PajaOscura") }, parent, center, Quaternion.identity);
+        GameObject go = MeshObject(name, mesh, new[] { M("Paja"), M("PajaOscura"), M("PajaOscura") }, parent, center, Quaternion.identity);
         go.GetComponent<MeshRenderer>().shadowCastingMode = UnityEngine.Rendering.ShadowCastingMode.TwoSided;
         return go;
+    }
+
+    /// <summary>Triángulo plano con su normal; flip = cara de abajo.</summary>
+    private static void Tri3(KitMesh b, Vector3 p0, Vector3 p1, Vector3 p2, bool flip = false)
+    {
+        Vector3 n = Vector3.Cross(p1 - p0, p2 - p0).normalized;
+        if (flip) n = -n;
+        int a = b.Vertex(p0, n, Vector2.zero), c = b.Vertex(p1, n, Vector2.right), d = b.Vertex(p2, n, Vector2.up);
+        b.Tri(a, c, d);
     }
 
     // ==================================================================
@@ -589,8 +689,12 @@ public static partial class CartoonKit
                 b.Submesh = 1;
                 for (float z = seg.x + 0.1f; z < seg.y - 0.05f; z += 0.17f)
                 {
+                    double roll = rng.NextDouble();
+                    if (roll < 0.14) continue;                                                    // tabla que falta
                     float h = height * Range(rng, 0.82f, 0.98f);
-                    var q = Quaternion.Euler(0f, 0f, Range(rng, -3f, 3f));
+                    if (roll > 0.88) h = height * Range(rng, 0.3f, 0.6f);                         // tabla rota
+                    float tilt = roll > 0.6 && roll < 0.78 ? Range(rng, -14f, 14f) : Range(rng, -3f, 3f);
+                    var q = Quaternion.Euler(0f, 0f, tilt);
                     AddBox(b, new Vector3(0.11f, h * 0.5f, z), new Vector3(0.03f, h, 0.12f), q, 0.012f, 1);
                     // Punta
                     Vector3 tip = new Vector3(0.11f, h, z);

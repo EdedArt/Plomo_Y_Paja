@@ -107,12 +107,18 @@ public static partial class CartoonKit
                 b.Submesh = SubDarkWood;
                 AddBox(b, new Vector3(surface + side * 0.02f, panelTop * 0.5f, mid), new Vector3(0.04f, panelTop, len), Quaternion.identity, 0.012f);
                 // Paneles en relieve
-                int panels = Mathf.Max(1, Mathf.FloorToInt(len / 0.9f));
+                // Casa pobre: tablas angostas y desparejas; algunas faltan y otras cuelgan torcidas (fase 3A4)
+                int panels = Mathf.Max(1, Mathf.FloorToInt(len / 0.34f));
                 float step = len / panels;
                 for (int i = 0; i < panels; i++)
                 {
+                    double roll = rng.NextDouble();
+                    if (roll < 0.09) continue;                                              // tabla que falta
                     float z = from + step * (i + 0.5f);
-                    AddBox(b, new Vector3(surface + side * 0.05f, 0.55f, z), new Vector3(0.03f, 0.55f, step - 0.22f), Quaternion.identity, 0.012f);
+                    float ph = Range(rng, 0.38f, 0.58f);
+                    Quaternion lean = roll < 0.22 ? Quaternion.Euler(0f, 0f, Range(rng, -13f, 13f)) : Quaternion.Euler(0f, 0f, Range(rng, -1.5f, 1.5f));
+                    AddBox(b, new Vector3(surface + side * (0.045f + Range(rng, 0f, 0.016f)), ph * 0.5f + 0.06f, z),
+                        new Vector3(0.03f, ph, step * Range(rng, 0.82f, 0.97f)), lean, 0.01f);
                 }
                 b.Submesh = SubTrim;
                 AddBox(b, new Vector3(surface + side * 0.035f, panelTop, mid), new Vector3(0.07f, 0.08f, len), Quaternion.identity, 0.025f);
@@ -140,12 +146,16 @@ public static partial class CartoonKit
                     {
                         float bundle = Range(rng, 0.85f, 1.25f);
                         float z0 = Mathf.Max(z, from), z1 = Mathf.Min(z + bundle, to);
-                        if (z1 - z0 > 0.12f && !InHole(holes, z0, z1, y, radius))
+                        // Casa descuidada: fardos que faltan, se hunden o se tuercen (los de arriba más)
+                        bool missing = row >= 1 && rng.NextDouble() < 0.08;
+                        if (z1 - z0 > 0.12f && !missing && !InHole(holes, z0, z1, y, radius))
                         {
                             b.Submesh = (n + row) % 3 == 0 ? SubStrawDark : SubStraw;
-                            float r = radius * Range(rng, 0.9f, 1.08f);
-                            StrawBundle(b, new Vector3(surface + side * r * 0.55f, y, (z0 + z1) * 0.5f), z1 - z0, r,
-                                (n + row) % 3 == 1, Quaternion.identity);
+                            float r = radius * Range(rng, 0.85f, 1.1f);
+                            float sag = -0.045f * row / Mathf.Max(1f, rows - 1f) - Range(rng, 0f, 0.03f);
+                            Quaternion lean = Quaternion.Euler(Range(rng, -7f, 7f), Range(rng, -5f, 5f), 0f);
+                            StrawBundle(b, new Vector3(surface + side * (r * 0.55f + Range(rng, -0.03f, 0.05f)), y + sag, (z0 + z1) * 0.5f),
+                                z1 - z0, r, (n + row) % 3 == 1, lean);
                         }
                         z += bundle;
                         n++;
@@ -265,11 +275,16 @@ public static partial class CartoonKit
         return go;
     }
 
-    /// <summary>Ventana: marco grueso redondeado con cruz y un vidrio cálido emisivo detrás. +Z local = hacia fuera.</summary>
+    public enum WindowDamage { None, Cracked, Boarded }
+
+    /// <summary>
+    /// Ventana: marco grueso redondeado con cruz y un vidrio cálido emisivo detrás. +Z local = hacia fuera.
+    /// Cracked = vidrio rajado; Boarded = tapada con tablas clavadas (sin luz adentro).
+    /// </summary>
     public static GameObject WindowFrame(string name, Vector3 center, Quaternion rotation, float width, float height,
-        Transform parent, bool lit = true)
+        Transform parent, bool lit = true, WindowDamage damage = WindowDamage.None)
     {
-        string key = $"Ventana_{Cm(width)}x{Cm(height)}";
+        string key = $"Ventana_{Cm(width)}x{Cm(height)}_{(int)damage}";
         Mesh mesh = GetMesh(key, b =>
         {
             const float bar = 0.13f, depth = 0.14f;
@@ -282,15 +297,36 @@ public static partial class CartoonKit
             AddBox(b, Vector3.zero, new Vector3(bar * 0.6f, height, depth * 0.7f), Quaternion.identity, 0.03f);
             b.Submesh = 1;
             AddBox(b, new Vector3(0f, 0f, -depth * 0.3f), new Vector3(width, height, 0.02f), Quaternion.identity, 0f, 0);
+            b.Submesh = 2;
+            b.Submesh = 3;
+            if (damage == WindowDamage.Cracked)
+            {
+                // Grietas en estrella desde una esquina
+                float[] angles = { 28f, -34f, 78f, 118f };
+                float[] lengths = { 0.8f, 0.6f, 0.5f, 0.4f };
+                for (int i = 0; i < angles.Length; i++)
+                    AddBox(b, new Vector3(width * 0.18f, height * 0.2f, depth * 0.05f), new Vector3(0.018f, lengths[i] * height, 0.01f),
+                        Quaternion.Euler(0f, 0f, angles[i]), 0.003f, 0);
+            }
+            else if (damage == WindowDamage.Boarded)
+            {
+                b.Submesh = 2;
+                float[] angles = { -22f, 15f, 72f };
+                for (int i = 0; i < angles.Length; i++)
+                    AddBox(b, new Vector3(0.02f * i, -0.04f + 0.05f * i, depth * 0.5f + 0.02f + i * 0.012f),
+                        new Vector3(width * 1.45f, 0.14f, 0.03f), Quaternion.Euler(0f, 0f, angles[i]), 0.008f, 1);
+            }
         });
-        return MeshObject(name, mesh, new[] { M("Ventana"), M(lit ? "VidrioCalido" : "VentanaApagada") }, parent, center, rotation);
+        bool glassLit = lit && damage != WindowDamage.Boarded;
+        return MeshObject(name, mesh, new[] { M("Ventana"), M(glassLit ? "VidrioCalido" : "VentanaApagada"), M("MaderaClara"), M("Rasguno") },
+            parent, center, rotation);
     }
 
     /// <summary>
     /// Piso de tablas: tablas sueltas con pequeños desniveles, giros y rendijas, dos tonos de madera.
     /// Collider plano (una caja) para caminar sin tropezar. center.y = altura de la superficie.
     /// </summary>
-    public static GameObject PlankFloor(string name, Vector3 center, Vector2 size, Transform parent)
+    public static GameObject PlankFloor(string name, Vector3 center, Vector2 size, Transform parent, float wear = 0f)
     {
         var root = new GameObject(name);
         root.transform.SetParent(parent, false);
@@ -299,7 +335,7 @@ public static partial class CartoonKit
         col.center = new Vector3(0f, -0.1f, 0f);
         col.size = new Vector3(size.x, 0.2f, size.y);
 
-        string key = $"Tablas_{name}_{Cm(size.x)}x{Cm(size.y)}";
+        string key = $"Tablas_{name}_{Cm(size.x)}x{Cm(size.y)}_w{Mathf.RoundToInt(wear * 10f)}";
         Mesh mesh = GetMesh(key, b =>
         {
             System.Random rng = Rng(key);
@@ -317,11 +353,13 @@ public static partial class CartoonKit
                 {
                     float plank = Range(rng, 1.4f, 2.8f);
                     float a = Mathf.Max(x, -size.x * 0.5f), c = Mathf.Min(x + plank, size.x * 0.5f);
-                    if (c - a > 0.15f)
+                    // Tabla que falta: se ve la base oscura (solo visual; el collider del piso es plano)
+                    bool missing = wear > 0f && rng.NextDouble() < 0.05 * wear;
+                    if (c - a > 0.15f && !missing)
                     {
                         b.Submesh = rng.NextDouble() < 0.5 ? 0 : 1;
-                        AddBox(b, new Vector3((a + c) * 0.5f, -thick * 0.5f + Range(rng, -0.006f, 0.006f), z0 + r * plankWidth),
-                            new Vector3(c - a - gap, thick, plankWidth - gap), Quaternion.Euler(0f, Range(rng, -0.6f, 0.6f), 0f), 0.012f, 1);
+                        AddBox(b, new Vector3((a + c) * 0.5f, -thick * 0.5f + Range(rng, -0.006f, 0.006f) * (1f + wear), z0 + r * plankWidth),
+                            new Vector3(c - a - gap, thick, plankWidth - gap), Quaternion.Euler(Range(rng, -0.8f, 0.8f) * wear, Range(rng, -0.6f, 0.6f) * (1f + wear * 2f), Range(rng, -1.2f, 1.2f) * wear), 0.012f, 1);
                     }
                     x += plank;
                 }
