@@ -1,4 +1,5 @@
 using UnityEngine;
+using UnityEngine.AI;
 
 /// <summary>
 /// Hace que un sprite 2D siempre mire hacia la cámara del jugador.
@@ -96,6 +97,40 @@ public class BillboardSprite : MonoBehaviour
             _currentAnimation = walkSprites;
 
         RefreshMode();
+    }
+
+    private void Start()
+    {
+        if (unlitLook) AlignFeetToGround();
+    }
+
+    /// <summary>
+    /// El NavMesh queda unos centímetros por encima del piso real (voxelización), así que el agente flota sobre su
+    /// sombra. Se mide con un rayo hacia abajo y se compensa con baseOffset (o bajando el visual si no hay agente).
+    /// Tolerancia 2 cm; ignora los colliders del propio personaje.
+    /// </summary>
+    private void AlignFeetToGround()
+    {
+        EnemyHealth owner = GetComponentInParent<EnemyHealth>();
+        Transform root = owner != null ? owner.transform : (transform.parent != null ? transform.parent : transform);
+        RaycastHit[] hits = Physics.RaycastAll(root.position + Vector3.up * 0.6f, Vector3.down, 1.6f,
+            Physics.DefaultRaycastLayers, QueryTriggerInteraction.Ignore);
+
+        float groundY = float.NegativeInfinity;
+        foreach (RaycastHit hit in hits)
+        {
+            if (hit.collider.transform.IsChildOf(root)) continue;
+            if (hit.point.y > groundY) groundY = hit.point.y;
+        }
+        if (float.IsNegativeInfinity(groundY)) return;
+
+        float gap = root.position.y - groundY;
+        if (gap < 0.02f || gap > 0.5f) return;
+
+        if (root.TryGetComponent(out NavMeshAgent agent) && agent.enabled)
+            agent.baseOffset -= gap;
+        else
+            (transform.parent != null ? transform.parent : transform).localPosition -= Vector3.up * gap;
     }
 
     private void ApplyUnlitLook()

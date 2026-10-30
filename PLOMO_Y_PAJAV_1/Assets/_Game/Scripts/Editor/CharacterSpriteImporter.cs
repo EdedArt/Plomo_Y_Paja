@@ -8,6 +8,8 @@ using UnityEngine;
 /// Ajustes de importación para los PNG de Assets/_Game/Art/Characters/&lt;characterId&gt;/:
 /// Sprite Single, pivote abajo al centro, 250 px por metro (450 px ≈ 1.8 m), Bilinear, sin compresión.
 /// Excepciones: wilbur_hands → pivote abajo a la derecha; intro → pivote al centro y 100 px por metro;
+/// Pivote: el X va al centro del lienzo y el Y a la fila más baja con alpha > 0.1 (los pies), como pivote
+/// personalizado, para que cualquier frame quede pegado al suelo aunque el dibujo tenga margen debajo.
 /// guardia → 236 px por metro (el primer dibujo mide 449 px de alto en un lienzo de 512: 449 / 236 ≈ 1.9 m).
 /// </summary>
 public class CharacterSpriteImporter : AssetPostprocessor
@@ -15,7 +17,10 @@ public class CharacterSpriteImporter : AssetPostprocessor
     public const string CharactersFolder = "Assets/_Game/Art/Characters";
 
     // Subir la versión obliga a Unity a reimportar los PNG con los ajustes nuevos
-    public override uint GetVersion() => 2;
+    public override uint GetVersion() => 3;
+
+    /// <summary>Alpha mínimo (0..255) para considerar que un píxel es parte del personaje.</summary>
+    private const byte FeetAlpha = 26; // 0.1
 
     private void OnPreprocessTexture()
     {
@@ -50,15 +55,50 @@ public class CharacterSpriteImporter : AssetPostprocessor
                 settings.spritePixelsPerUnit = 100f;
                 break;
             case "guardia":
-                settings.spriteAlignment = (int)SpriteAlignment.BottomCenter;
+                SetFeetPivot(settings, path);
                 settings.spritePixelsPerUnit = 236f;
                 break;
             default:
-                settings.spriteAlignment = (int)SpriteAlignment.BottomCenter;
+                SetFeetPivot(settings, path);
                 settings.spritePixelsPerUnit = 250f;
                 break;
         }
         importer.SetTextureSettings(settings);
+    }
+
+    /// <summary>Pivote personalizado: centro en X y la fila más baja visible en Y. Sin lectura posible = Bottom Center.</summary>
+    private static void SetFeetPivot(TextureImporterSettings settings, string path)
+    {
+        float y = FeetPivotY(path);
+        settings.spriteAlignment = (int)SpriteAlignment.Custom;
+        settings.spritePivot = new Vector2(0.5f, y);
+    }
+
+    /// <summary>Fila más baja con alpha &gt; 0.1, normalizada 0..1 (0 = borde inferior). Lee el PNG del disco.</summary>
+    public static float FeetPivotY(string assetPath)
+    {
+        try
+        {
+            string full = Path.GetFullPath(assetPath);
+            if (!File.Exists(full)) return 0f;
+            var tex = new Texture2D(2, 2, TextureFormat.RGBA32, false);
+            try
+            {
+                if (!ImageConversion.LoadImage(tex, File.ReadAllBytes(full), false)) return 0f;
+                Color32[] px = tex.GetPixels32();
+                int w = tex.width, h = tex.height;
+                for (int row = 0; row < h; row++)          // fila 0 = abajo
+                    for (int x = 0; x < w; x++)
+                        if (px[row * w + x].a >= FeetAlpha) return row / (float)h;
+                return 0f;
+            }
+            finally { Object.DestroyImmediate(tex); }
+        }
+        catch (System.Exception e)
+        {
+            Debug.LogWarning("[SpriteImporter] No se pudo calcular el pivote de " + assetPath + ": " + e.Message);
+            return 0f;
+        }
     }
 }
 
