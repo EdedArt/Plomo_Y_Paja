@@ -163,6 +163,7 @@ public static class TestPrefabGenerator
         aiSo.ApplyModifiedPropertiesWithoutUndo();
 
         root.AddComponent<RubberHoseMotion>();
+        root.AddComponent<EnemyCombatFx>();
 
         SaveAndDestroy(root, GuardPath);
     }
@@ -305,12 +306,68 @@ public static class TestPrefabGenerator
                 }
             }
 
+            // Impacto caricaturesco (fase 3A, parte 3)
+            ShotgunController gun = contents.GetComponentInChildren<ShotgunController>();
+            if (gun != null && gun.GetComponent<ShotgunFeedback>() == null)
+                gun.gameObject.AddComponent<ShotgunFeedback>();
+            EnsureCartoonFx(contents);
+
             PrefabUtility.SaveAsPrefabAsset(contents, PlayerPath);
         }
         finally
         {
             PrefabUtility.UnloadPrefabContents(contents);
         }
+    }
+
+    private static void EnsureCartoonFx(GameObject playerRoot)
+    {
+        CartoonFx fx = playerRoot.GetComponent<CartoonFx>();
+        if (fx == null) fx = playerRoot.AddComponent<CartoonFx>();
+
+        var so = new SerializedObject(fx);
+        so.FindProperty("bloodMaterial").objectReferenceValue = FxMaterial("Fx_Sangre", CartoonFx.BloodColor, false);
+        so.FindProperty("decalMaterial").objectReferenceValue = FxMaterial("Fx_Mancha", CartoonFx.BloodColor, true);
+        so.FindProperty("smokeMaterial").objectReferenceValue = FxMaterial("Fx_Humo", new Color32(0xE6, 0xE6, 0xE6, 0xFF), false);
+        so.FindProperty("starMaterial").objectReferenceValue = FxMaterial("Fx_Estrella", new Color32(0xFF, 0xD2, 0x3F, 0xFF), false);
+        so.FindProperty("toothMaterial").objectReferenceValue = FxMaterial("Fx_Diente", new Color32(0xFF, 0xFA, 0xE8, 0xFF), false);
+        so.FindProperty("flashMeshMaterial").objectReferenceValue = FxMaterial("Fx_DestelloMalla", Color.white, false);
+        so.FindProperty("flashSpriteMaterial").objectReferenceValue = SpriteFlashMaterial();
+        so.ApplyModifiedPropertiesWithoutUndo();
+    }
+
+    private static Material FxMaterial(string name, Color color, bool transparent)
+    {
+        Material mat = LevelBuilderUtils.GetOrCreateMaterial(name, color, 0f, true);
+        Shader unlit = Shader.Find("Universal Render Pipeline/Unlit");
+        if (unlit != null) mat.shader = unlit;
+        if (mat.HasProperty("_BaseColor")) mat.SetColor("_BaseColor", color);
+        if (transparent)
+        {
+            mat.SetFloat("_Surface", 1f);
+            mat.SetFloat("_Blend", 0f);
+            mat.SetFloat("_SrcBlend", (float)UnityEngine.Rendering.BlendMode.SrcAlpha);
+            mat.SetFloat("_DstBlend", (float)UnityEngine.Rendering.BlendMode.OneMinusSrcAlpha);
+            mat.SetFloat("_ZWrite", 0f);
+            mat.EnableKeyword("_SURFACE_TYPE_TRANSPARENT");
+            mat.SetOverrideTag("RenderType", "Transparent");
+            mat.renderQueue = (int)UnityEngine.Rendering.RenderQueue.Transparent;
+        }
+        EditorUtility.SetDirty(mat);
+        return mat;
+    }
+
+    private static Material SpriteFlashMaterial()
+    {
+        string path = LevelBuilderUtils.MaterialFolder + "/Fx_DestelloSprite.mat";
+        Material mat = AssetDatabase.LoadAssetAtPath<Material>(path);
+        if (mat != null) return mat;
+        Shader shader = Shader.Find("Sprites/Default");
+        if (shader == null) return null;
+        mat = new Material(shader) { name = "Fx_DestelloSprite" };
+        mat.SetColor("_Color", new Color(4f, 4f, 4f, 1f)); // sobreexpuesto: el sprite se ve blanco
+        AssetDatabase.CreateAsset(mat, path);
+        return mat;
     }
 
     private static void SaveAndDestroy(GameObject go, string path)
