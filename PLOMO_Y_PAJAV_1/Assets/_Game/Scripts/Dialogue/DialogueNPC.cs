@@ -36,6 +36,7 @@ public enum InterrogationResult
 ///
 /// AL TERMINAR:
 /// - GameStateTracker.RegisterInterrogation(nombre, resultado) → cuenta para los finales.
+/// - Si el nodo final da pista: GameStateTracker.RegisterClueCollected(awardClueId, clueText).
 /// - Evento estático OnInterrogationCompleted(npcId, resultado, clueId o null).
 /// - UnityEvent onDialogueCompleted(npcId, resultado) para el Inspector.
 /// - El compañero de IA comenta (AITrigger.InterrogationEnded).
@@ -214,7 +215,7 @@ public class DialogueNPC : MonoBehaviour
         if (_currentNode == null)                                       // Error en los datos: cerrar sin colgar el juego
         {
             Debug.LogWarning($"[DialogueNPC] {_tree.npcId}: no existe el nodo '{nodeId}'. Se cierra como Refused.");
-            EndDialogue(InterrogationResult.Refused, null);
+            EndDialogue(InterrogationResult.Refused, null, null);
             return;
         }
 
@@ -241,7 +242,7 @@ public class DialogueNPC : MonoBehaviour
 
         if (_currentNode.IsEnd)                                         // Botón "Terminar"
         {
-            EndDialogue(_currentNode.endResult, _currentNode.awardClueId);
+            EndDialogue(_currentNode.endResult, _currentNode.awardClueId, _currentNode.clueText);
             return;
         }
 
@@ -249,7 +250,7 @@ public class DialogueNPC : MonoBehaviour
         ShowNode(_currentNode.options[optionIndex].nextNodeId);         // Seguir la rama elegida
     }
 
-    private void EndDialogue(InterrogationResult result, string clueId)
+    private void EndDialogue(InterrogationResult result, string clueId, string clueText)
     {
         _dialogueActive = false;
         _interrogated = true;                                           // Ya no se le puede volver a interrogar
@@ -264,11 +265,32 @@ public class DialogueNPC : MonoBehaviour
             GameStateTracker.Instance.RegisterInterrogation(_tree.displayName, ResultToSpanish(result));
 
         string awarded = string.IsNullOrEmpty(clueId) ? null : clueId;  // "" → null
+        if (awarded != null) RegisterClue(awarded, clueText);           // Este final da pista: que cuente para los finales
+
         OnInterrogationCompleted?.Invoke(_tree.npcId, result, awarded); // Evento de código
         onDialogueCompleted?.Invoke(_tree.npcId, result);               // Evento del Inspector
 
         // Script de David: el compañero de IA comenta cómo fue
         if (AICompanion.Instance != null) AICompanion.Instance.Speak(AITrigger.InterrogationEnded, $"{_tree.displayName}: {ResultToSpanish(result)}");
+    }
+
+    /// <summary>
+    /// Registrar en GameStateTracker la pista que dio el interrogatorio.
+    /// Si al nodo le falta el texto, se usa uno por defecto y se avisa: la pista nunca se pierde en silencio.
+    /// </summary>
+    private void RegisterClue(string clueId, string clueText)
+    {
+        if (string.IsNullOrEmpty(clueText))                             // Olvidaron escribir el texto en DialogueDatabase
+        {
+            clueText = $"Pista obtenida al interrogar a {_tree.displayName}";  // Texto de emergencia
+            Debug.LogWarning($"[DialogueNPC] {_tree.npcId}: la pista '{clueId}' no tiene clueText en DialogueDatabase. Se usa: \"{clueText}\".");
+        }
+
+        // Script de David: misma llamada que hace CluePickup con las pistas físicas
+        if (GameStateTracker.Instance != null)
+            GameStateTracker.Instance.RegisterClueCollected(clueId, clueText);
+        else
+            Debug.LogWarning($"[DialogueNPC] No hay GameStateTracker en la escena: la pista '{clueId}' no se pudo registrar.");
     }
 
     private static string ResultToSpanish(InterrogationResult result)

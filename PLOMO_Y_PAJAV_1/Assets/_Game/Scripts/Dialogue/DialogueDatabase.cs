@@ -19,7 +19,7 @@ public class DialogueTree
 }
 
 /// <summary>
-/// Una línea del NPC. Sin opciones = nodo final (usa endResult y awardClueId).
+/// Una línea del NPC. Sin opciones = nodo final (usa endResult, awardClueId y clueText).
 /// </summary>
 public class DialogueNode
 {
@@ -27,7 +27,8 @@ public class DialogueNode
     public string npcLine;
     public DialogueOption[] options = new DialogueOption[0];
     public InterrogationResult endResult = InterrogationResult.Refused;
-    public string awardClueId;
+    public string awardClueId;   // Id de la pista que da este final (mismo formato que CluePickup.clueId), o null
+    public string clueText;      // Descripción corta de esa pista para GameStateTracker (obligatoria si hay awardClueId)
 
     public bool IsEnd => options == null || options.Length == 0;
 }
@@ -74,8 +75,9 @@ public static class DialogueDatabase
     private static DialogueNode Line(string id, string npcLine, params DialogueOption[] options)
         => new DialogueNode { id = id, npcLine = npcLine, options = options };
 
-    private static DialogueNode End(string id, string npcLine, InterrogationResult result, string clueId = null)
-        => new DialogueNode { id = id, npcLine = npcLine, endResult = result, awardClueId = clueId };
+    // Nodo final; si da pista, pasar su id y su texto (DialogueNPC la registra en GameStateTracker)
+    private static DialogueNode End(string id, string npcLine, InterrogationResult result, string clueId = null, string clueText = null)
+        => new DialogueNode { id = id, npcLine = npcLine, endResult = result, awardClueId = clueId, clueText = clueText };
 
     private static DialogueOption Opt(string text, string next)
         => new DialogueOption { text = text, nextNodeId = next };
@@ -173,7 +175,8 @@ public static class DialogueDatabase
                 Opt("¿Falta dinero?", "fin_ayuda"),
                 Opt("¿Aparece mi hermano en ellos?", "fin_ayuda")),
             End("fin_ayuda", "Faltan 4.300 billetes, justo la semana en que Porky desapareció. Una sola inicial al margen: P. Llévese la hoja.",
-                InterrogationResult.Helpful, "registro_01"),
+                InterrogationResult.Helpful, "registro_01",
+                "Registro de deudas: faltan 4.300 billetes la semana en que Porky desapareció, con la inicial P al margen"),
 
             Line("donde", "¿El muchacho? Lo trasladaron al almacén del puerto, creo. O al sótano del club. No me pagan por saber.",
                 Opt("¿Cuál de los dos?", "fin_engano"),
