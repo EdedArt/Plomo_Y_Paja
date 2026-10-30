@@ -351,6 +351,10 @@ public static partial class CartoonKit
         { "PisoTabla", new Color(0.30f, 0.32f, 0.60f) },
         { "PisoTablaClara", new Color(0.30f, 0.32f, 0.60f) },
         { "Cielorraso", new Color(0.26f, 0.28f, 0.58f) },
+        // La nevera (siempre en la cocina): con la sombra violeta por defecto se veía como un bloque morado
+        { "Nevera", new Color(0.40f, 0.48f, 0.66f) },
+        { "NeveraAbollada", new Color(0.38f, 0.45f, 0.62f) },
+        { "Cromo", new Color(0.38f, 0.46f, 0.66f) },
     };
 
     private static readonly Dictionary<string, Color> Emissive = new Dictionary<string, Color>
