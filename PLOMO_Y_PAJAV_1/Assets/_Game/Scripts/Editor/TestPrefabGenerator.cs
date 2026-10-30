@@ -321,6 +321,13 @@ public static class TestPrefabGenerator
                 gun.gameObject.AddComponent<ShotgunFeedback>();
             EnsureCartoonFx(contents);
 
+            // Lluvia ligera que sigue a la cámara (se apaga bajo techo)
+            RainEmitter rain = contents.GetComponent<RainEmitter>();
+            if (rain == null) rain = contents.AddComponent<RainEmitter>();
+            var rainSo = new SerializedObject(rain);
+            rainSo.FindProperty("material").objectReferenceValue = RainBuilder.GetRainMaterial();
+            rainSo.ApplyModifiedPropertiesWithoutUndo();
+
             PrefabUtility.SaveAsPrefabAsset(contents, PlayerPath);
         }
         finally

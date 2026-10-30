@@ -350,6 +350,9 @@ public static class LevelBuilder_NivelPorky
         CartoonKit.Stain("Mancha_Cocina", new Vector3(-2.4f, y, 3.2f), 0.6f, 2, story);
         CartoonKit.Stain("Mancha_Dormitorio", new Vector3(4.6f, y, -4.2f), 0.7f, 3, story);
         CartoonKit.Stain("Tierra_Maceta", new Vector3(1.55f, y, -5.0f), 0.3f, 4, story, "Tierra");
+        RainBuilder.Leak("Gotera_Cocina_A", new Vector3(-0.8f, WallHeight, 4.6f), FloorTop + 0.02f, story, 1);
+        RainBuilder.Leak("Gotera_Cocina_B", new Vector3(5.1f, WallHeight, 3.5f), FloorTop + 0.02f, story, 2);
+        RainBuilder.Leak("Gotera_Sala", new Vector3(-4.6f, WallHeight, -2.0f), FloorTop + 0.03f, story, 3);
         return story;
     }
 
@@ -461,8 +464,14 @@ public static class LevelBuilder_NivelPorky
         Transform lamps = CreateGroup("Faroles", env);
 
         // El farol "roto": torcido y es el único que parpadea
-        Light broken = CartoonKit.StreetLamp("Farol_Roto", new Vector3(-7f, 0f, -10.6f), 90f, lamps, lighting, WarmLamp, 2.5f, 12f, 4f);
-        broken.gameObject.AddComponent<LightFlicker>();
+        Light broken = CartoonKit.StreetLamp("Farol_Roto", new Vector3(-7f, 0f, -10.6f), 90f, lamps, lighting, WarmLamp, 2.5f, 12f, 9f, true);
+        LightFlicker flicker = broken.gameObject.AddComponent<LightFlicker>();
+        var flickerSo = new SerializedObject(flicker);
+        flickerSo.FindProperty("noiseAmount").floatValue = 0.3f;
+        flickerSo.FindProperty("dipChancePerSecond").floatValue = 1.6f;
+        flickerSo.FindProperty("offChancePerSecond").floatValue = 0.4f;
+        flickerSo.FindProperty("maxBlinks").intValue = 4;
+        flickerSo.ApplyModifiedPropertiesWithoutUndo();
 
         CartoonKit.StreetLamp("Farol_Calle", new Vector3(7f, 0f, -10.6f), -90f, lamps, lighting, WarmLamp, 2.5f, 12f);
         CartoonKit.StreetLamp("Farol_Enfrente", new Vector3(2f, 0f, -19.3f), 0f, lamps, lighting, WarmLamp, 2.3f, 11f);
