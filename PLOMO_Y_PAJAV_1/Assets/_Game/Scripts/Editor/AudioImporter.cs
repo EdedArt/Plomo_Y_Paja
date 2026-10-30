@@ -5,7 +5,7 @@ using UnityEditor;
 using UnityEngine;
 
 /// <summary>
-/// Ajustes de importación por carpeta (Audio/Voices, Audio/SFX, Audio/Music y lo mismo dentro de Audio/_SinUso):
+/// Ajustes de importación por carpeta (Audio/Voices, Audio/SFX, Audio/Music):
 /// - Voces y SFX: Decompress On Load, Vorbis calidad 70, mono (los sonidos 3D no necesitan estéreo)
 /// - Música y ambiente (carpeta Music o nombres "lluvia_"/"musica_"): Streaming, Vorbis calidad 60, se respeta el estéreo
 /// El bucle (lluvia) no es un ajuste de importación: lo decide el AudioSource (loop = true) que lo reproduzca.
@@ -16,8 +16,6 @@ public class GameAudioImporter : AssetPostprocessor
     public const string VoicesFolder = AudioRoot + "/Voices";
     public const string SfxFolder = AudioRoot + "/SFX";
     public const string MusicFolder = AudioRoot + "/Music";
-    /// <summary>Audios entregados que ningún código pide todavía (misma estructura Voices/SFX/Music).</summary>
-    public const string UnusedFolder = AudioRoot + "/_SinUso";
 
     private const float VoiceSfxQuality = 0.7f;
     private const float MusicQuality = 0.6f;
@@ -25,10 +23,9 @@ public class GameAudioImporter : AssetPostprocessor
     private void OnPreprocessAudio()
     {
         string path = assetPath.Replace('\\', '/');
-        string rel = path.StartsWith(UnusedFolder + "/") ? AudioRoot + path.Substring(UnusedFolder.Length) : path;
-        bool isVoice = rel.StartsWith(VoicesFolder + "/");
-        bool isSfx = rel.StartsWith(SfxFolder + "/");
-        bool inMusic = rel.StartsWith(MusicFolder + "/");
+        bool isVoice = path.StartsWith(VoicesFolder + "/");
+        bool isSfx = path.StartsWith(SfxFolder + "/");
+        bool inMusic = path.StartsWith(MusicFolder + "/");
         if (!isVoice && !isSfx && !inMusic) return;
 
         var importer = (UnityEditor.AudioImporter)assetImporter;
@@ -55,7 +52,7 @@ public class GameAudioImporter : AssetPostprocessor
 
 /// <summary>
 /// MENÚ: Plomo y Paja → Reconstruir Librería de Audio
-/// Lee Audio/Voices y Audio/SFX y llena Assets/_Game/Audio/AudioLibrary.asset (lo crea si falta).
+/// Lee Audio/Voices, Audio/SFX y Audio/Music (música agrupada como los SFX: "musica_jazz") y llena Assets/_Game/Audio/AudioLibrary.asset (lo crea si falta).
 /// </summary>
 public static class AudioLibraryBuilder
 {
@@ -80,9 +77,11 @@ public static class AudioLibraryBuilder
         }
         voices.Sort((a, b) => string.CompareOrdinal(a.lineId, b.lineId));
 
-        // SFX: "<nombre>_<NN>" se agrupa por <nombre>; sin sufijo, el archivo es su propio grupo
+        // SFX y música: "<nombre>_<NN>" se agrupa por <nombre>; sin sufijo, el archivo es su propio grupo
         var groups = new SortedDictionary<string, SortedDictionary<int, AudioClip>>(System.StringComparer.Ordinal);
-        foreach (string path in FindAudio(GameAudioImporter.SfxFolder))
+        var sfxPaths = new List<string>(FindAudio(GameAudioImporter.SfxFolder));
+        sfxPaths.AddRange(FindAudio(GameAudioImporter.MusicFolder));
+        foreach (string path in sfxPaths)
         {
             var clip = AssetDatabase.LoadAssetAtPath<AudioClip>(path);
             if (clip == null) continue;

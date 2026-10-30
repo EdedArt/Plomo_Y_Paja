@@ -1,3 +1,4 @@
+using System.Collections;
 using UnityEngine;
 
 /// <summary>
@@ -10,6 +11,8 @@ using UnityEngine;
 ///   sin collider (conos de luz, cielo, fondos, la lluvia misma). El cambio de estado necesita 0.3 s seguidos con el
 ///   mismo resultado (histéresis) para que la lluvia no parpadee en los umbrales de las puertas.
 /// - Sin material asignado no hace nada.
+/// - SONIDO (3A6): "lluvia_loop" en bucle 2D; bajo techo baja de volumen y se ahoga con un paso bajo. Al aire libre,
+///   "trueno" cada 25–60 s con un destello breve del sol de la escena (si hay). Volúmenes en AudioLibrary.Mix.
 /// </summary>
 public class RainEmitter : MonoBehaviour
 {
@@ -35,6 +38,17 @@ public class RainEmitter : MonoBehaviour
     // Todas las capas menos "Ignore Raycast" (2) y "UI" (5); el resto se filtra por componente (ver ProbeIndoors)
     private static readonly int RoofMask = ~((1 << 2) | (1 << 5));
     private static readonly RaycastHit[] Hits = new RaycastHit[8];
+
+    private AudioSource _rainAudio;
+    private AudioLowPassFilter _rainFilter;
+    private bool _audioTried;
+    private float _nextThunder;
+    private Coroutine _flashRoutine;
+    private const float OpenCutoff = 22000f;
+    private const float AudioFadeSpeed = 1.5f;      // volumen por segundo al entrar/salir
+
+    /// <summary>¿El jugador está bajo techo? (con histéresis). Lo usan también los pasos.</summary>
+    public bool IsIndoors => _indoors;
 
     private static readonly Vector3[] ProbeOffsets =
     {
@@ -82,6 +96,91 @@ public class RainEmitter : MonoBehaviour
         renderer.receiveShadows = false;
 
         _rain.Play();
+        ScheduleThunder();
+    }
+
+    // ============ Sonido de la lluvia y truenos ============
+
+    /// <summary>Crea la fuente en bucle la primera vez (la AudioLibrary se registra en Awake del Player).</summary>
+    private void EnsureRainAudio()
+    {
+        if (_audioTried) return;
+        _audioTried = true;
+        AudioClip clip = AudioLibrary.GetSfx("lluvia_loop");
+        if (clip == null) return;
+
+        var go = new GameObject("Lluvia_Audio");
+        go.transform.SetParent(transform, false);
+        _rainAudio = go.AddComponent<AudioSource>();
+        _rainAudio.clip = clip;
+        _rainAudio.loop = true;
+        _rainAudio.spatialBlend = 0f;
+        _rainAudio.playOnAwake = false;
+        _rainAudio.volume = 0f;
+        _rainFilter = go.AddComponent<AudioLowPassFilter>();
+        _rainFilter.cutoffFrequency = OpenCutoff;
+        _rainAudio.Play();
+    }
+
+    private void UpdateRainAudio()
+    {
+        EnsureRainAudio();
+        if (_rainAudio == null) return;
+
+        AudioLibrary.MixSettings mix = AudioLibrary.Mix;
+        float sfx = AudioLibrary.SfxVolume;
+        float targetVolume = (_indoors ? mix.rainIndoor : mix.rainOutdoor) * sfx;
+        float targetCutoff = _indoors ? mix.rainIndoorCutoff : OpenCutoff;
+        float dt = Time.unscaledDeltaTime;
+        _rainAudio.volume = Mathf.MoveTowards(_rainAudio.volume, targetVolume, AudioFadeSpeed * dt);
+        // El corte se mueve en escala logarítmica para que el cambio suene parejo
+        float logCut = Mathf.MoveTowards(Mathf.Log(_rainFilter.cutoffFrequency), Mathf.Log(Mathf.Max(100f, targetCutoff)), 6f * dt);
+        _rainFilter.cutoffFrequency = Mathf.Exp(logCut);
+
+        // Truenos: solo al aire libre y con el juego corriendo (Time.time se detiene en pausa)
+        if (Time.time >= _nextThunder)
+        {
+            if (!_indoors && Time.timeScale > 0f)
+            {
+                AudioLibrary.PlaySfx2D("trueno", mix.thunder);
+                if (_flashRoutine != null) StopCoroutine(_flashRoutine);
+                _flashRoutine = StartCoroutine(LightningFlash());
+            }
+            ScheduleThunder();
+        }
+    }
+
+    private void ScheduleThunder()
+    {
+        AudioLibrary.MixSettings mix = AudioLibrary.Mix;
+        float min = Mathf.Max(1f, mix.thunderMinInterval);
+        _nextThunder = Time.time + Random.Range(min, Mathf.Max(min, mix.thunderMaxInterval));
+    }
+
+    /// <summary>Dos parpadeos rápidos del sol de la escena (RenderSettings.sun). Sin sol, nada.</summary>
+    private IEnumerator LightningFlash()
+    {
+        Light sun = RenderSettings.sun;
+        if (sun == null) yield break;
+        float baseIntensity = sun.intensity;
+        sun.intensity = baseIntensity * 3f + 0.5f;
+        yield return new WaitForSeconds(0.07f);
+        sun.intensity = baseIntensity;
+        yield return new WaitForSeconds(0.08f);
+        sun.intensity = baseIntensity * 2f + 0.3f;
+        yield return new WaitForSeconds(0.1f);
+        sun.intensity = baseIntensity;
+        _flashRoutine = null;
+    }
+
+    private void OnDisable()
+    {
+        if (_rainAudio != null) _rainAudio.volume = 0f;
+        if (_flashRoutine != null)
+        {
+            StopCoroutine(_flashRoutine);
+            _flashRoutine = null;
+        }
     }
 
     private void LateUpdate()
@@ -112,18 +211,29 @@ public class RainEmitter : MonoBehaviour
                 emission.enabled = !_indoors;
             }
         }
+
+        UpdateRainAudio();
     }
 
     private bool ProbeIndoors()
     {
+        return ProbeUnderRoof(_camera.position, transform);
+    }
+
+    /// <summary>
+    /// ¿Hay techo sobre este punto? 5 rayos hacia arriba que ignoran triggers, los colliders de "self" y personajes.
+    /// Sin histéresis: para el estado estable usar IsIndoors.
+    /// </summary>
+    public static bool ProbeUnderRoof(Vector3 origin, Transform self)
+    {
         foreach (Vector3 offset in ProbeOffsets)
         {
-            int count = Physics.RaycastNonAlloc(_camera.position + offset, Vector3.up, Hits, ProbeLength, RoofMask,
+            int count = Physics.RaycastNonAlloc(origin + offset, Vector3.up, Hits, ProbeLength, RoofMask,
                 QueryTriggerInteraction.Ignore);
             for (int i = 0; i < count; i++)
             {
                 Collider c = Hits[i].collider;
-                if (c == null || c.isTrigger || c.transform.IsChildOf(transform)) continue;           // el propio jugador
+                if (c == null || c.isTrigger || (self != null && c.transform.IsChildOf(self))) continue; // el propio jugador
                 if (c.GetComponentInParent<EnemyHealth>() != null) continue;                           // otros personajes
                 return true;                                                                           // cielorraso, techo, alero...
             }

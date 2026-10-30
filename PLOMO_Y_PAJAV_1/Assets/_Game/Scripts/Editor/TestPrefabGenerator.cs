@@ -334,6 +334,9 @@ public static class TestPrefabGenerator
             rainSo.FindProperty("material").objectReferenceValue = RainBuilder.GetRainMaterial();
             rainSo.ApplyModifiedPropertiesWithoutUndo();
 
+            // Pasos madera/barro según haya techo (usa el estado de RainEmitter)
+            if (contents.GetComponent<PlayerFootsteps>() == null) contents.AddComponent<PlayerFootsteps>();
+
             PrefabUtility.SaveAsPrefabAsset(contents, PlayerPath);
         }
         finally

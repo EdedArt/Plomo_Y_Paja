@@ -12,7 +12,10 @@ using UnityEngine;
 /// - SFX:   Assets/_Game/Audio/SFX/&lt;nombre&gt;_&lt;NN&gt;.wav           → PlaySfx("escopeta_disparo", pos)
 ///   (todas las _NN de un nombre son variantes; se elige una al azar sin repetir la anterior)
 ///
+/// - Música: Assets/_Game/Audio/Music/&lt;nombre&gt;_&lt;NN&gt;.wav       → se agrupa igual que los SFX
+///
 /// Si falta un clip no suena nada y se avisa una sola vez por id en la consola (Log, no error).
+/// VOLÚMENES: todos en este asset (voiceVolume, sfxVolume y el bloque "mix" del jugador y el ambiente).
 /// </summary>
 [CreateAssetMenu(fileName = "AudioLibrary", menuName = "Plomo y Paja/Audio Library")]
 public class AudioLibrary : ScriptableObject
@@ -40,6 +43,29 @@ public class AudioLibrary : ScriptableObject
     [Tooltip("Distancia a la que un sonido 3D deja de oírse")]
     [SerializeField] private float maxDistance = 30f;
 
+    /// <summary>Volúmenes y tiempos del jugador y del ambiente (3A6). Se ajustan en el Inspector del asset.</summary>
+    [Serializable]
+    public class MixSettings
+    {
+        [Tooltip("Pasos de Wilbur (pasos_madera / pasos_barro)")]
+        [Range(0f, 1f)] public float footsteps = 0.45f;
+        [Tooltip("Lluvia (lluvia_loop) al aire libre")]
+        [Range(0f, 1f)] public float rainOutdoor = 0.4f;
+        [Tooltip("Lluvia bajo techo: más baja y ahogada")]
+        [Range(0f, 1f)] public float rainIndoor = 0.12f;
+        [Tooltip("Corte del filtro paso bajo bajo techo (Hz)")]
+        public float rainIndoorCutoff = 900f;
+        [Tooltip("Truenos (trueno), solo al aire libre")]
+        [Range(0f, 1f)] public float thunder = 0.8f;
+        public float thunderMinInterval = 25f;
+        public float thunderMaxInterval = 60f;
+        [Tooltip("Segundos mínimos entre quejidos de Wilbur (la escopeta no los apila)")]
+        public float hurtVoiceCooldown = 0.6f;
+    }
+
+    [SerializeField] private MixSettings mix = new MixSettings();
+    private static readonly MixSettings DefaultMix = new MixSettings();
+
     private const int PoolSize = 16;
 
     private static AudioLibrary _active;
@@ -53,6 +79,9 @@ public class AudioLibrary : ScriptableObject
 
     /// <summary>La librería en uso (la registra AudioLibraryLoader o el propio asset al cargarse).</summary>
     public static AudioLibrary Active => _active;
+
+    /// <summary>Mezcla de la librería activa (valores por defecto si no hay librería).</summary>
+    public static MixSettings Mix => _active != null && _active.mix != null ? _active.mix : DefaultMix;
 
     private void OnEnable()
     {
@@ -121,6 +150,46 @@ public class AudioLibrary : ScriptableObject
         Play(clip, Vector3.zero, false, _active.sfxVolume);
         return true;
     }
+
+    /// <summary>Efecto sin posición con el volumen multiplicado (ej: truenos con Mix.thunder).</summary>
+    public static bool PlaySfx2D(string name, float volumeScale)
+    {
+        AudioClip clip = _active != null ? _active.PickSfx(name) : null;
+        if (clip == null)
+        {
+            LogMissingOnce("sfx", name);
+            return false;
+        }
+        Play(clip, Vector3.zero, false, _active.sfxVolume * Mathf.Clamp01(volumeScale));
+        return true;
+    }
+
+    /// <summary>Voz sin posición (la del propio Wilbur).</summary>
+    public static bool PlayVoice2D(string lineId)
+    {
+        AudioClip clip = _active != null ? _active.FindVoice(lineId) : null;
+        if (clip == null)
+        {
+            LogMissingOnce("voz", lineId);
+            return false;
+        }
+        Play(clip, Vector3.zero, false, _active.voiceVolume);
+        return true;
+    }
+
+    /// <summary>
+    /// Una variante del efecto (sin repetir la anterior) para un AudioSource propio: bucles de ambiente o pasos.
+    /// Devuelve null (y avisa una vez) si no hay clip.
+    /// </summary>
+    public static AudioClip GetSfx(string name)
+    {
+        AudioClip clip = _active != null ? _active.PickSfx(name) : null;
+        if (clip == null) LogMissingOnce("sfx", name);
+        return clip;
+    }
+
+    /// <summary>Volumen general de efectos (para multiplicar en fuentes propias).</summary>
+    public static float SfxVolume => _active != null ? _active.sfxVolume : 0.9f;
 
     // ============ Búsqueda ============
 
