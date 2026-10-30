@@ -30,6 +30,7 @@ public static class TestPrefabGenerator
     [MenuItem("Plomo y Paja/Crear Prefabs de Prueba")]
     public static void CreateAll()
     {
+        if (EditorMenuGuard.BlockedInPlayMode()) return;
         if (!EditorSceneManager.SaveCurrentModifiedScenesIfUserWantsTo()) return;
         EnsurePrefabs(true);
         EditorUtility.DisplayDialog("Prefabs de prueba", "Prefabs listos en " + PrefabFolder, "OK");

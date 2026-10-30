@@ -86,6 +86,7 @@ public static class CharacterSpriteSetBuilder
     [MenuItem("Plomo y Paja/Reconstruir Sets de Sprites")]
     public static void RebuildAll()
     {
+        if (EditorMenuGuard.BlockedInPlayMode()) return;
         int built = 0;
         if (AssetDatabase.IsValidFolder(CharacterSpriteImporter.CharactersFolder))
         {

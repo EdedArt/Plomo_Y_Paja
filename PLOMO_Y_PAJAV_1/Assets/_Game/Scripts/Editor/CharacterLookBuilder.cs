@@ -12,6 +12,7 @@ public static class CharacterLookBuilder
     [MenuItem("Plomo y Paja/Crear Materiales de Personajes")]
     public static void CreateAll()
     {
+        if (EditorMenuGuard.BlockedInPlayMode()) return;
         LevelBuilderUtils.EnsureFolder(Folder);
         Material sprite = GetOrCreate(CharacterLook.SpriteMaterialName, CharacterLook.SpriteShaderName);
         if (sprite != null) sprite.SetFloat("_Cutoff", 0.5f);

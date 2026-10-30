@@ -50,6 +50,7 @@ public static class AudioLibraryBuilder
     [MenuItem("Plomo y Paja/Reconstruir Librería de Audio")]
     public static void Rebuild()
     {
+        if (EditorMenuGuard.BlockedInPlayMode()) return;
         AudioLibrary library = GetOrCreateLibrary();
 
         // Voces: lineId = nombre del archivo

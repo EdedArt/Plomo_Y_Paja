@@ -45,6 +45,7 @@ public static class LevelBuilder_NivelPorky
     [MenuItem("Plomo y Paja/Generar Nivel Porky")]
     public static void Generate()
     {
+        if (EditorMenuGuard.BlockedInPlayMode()) return;
         if (File.Exists(ScenePath) &&
             !EditorUtility.DisplayDialog("Generar Nivel Porky",
                 $"{ScenePath} ya existe y se va a regenerar desde cero.\nSe perderán los cambios hechos a mano en esa escena.",

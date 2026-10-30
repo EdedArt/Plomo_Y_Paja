@@ -19,6 +19,7 @@ public static class RenderingSetup
     [MenuItem("Plomo y Paja/Configurar Renderer (SSAO)")]
     public static void Configure()
     {
+        if (EditorMenuGuard.BlockedInPlayMode()) return;
         var pipeline = GraphicsSettings.currentRenderPipeline as UniversalRenderPipelineAsset;
         if (pipeline == null)
         {
