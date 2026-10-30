@@ -27,7 +27,10 @@ Shader "PlomoYPaja/CartoonEnvironment"
         Tags { "RenderType" = "Opaque" "Queue" = "Geometry" "RenderPipeline" = "UniversalPipeline" }
 
         HLSLINCLUDE
+        // Orden de includes: Core -> CommonMaterial -> (Shadows / Lighting). Shadows.hlsl usa LerpWhiteTo, que vive en
+        // CommonMaterial.hlsl; URP Lit lo recibe por LitInput/Lighting, y estos pases no, así que se incluye aquí.
         #include "Packages/com.unity.render-pipelines.universal/ShaderLibrary/Core.hlsl"
+        #include "Packages/com.unity.render-pipelines.core/ShaderLibrary/CommonMaterial.hlsl"
 
         TEXTURE2D(_BaseMap);
         SAMPLER(sampler_BaseMap);
@@ -192,6 +195,9 @@ Shader "PlomoYPaja/CartoonEnvironment"
             #pragma vertex vertShadow
             #pragma fragment fragEmpty
             #pragma multi_compile_vertex _ _CASTING_PUNCTUAL_LIGHT_SHADOW
+            // Core y CommonMaterial ya vienen del HLSLINCLUDE; se repiten por claridad (tienen guardas)
+            #include "Packages/com.unity.render-pipelines.universal/ShaderLibrary/Core.hlsl"
+            #include "Packages/com.unity.render-pipelines.core/ShaderLibrary/CommonMaterial.hlsl"
             #include "Packages/com.unity.render-pipelines.universal/ShaderLibrary/Shadows.hlsl"
 
             float3 _LightDirection;
