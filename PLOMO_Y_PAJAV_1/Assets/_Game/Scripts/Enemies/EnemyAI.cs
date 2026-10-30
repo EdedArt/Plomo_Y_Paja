@@ -132,11 +132,17 @@ public class EnemyAI : MonoBehaviour
         if (_health != null) _health.OnDamaged -= HandleDamaged;    // Dejar de escuchar (evita llamadas a un objeto apagado)
     }
 
-    /// <summary>Recibió un golpe: mostrar la pose hit un instante.</summary>
+    /// <summary>Recibió un golpe: pose hit un instante y, si estaba tranquilo, alerta.</summary>
     private void HandleDamaged(float damage)
     {
         if (currentState == EnemyState.Dead) return;                // Muerto: se queda el dibujo de muerte
         if (billboardSprite != null) billboardSprite.PlayHit();
+
+        // Le dispararon (aunque sea por la espalda): no puede seguir caminando tranquilo.
+        // Si este mismo golpe también lo rinde, EnemyHealth llama TriggerSurrender justo
+        // después y Surrender corta la alerta (StopAllCoroutines).
+        if (currentState == EnemyState.Idle || currentState == EnemyState.Patrol)
+            ChangeState(EnemyState.Alert);                          // Alert → Chase va directo hacia el jugador
     }
 
     private void Start()
