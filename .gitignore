@@ -64,6 +64,10 @@ Assets/StreamingAssets/openai_key.txt.meta
 graphify-out/cache/
 graphify-out/.graphify_python
 graphify-out/.graphify_root
+# estado local de graphify (rutas absolutas, costos, etiquetas): se regenera, no se versiona
+graphify-out/manifest.json
+graphify-out/cost.json
+graphify-out/.graphify_labels.json
 # cache de graphify cuando se corre sobre la carpeta de Scripts
 **/graphify-out/cache/
 **/Assets/**/graphify-out/
