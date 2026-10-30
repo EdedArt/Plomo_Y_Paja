@@ -17,7 +17,15 @@ using UnityEngine.AI;
 ///   Si una animación falta se usa idle (o walk). Si el set no tiene ningún frame, el sprite se
 ///   oculta y el placeholder (placeholderRenderers) sigue visible.
 /// - accessorySet (opcional): se dibuja encima con el mismo frame (ej: pañuelo rojo del informante).
-/// - walkSprites/alertSprites/deathSprite: modo antiguo, solo si no hay set con frames.
+/// - Poses sueltas (idle/walk/shoot/hit/surrender/talk/alert/death): modo antiguo, solo si no hay set con frames.
+///
+/// POSES (las pide EnemyAI / DialogueNPC): idle = quieto · walk = caminando o persiguiendo ·
+/// shoot = golpe cuerpo a cuerpo (PlayAttack) · hit = un instante al recibir daño · surrender = manos arriba ·
+/// death = muerto (fijo, sigue mirando a la cámara) · talk = durante el interrogatorio.
+///
+/// NUNCA SE VOLTEA por defecto (flipWithMovement = false): sombra/luz pintadas en el dibujo (Edgar, dia3).
+/// PIES: el importador (CharacterSpriteImporter) pone el pivote en los pies. anchorFeet solo hace falta si el
+/// SpriteRenderer está en un hijo y el PNG se importó fuera del pipeline (pivote al centro).
 ///
 /// TIPOS DE BILLBOARD:
 /// - Full: el sprite rota en todos los ejes para mirar a la cámara
@@ -40,8 +48,14 @@ public class BillboardSprite : MonoBehaviour
     [Tooltip("Tipo de rotación del billboard")]
     [SerializeField] private BillboardType billboardType = BillboardType.YAxisOnly;
 
-    [Tooltip("¿Voltear el sprite horizontalmente según el movimiento?")]
-    [SerializeField] private bool flipWithMovement = true;
+    [Tooltip("¿Voltear el sprite horizontalmente según el movimiento? (apagado: la sombra está pintada en el dibujo)")]
+    [SerializeField] private bool flipWithMovement = false;
+
+    [Tooltip("Mover el SpriteRenderer HIJO para que el borde inferior del dibujo quede en el origen (solo PNG sin pivote en los pies)")]
+    [SerializeField] private bool anchorFeet = false;
+
+    [Tooltip("Segundos que se ve la pose hit tras recibir un golpe")]
+    [SerializeField, Min(0f)] private float hitPoseDuration = 0.25f;
 
     [Tooltip("Personaje sin iluminación + contorno en el placeholder + sombra blob (regla de legibilidad)")]
     [SerializeField] private bool unlitLook = true;
@@ -56,9 +70,24 @@ public class BillboardSprite : MonoBehaviour
     [Tooltip("Renderers del placeholder (cápsula): se ocultan cuando hay sprites")]
     [SerializeField] private Renderer[] placeholderRenderers;
 
-    [Header("Animación simple antigua (sin set)")]
+    [Header("Animación simple antigua (sin set): <anim>_<NN>.png sueltos")]
+    [Tooltip("idle_01...: quieto (si falta, se usa walk)")]
+    [SerializeField] private Sprite[] idleSprites;
+
     [Tooltip("Sprites para el ciclo de caminado (izquierda, centro, derecha, centro...)")]
     [SerializeField] private Sprite[] walkSprites;
+
+    [Tooltip("shoot_01...: golpe cuerpo a cuerpo (si falta, se usa alert)")]
+    [SerializeField] private Sprite[] shootSprites;
+
+    [Tooltip("hit_01...: se muestra un instante al recibir daño")]
+    [SerializeField] private Sprite[] hitSprites;
+
+    [Tooltip("surrender_01...: manos arriba (si falta, se usa walk)")]
+    [SerializeField] private Sprite[] surrenderSprites;
+
+    [Tooltip("talk_01...: hablando durante el interrogatorio")]
+    [SerializeField] private Sprite[] talkSprites;
 
     [Tooltip("Sprites para el estado de alerta")]
     [SerializeField] private Sprite[] alertSprites;
@@ -83,20 +112,30 @@ public class BillboardSprite : MonoBehaviour
     private bool _setLoop = true;
     private string _resumeAnim;     // animación a la que volver tras "hit"
     private float _hitUntil = -1f;
+    private Sprite[] _legacyResume;  // modo antiguo: pose a la que volver tras "hit"
+    private bool _isDead;            // muerto: dibujo fijo, no se aceptan más poses
+    private Sprite _anchoredSprite;  // último sprite para el que se recolocaron los pies (anchorFeet)
 
     /// <summary>¿Se están mostrando sprites (set o modo antiguo)? Si no, se ve el placeholder.</summary>
-    public bool HasSprites => _useSet || (walkSprites != null && walkSprites.Length > 0);
+    public bool HasSprites => _useSet || HasFrames(walkSprites) || HasFrames(idleSprites);
 
     private void Awake()
     {
         _mainCamera = Camera.main;
-        _spriteRenderer = GetComponent<SpriteRenderer>();
+        // En este objeto (prefab generado) o en un hijo "Art" (jerarquía de Edgar)
+        if (!TryGetComponent(out _spriteRenderer)) _spriteRenderer = GetComponentInChildren<SpriteRenderer>();
+        if (_spriteRenderer != null && !flipWithMovement) _spriteRenderer.flipX = false;
         if (unlitLook) ApplyUnlitLook();
 
-        if (walkSprites != null && walkSprites.Length > 0)
-            _currentAnimation = walkSprites;
+        if (HasFrames(idleSprites)) SwitchLegacy(idleSprites);
+        else if (HasFrames(walkSprites)) _currentAnimation = walkSprites;
 
         RefreshMode();
+    }
+
+    private static bool HasFrames(Sprite[] animation)
+    {
+        return animation != null && animation.Length > 0;
     }
 
     // ============ Pies al suelo (fase 3A4-fix) ============
@@ -217,7 +256,7 @@ public class BillboardSprite : MonoBehaviour
         if (_useSet && accessorySet != null && accessorySet.HasAnyFrames && _accessoryRenderer == null && _spriteRenderer != null)
         {
             var go = new GameObject("Accessory");
-            go.transform.SetParent(transform, false);
+            go.transform.SetParent(_spriteRenderer.transform, false);
             _accessoryRenderer = go.AddComponent<SpriteRenderer>();
             _accessoryRenderer.sortingLayerID = _spriteRenderer.sortingLayerID;
             _accessoryRenderer.sortingOrder = _spriteRenderer.sortingOrder + 1;
@@ -245,6 +284,25 @@ public class BillboardSprite : MonoBehaviour
         RotateTowardsCamera();
         if (_useSet) UpdateSetAnimation();
         else UpdateAnimation();
+        UpdateFeetAnchor();
+    }
+
+    // ============ Pies en el origen del SpriteHolder (Edgar, dia3) ============
+    // Solo con anchorFeet y el SpriteRenderer en un hijo: mueve el hijo para que el centro del borde inferior del
+    // dibujo quede en el origen. Con el renderer en este objeto no hace nada (el importador ya puso el pivote en los pies).
+    private void UpdateFeetAnchor()
+    {
+        if (!anchorFeet || _spriteRenderer == null || _spriteRenderer.transform == transform) return;
+        Sprite sprite = _spriteRenderer.sprite;
+        if (sprite == null || sprite == _anchoredSprite) return;
+        _anchoredSprite = sprite;
+
+        float ppu = sprite.pixelsPerUnit;
+        float offsetX = (sprite.pivot.x - sprite.rect.width * 0.5f) / ppu;
+        float offsetY = sprite.pivot.y / ppu;
+        Transform art = _spriteRenderer.transform;
+        Vector3 scale = art.localScale;
+        art.localPosition = new Vector3(offsetX * scale.x, offsetY * scale.y, art.localPosition.z);
     }
 
     private void RotateTowardsCamera()
@@ -268,8 +326,32 @@ public class BillboardSprite : MonoBehaviour
         }
     }
 
+    /// <summary>Modo antiguo: cambia de pose y muestra su primer dibujo ya. Pose sin dibujos = se queda la actual.</summary>
+    private void SwitchLegacy(Sprite[] anim)
+    {
+        if (!HasFrames(anim) || anim == _currentAnimation) return;
+        _currentAnimation = anim;
+        _currentFrame = 0;
+        _animTimer = 0;
+        if (_spriteRenderer != null && anim[0] != null) _spriteRenderer.sprite = anim[0];
+    }
+
+    /// <summary>Modo antiguo: pide una pose; si hay un "hit" en curso, se aplica cuando termina.</summary>
+    private void RequestLegacy(Sprite[] anim)
+    {
+        if (_isDead || !HasFrames(anim)) return;
+        if (_hitUntil > 0f) { _legacyResume = anim; return; }
+        SwitchLegacy(anim);
+    }
+
     private void UpdateAnimation()
     {
+        if (_isDead) return;
+        if (_hitUntil > 0f && Time.time >= _hitUntil)
+        {
+            _hitUntil = -1f;
+            SwitchLegacy(_legacyResume);
+        }
         if (_currentAnimation == null || _currentAnimation.Length == 0 || _spriteRenderer == null) return;
 
         _animTimer += Time.deltaTime * animationSpeed;
@@ -352,6 +434,7 @@ public class BillboardSprite : MonoBehaviour
     /// <summary>Reproduce cualquier animación del set por nombre (sin efecto en modo antiguo).</summary>
     public void Play(string anim, bool loop = true)
     {
+        if (_isDead) return;
         if (_hitUntil > 0f)
         {
             _resumeAnim = anim; // termina el golpe y luego sigue con esta
@@ -360,12 +443,13 @@ public class BillboardSprite : MonoBehaviour
         SetAnim(anim, loop);
     }
 
-    // ============ Métodos para cambiar animaciones desde EnemyAI ============
+    // ============ Métodos para cambiar animaciones desde EnemyAI / DialogueNPC / EnemyCombatFx ============
 
-    /// <summary>Animación de reposo (en modo antiguo = caminado, como antes)</summary>
+    /// <summary>Animación de reposo (en modo antiguo = idle suelto o, si falta, caminado)</summary>
     public void PlayIdle()
     {
         if (_useSet) Play("idle");
+        else if (HasFrames(idleSprites)) RequestLegacy(idleSprites);
         else PlayWalk();
     }
 
@@ -377,12 +461,7 @@ public class BillboardSprite : MonoBehaviour
             Play("walk");
             return;
         }
-        if (_currentAnimation != walkSprites)
-        {
-            _currentAnimation = walkSprites;
-            _currentFrame = 0;
-            _animTimer = 0;
-        }
+        RequestLegacy(walkSprites);
     }
 
     /// <summary>Cambiar a animación de alerta (con set: "shoot")</summary>
@@ -393,31 +472,57 @@ public class BillboardSprite : MonoBehaviour
             Play("shoot");
             return;
         }
-        if (_currentAnimation != alertSprites && alertSprites != null)
-        {
-            _currentAnimation = alertSprites;
-            _currentFrame = 0;
-            _animTimer = 0;
-        }
+        RequestLegacy(alertSprites);
     }
 
-    /// <summary>Frame de golpe durante unos instantes y vuelve a la animación anterior.</summary>
-    public void PlayHit(float duration = 0.15f)
+    /// <summary>Pose shoot: golpe cuerpo a cuerpo (Edgar). En modo antiguo, si falta shoot se usa alert.</summary>
+    public void PlayAttack()
     {
-        if (!_useSet || !spriteSet.TryGet("hit", out _)) return;
+        if (_useSet)
+        {
+            Play("shoot");
+            return;
+        }
+        RequestLegacy(HasFrames(shootSprites) ? shootSprites : alertSprites);
+    }
+
+    /// <summary>Frame de golpe durante unos instantes y vuelve a la animación anterior.
+    /// duration &lt; 0 = hitPoseDuration del Inspector.</summary>
+    public void PlayHit(float duration = -1f)
+    {
+        if (_isDead) return;
+        if (duration < 0f) duration = hitPoseDuration;
+
+        if (!_useSet)
+        {
+            if (!HasFrames(hitSprites)) return;
+            if (_hitUntil < 0f) _legacyResume = _currentAnimation;
+            _currentAnimation = null;
+            SwitchLegacy(hitSprites);
+            _hitUntil = Time.time + duration;
+            return;
+        }
+
+        if (!spriteSet.TryGet("hit", out _)) return;
         if (_hitUntil < 0f) _resumeAnim = _setAnim;
         _setAnim = null;
         SetAnim("hit", false);
         _hitUntil = Time.time + duration;
     }
 
-    /// <summary>Manos arriba (en modo antiguo = caminado, como antes)</summary>
+    /// <summary>Manos arriba (en modo antiguo = surrender suelto o, si falta, caminado)</summary>
     public void PlaySurrender()
     {
+        if (_isDead) return;
         if (_useSet)
         {
             _hitUntil = -1f;
             SetAnim("surrender", true);
+        }
+        else if (HasFrames(surrenderSprites))
+        {
+            _hitUntil = -1f;
+            SwitchLegacy(surrenderSprites);
         }
         else PlayWalk();
     }
@@ -426,25 +531,28 @@ public class BillboardSprite : MonoBehaviour
     public void PlayTalk()
     {
         if (_useSet) Play("talk");
+        else RequestLegacy(talkSprites);
     }
 
-    /// <summary>Mostrar la muerte: con set se reproduce una vez y se queda en el último frame</summary>
+    /// <summary>Mostrar la muerte: con set se reproduce una vez y se queda en el último frame.
+    /// El billboard sigue mirando a la cámara (el cuerpo no se ve "de canto").</summary>
     public void PlayDeath()
     {
+        _hitUntil = -1f;
         if (_useSet)
         {
-            _hitUntil = -1f;
             SetAnim("death", false);
+            _isDead = true;
             return;
         }
 
         _currentAnimation = null;
         if (deathSprite != null && _spriteRenderer != null)
             _spriteRenderer.sprite = deathSprite;
-        enabled = false; // Dejar de actualizar este componente
+        _isDead = true;
     }
 
-    /// <summary>Voltear el sprite según la dirección de movimiento</summary>
+    /// <summary>Voltear el sprite según la dirección de movimiento (solo si flipWithMovement está activo)</summary>
     public void SetFacingDirection(Vector3 movementDirection)
     {
         if (!flipWithMovement || _mainCamera == null || _spriteRenderer == null) return;
