@@ -7,7 +7,7 @@ using UnityEngine.Rendering.Universal;
 /// <summary>
 /// Ajustes del renderer URP para el look pintado (fase 3A2).
 /// - Añade la feature "Screen Space Ambient Occlusion" (si no está) con:
-///   Intensity 1, Radius 0.3, Direct Lighting Strength 0.25, Source Depth Normals,
+///   Intensity 2, Radius 0.45, Direct Lighting Strength 0.4 (fase 3A3; antes 1 / 0.3 / 0.25, apenas se notaba), Source Depth Normals,
 ///   Samples Medium, Blur High, Downsample off, After Opaque off, Falloff 100 m.
 /// - Activa sombras suaves en el asset del pipeline (la luna las usa) y sube a 8 las luces adicionales por objeto.
 /// La clase de URP es internal en URP 14: se crea por reflexión y se configura con SerializedObject.
@@ -48,9 +48,9 @@ public static class RenderingSetup
         if (ssao == null) return;
 
         var so = new SerializedObject(ssao);
-        SetFloat(so, "m_Settings.Intensity", 1f);
-        SetFloat(so, "m_Settings.Radius", 0.3f);
-        SetFloat(so, "m_Settings.DirectLightingStrength", 0.25f);
+        SetFloat(so, "m_Settings.Intensity", 2f);
+        SetFloat(so, "m_Settings.Radius", 0.45f);
+        SetFloat(so, "m_Settings.DirectLightingStrength", 0.4f);
         SetFloat(so, "m_Settings.Falloff", 100f);
         SetEnum(so, "m_Settings.Source", 1);      // DepthNormals
         SetEnum(so, "m_Settings.Samples", 1);     // Medium
@@ -64,7 +64,7 @@ public static class RenderingSetup
         EditorUtility.SetDirty(renderer);
         EditorUtility.SetDirty(pipeline);
         AssetDatabase.SaveAssets();
-        Debug.Log("[RenderingSetup] SSAO listo en '" + renderer.name + "' (Intensity 1, Radius 0.3) y sombras suaves activas.");
+        Debug.Log("[RenderingSetup] SSAO listo en '" + renderer.name + "' (Intensity 2, Radius 0.45) y sombras suaves activas.");
     }
 
     private static ScriptableRendererFeature FindOrAddSsao(ScriptableRendererData renderer)

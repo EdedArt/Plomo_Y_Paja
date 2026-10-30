@@ -175,7 +175,9 @@ Shader "PlomoYPaja/CartoonEnvironment"
 
                 // Ambiente teñido de violeta: lo que no ilumina ninguna luz queda violeta, no negro
                 half3 ambient = SampleSH(n) * _ShadowColor.rgb * 1.6 + _ShadowColor.rgb * 0.04;
-                half3 color = albedo * (ambient * ao.indirectAmbientOcclusion + direct * ao.directAmbientOcclusion);
+                // El AO se eleva al cuadrado en el ambiente: esquinas y bases claramente más oscuras (fase 3A3)
+                half aoAmbient = ao.indirectAmbientOcclusion * ao.indirectAmbientOcclusion;
+                half3 color = albedo * (ambient * aoAmbient + direct * ao.directAmbientOcclusion);
                 color += _EmissionColor.rgb;
                 color = MixFog(color, i.fogFactor);
                 return half4(color, 1);

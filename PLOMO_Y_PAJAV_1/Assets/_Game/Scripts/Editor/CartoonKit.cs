@@ -317,8 +317,22 @@ public static partial class CartoonKit
         { "Revoque", new Color32(0x9A, 0x8A, 0xA8, 0xFF) },
         { "RevoqueCalido", new Color32(0xC9, 0x8E, 0x5A, 0xFF) },
         { "TechoEdificio", new Color32(0x3A, 0x3F, 0x5A, 0xFF) },
+        // Interior de la casa (fase 3A3): papel verde grisáceo, piso marrón oscuro, cielorraso casi violeta
+        { "Empapelado", new Color32(0x5F, 0x7A, 0x74, 0xFF) },
+        { "PisoTabla", new Color32(0x4A, 0x34, 0x26, 0xFF) },
+        { "PisoTablaClara", new Color32(0x5A, 0x41, 0x2F, 0xFF) },
+        { "Cielorraso", new Color32(0x2C, 0x2A, 0x3E, 0xFF) },
         { "Pasto", new Color32(0x5E, 0x8C, 0x3A, 0xFF) },
         { "PastoLejano", new Color32(0x3E, 0x5A, 0x3A, 0xFF) },
+    };
+
+    // Color de sombra (y por tanto del ambiente) de las superficies interiores: azul frío
+    private static readonly Dictionary<string, Color> InteriorShadow = new Dictionary<string, Color>
+    {
+        { "Empapelado", new Color(0.27f, 0.36f, 0.64f) },
+        { "PisoTabla", new Color(0.30f, 0.32f, 0.60f) },
+        { "PisoTablaClara", new Color(0.30f, 0.32f, 0.60f) },
+        { "Cielorraso", new Color(0.26f, 0.28f, 0.58f) },
     };
 
     private static readonly Dictionary<string, Color> Emissive = new Dictionary<string, Color>
@@ -340,6 +354,15 @@ public static partial class CartoonKit
             mat = LevelBuilderUtils.GetOrCreateMaterial("Kit_" + name, Palette.TryGetValue(name, out Color c) ? c : Color.gray, 0f, true);
 
         if (mat.HasProperty("_PaintNoise")) mat.SetFloat("_PaintNoise", name.StartsWith("Pasto") || name == "Tierra" ? 0.6f : 0.35f);
+
+        // Superficies del interior: sombra azul fría (no violeta/naranja) y más oscuras hacia abajo
+        if (InteriorShadow.TryGetValue(name, out Color shadow) && mat.HasProperty("_ShadowColor"))
+        {
+            mat.SetColor("_ShadowColor", shadow);
+            mat.SetFloat("_FloorDarken", 0.5f);
+            mat.SetFloat("_FloorDarkenHeight", name == "Empapelado" ? 2.2f : 0.6f);
+            EditorUtility.SetDirty(mat);
+        }
         SessionMaterials[name] = mat;
         return mat;
     }

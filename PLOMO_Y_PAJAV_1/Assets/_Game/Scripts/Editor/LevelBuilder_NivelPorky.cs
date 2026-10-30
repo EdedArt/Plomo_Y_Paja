@@ -194,8 +194,8 @@ public static class LevelBuilder_NivelPorky
 
         // Cielorraso de madera con vigas (cocina completa y fondo de la sala) + techo de paja encima
         Transform roof = CreateGroup("Techo", house);
-        CreateBox("Techo_Cocina", new Vector3(0f, WallHeight + 0.1f, 4.05f), new Vector3(16.2f, 0.2f, 4.1f), CartoonKit.M("MaderaOscura"), roof);
-        CreateBox("Techo_Sala", new Vector3(-3f, WallHeight + 0.1f, -0.5f), new Vector3(10.2f, 0.2f, 5f), CartoonKit.M("MaderaOscura"), roof);
+        CreateBox("Techo_Cocina", new Vector3(0f, WallHeight + 0.1f, 4.05f), new Vector3(16.2f, 0.2f, 4.1f), CartoonKit.M("Cielorraso"), roof);
+        CreateBox("Techo_Sala", new Vector3(-3f, WallHeight + 0.1f, -0.5f), new Vector3(10.2f, 0.2f, 5f), CartoonKit.M("Cielorraso"), roof);
         for (int i = 0; i < 4; i++)
             CreateBox($"Viga_Cocina_{i}", new Vector3(-6f + i * 4f, WallHeight - 0.08f, 4.05f), new Vector3(0.22f, 0.18f, 4f), _wood, roof);
         for (int i = 0; i < 3; i++)
@@ -228,8 +228,8 @@ public static class LevelBuilder_NivelPorky
         CartoonKit.Sofa("Sofa", new Vector3(-7.35f, FloorTop, -1f), 90f, furniture, 2.2f);
         CartoonKit.Crate("Caja_Contrato", new Vector3(-6.5f, FloorTop, -2.5f), 15f, furniture, 0.24f); // la pista queda encima (y 0.3)
         CartoonKit.PottedPlant("Planta_Sala", new Vector3(1.4f, FloorTop, -5.4f), furniture, 0);
-        CartoonKit.HangingLamp("Lampara_Sala", new Vector3(-3.5f, WallHeight, -1.2f), 0.55f, furniture, lighting, InteriorLamp, 1.5f, 7.5f);
-        CartoonKit.WallLamp("Aplique_Sala", new Vector3(-7.9f, 2.1f, -3.6f), 90f, furniture, lighting, InteriorLamp, 0.9f, 5f);
+        CartoonKit.HangingLamp("Lampara_Sala", new Vector3(-3.5f, WallHeight, -1.2f), 0.55f, furniture, lighting, InteriorLamp, 1.7f, 5.5f);
+        CartoonKit.WallLamp("Aplique_Sala", new Vector3(-7.9f, 2.1f, -3.6f), 90f, furniture, lighting, InteriorLamp, 1f, 3.5f);
 
         // Cocina: mesa redonda con dos sillas, nevera, barril y caja en el rincón, dos lámparas colgantes
         CartoonKit.RoundTable("Mesa", new Vector3(2f, FloorTop, 4f), furniture, 0.55f);
@@ -238,12 +238,12 @@ public static class LevelBuilder_NivelPorky
         CartoonKit.IceBox("Nevera", new Vector3(7.4f, FloorTop, 5.25f), 180f, furniture);
         CartoonKit.Barrel("Barril_Cocina", new Vector3(-7.3f, FloorTop, 5.3f), 0f, furniture, 0);
         CartoonKit.Crate("Caja_Cocina", new Vector3(-6.35f, FloorTop, 5.35f), 8f, furniture, 0.7f);
-        CartoonKit.HangingLamp("Lampara_Cocina_A", new Vector3(-4f, WallHeight, 4f), 0.5f, furniture, lighting, InteriorLamp, 1.4f, 7f);
-        CartoonKit.HangingLamp("Lampara_Cocina_B", new Vector3(2f, WallHeight, 4f), 0.5f, furniture, lighting, InteriorLamp, 1.3f, 6.5f);
+        CartoonKit.HangingLamp("Lampara_Cocina_A", new Vector3(-4f, WallHeight, 4f), 0.5f, furniture, lighting, InteriorLamp, 1.6f, 5f);
+        CartoonKit.HangingLamp("Lampara_Cocina_B", new Vector3(2f, WallHeight, 4f), 0.5f, furniture, lighting, InteriorLamp, 1.5f, 5f);
 
         // Dormitorio: cómoda (la nota queda encima, y 1.1), cama y aplique; sin techo
         CartoonKit.Dresser("Cajonera", new Vector3(2.45f, FloorTop, 0.8f), 90f, furniture, new Vector3(1.2f, 1f - FloorTop, 0.55f));
-        CartoonKit.WallLamp("Aplique_Dormitorio", new Vector3(7.9f, 2.1f, 0.4f), -90f, furniture, lighting, InteriorLamp, 1f, 5.5f);
+        CartoonKit.WallLamp("Aplique_Dormitorio", new Vector3(7.9f, 2.1f, 0.4f), -90f, furniture, lighting, InteriorLamp, 1.1f, 4f);
         CartoonKit.Box("Cama", new Vector3(6.6f, FloorTop + 0.25f, 1.1f), new Vector3(2f, 0.5f, 1.4f), _wood, furniture, default, 0.1f);
         CartoonKit.Box("Cama_Colchon", new Vector3(6.6f, FloorTop + 0.58f, 1.1f), new Vector3(1.9f, 0.18f, 1.3f), CartoonKit.M("Yeso"), furniture, default, 0.08f, false);
         CartoonKit.Box("Cama_Cabecera", new Vector3(7.75f, FloorTop + 0.75f, 1.1f), new Vector3(0.12f, 1f, 1.45f), _wood, furniture, default, 0.06f);

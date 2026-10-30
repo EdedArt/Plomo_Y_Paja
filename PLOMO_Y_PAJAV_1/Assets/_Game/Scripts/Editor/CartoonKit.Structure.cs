@@ -17,7 +17,7 @@ public static partial class CartoonKit
         Plain
     }
 
-    private const int SubCore = 0, SubDarkWood = 1, SubTrim = 2, SubStraw = 3, SubStrawDark = 4, SubRope = 5;
+    private const int SubCore = 0, SubDarkWood = 1, SubTrim = 2, SubStraw = 3, SubStrawDark = 4, SubRope = 5, SubPaper = 6;
 
     /// <summary>
     /// Pared del kit de start a end. faceRight/faceLeft = acabado de cada lado (derecha = a la derecha de start→end).
@@ -57,7 +57,7 @@ public static partial class CartoonKit
                 core, wall, rot.eulerAngles, 0.03f);
         }
 
-        // Decoración: una sola malla por pared con submallas (núcleo, madera oscura, moldura, paja, paja oscura, cuerda)
+        // Decoración: una sola malla por pared con submallas (núcleo, madera oscura, moldura, paja, paja oscura, cuerda, empapelado)
         string key = "Pared_" + name + "_" + Cm(length) + "_" + Cm(height) + "_" + (int)faceRight + (int)faceLeft +
                      (holes != null ? "_h" + holes.Length : "");
         Mesh decor = GetMesh(key, b =>
@@ -71,11 +71,11 @@ public static partial class CartoonKit
             if (openings != null)
                 foreach (WallOpening o in openings)
                     if (o.height < height - 0.01f && o.width <= 2.2f)
-                        BuildDoorFrame(b, o, thickness);
-            for (int s = 0; s <= SubRope; s++) b.Submesh = s; // siempre 6 submallas
+                        BuildDoorFrame(b, o, thickness, faceRight == WallFace.Wainscot, faceLeft == WallFace.Wainscot);
+            for (int s = 0; s <= SubPaper; s++) b.Submesh = s; // siempre 7 submallas
         });
         MeshObject(name + "_Acabado", decor,
-            new[] { core, M("MaderaOscura"), M("MaderaClara"), M("Paja"), M("PajaOscura"), M("Cuerda") },
+            new[] { core, M("MaderaOscura"), M("MaderaClara"), M("Paja"), M("PajaOscura"), M("Cuerda"), M("Empapelado") },
             wall, start, rot);
         return wall;
     }
@@ -94,6 +94,14 @@ public static partial class CartoonKit
         switch (face)
         {
             case WallFace.Wainscot:
+                // Empapelado verde grisáceo sobre el zócalo (y sobre los dinteles): el interior deja de ser todo naranja
+                float paperBottom = bottom > 0.01f ? bottom : Mathf.Min(1f, top);
+                if (top - paperBottom > 0.02f)
+                {
+                    b.Submesh = SubPaper;
+                    AddBox(b, new Vector3(surface + side * 0.012f, (paperBottom + top) * 0.5f, mid),
+                        new Vector3(0.024f, top - paperBottom, len), Quaternion.identity, 0.004f, 1);
+                }
                 if (bottom > 0.01f) return; // dinteles: sin zócalo
                 float panelTop = Mathf.Min(1f, top);
                 b.Submesh = SubDarkWood;
@@ -178,7 +186,7 @@ public static partial class CartoonKit
     /// Marco de puerta gordito con arco de medio punto: jambas, dovelas del arco y los rellenos de las esquinas
     /// (del color de la pared) que convierten el hueco rectangular en un arco.
     /// </summary>
-    private static void BuildDoorFrame(KitMesh b, WallOpening o, float thickness)
+    private static void BuildDoorFrame(KitMesh b, WallOpening o, float thickness, bool paperRight, bool paperLeft)
     {
         float w = o.width, hgt = o.height;
         float radius = w * 0.5f;
@@ -205,10 +213,11 @@ public static partial class CartoonKit
         }
 
         // Rellenos de las esquinas superiores (entre el arco y el dintel), ambas caras
-        b.Submesh = SubCore;
         const int steps = 8;
         for (int s = -1; s <= 1; s += 2)
         {
+            // La cara con empapelado rellena las esquinas del arco con el mismo papel
+            b.Submesh = (s > 0 ? paperRight : paperLeft) ? SubPaper : SubCore;
             float x = s * thickness * 0.5f;
             Vector3 normal = new Vector3(s, 0f, 0f);
             for (int corner = -1; corner <= 1; corner += 2)
@@ -318,7 +327,7 @@ public static partial class CartoonKit
                 }
             }
         });
-        var visual = MeshObject(name + "_Tablas", mesh, new[] { M("Madera"), M("MaderaClara"), M("MaderaOscura") },
+        var visual = MeshObject(name + "_Tablas", mesh, new[] { M("PisoTabla"), M("PisoTablaClara"), M("MaderaOscura") },
             root.transform, center, Quaternion.identity);
         visual.transform.localPosition = Vector3.zero;
         return root;
