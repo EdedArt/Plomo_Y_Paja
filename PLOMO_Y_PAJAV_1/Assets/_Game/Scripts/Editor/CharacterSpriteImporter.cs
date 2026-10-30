@@ -7,11 +7,15 @@ using UnityEngine;
 /// <summary>
 /// Ajustes de importación para los PNG de Assets/_Game/Art/Characters/&lt;characterId&gt;/:
 /// Sprite Single, pivote abajo al centro, 250 px por metro (450 px ≈ 1.8 m), Bilinear, sin compresión.
-/// Excepciones: wilbur_hands → pivote abajo a la derecha; intro → pivote al centro y 100 px por metro.
+/// Excepciones: wilbur_hands → pivote abajo a la derecha; intro → pivote al centro y 100 px por metro;
+/// guardia → 236 px por metro (el primer dibujo mide 449 px de alto en un lienzo de 512: 449 / 236 ≈ 1.9 m).
 /// </summary>
 public class CharacterSpriteImporter : AssetPostprocessor
 {
     public const string CharactersFolder = "Assets/_Game/Art/Characters";
+
+    // Subir la versión obliga a Unity a reimportar los PNG con los ajustes nuevos
+    public override uint GetVersion() => 2;
 
     private void OnPreprocessTexture()
     {
@@ -28,6 +32,7 @@ public class CharacterSpriteImporter : AssetPostprocessor
         importer.textureCompression = TextureImporterCompression.Uncompressed;
         importer.alphaIsTransparency = true;
         importer.alphaSource = TextureImporterAlphaSource.FromInput;
+        importer.maxTextureSize = 2048;
 
         var settings = new TextureImporterSettings();
         importer.ReadTextureSettings(settings);
@@ -43,6 +48,10 @@ public class CharacterSpriteImporter : AssetPostprocessor
             case "intro":
                 settings.spriteAlignment = (int)SpriteAlignment.Center;
                 settings.spritePixelsPerUnit = 100f;
+                break;
+            case "guardia":
+                settings.spriteAlignment = (int)SpriteAlignment.BottomCenter;
+                settings.spritePixelsPerUnit = 236f;
                 break;
             default:
                 settings.spriteAlignment = (int)SpriteAlignment.BottomCenter;
@@ -82,7 +91,7 @@ public static class CharacterSpriteSetBuilder
         {
             foreach (string folder in AssetDatabase.GetSubFolders(CharacterSpriteImporter.CharactersFolder))
             {
-                string characterId = Path.GetFileName(folder);
+                string characterId = Path.GetFileName(folder).ToLowerInvariant(); // "Guardia" y "guardia" son el mismo personaje
                 Rebuild(characterId, folder);
                 built++;
             }
@@ -110,7 +119,7 @@ public static class CharacterSpriteSetBuilder
     {
         string rest = assetPath.Substring(CharacterSpriteImporter.CharactersFolder.Length + 1);
         int slash = rest.IndexOf('/');
-        return slash > 0 ? rest.Substring(0, slash) : "";
+        return slash > 0 ? rest.Substring(0, slash).ToLowerInvariant() : "";
     }
 
     private static void Rebuild(string characterId, string folder)

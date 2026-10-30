@@ -20,7 +20,8 @@ public static class CharacterLookBuilder
         if (placeholder != null)
         {
             placeholder.SetColor("_OutlineColor", Color.black);
-            placeholder.SetFloat("_OutlineWidth", 0.025f);
+            placeholder.SetFloat("_OutlinePixels", 3f);
+            placeholder.SetFloat("_Lift", 0.3f);
         }
 
         Material blob = GetOrCreate(CharacterLook.BlobMaterialName, CharacterLook.BlobShaderName);

@@ -43,6 +43,9 @@ public static class TestPrefabGenerator
     {
         LevelBuilderUtils.EnsureFolder(PrefabFolder);
         CharacterLookBuilder.CreateAll(); // materiales sin iluminación de personajes (fase 3A2)
+        // Los sets se rellenan con los PNG de Art/Characters ANTES de crear prefabs: así el guardia nunca
+        // vuelve al placeholder por haber olvidado "Reconstruir Sets de Sprites" (fase 3A3)
+        CharacterSpriteSetBuilder.RebuildAll();
 
         if (regenerate || !File.Exists(AICompanionPath)) CreateAICompanionPrefab();
         if (regenerate || !File.Exists(GuardPath)) CreateGuardPrefab();
