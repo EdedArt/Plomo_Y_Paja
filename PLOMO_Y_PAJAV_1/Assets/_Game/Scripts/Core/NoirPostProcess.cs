@@ -21,7 +21,7 @@ public class NoirPostProcess : MonoBehaviour
 
     // Valores base: deben coincidir con NoirVolumeBuilder.GetOrCreateTechnicolorProfile
     private const float BaseSaturation = 20f;
-    private const float BaseVignetteIntensity = 0.2f;
+    private const float BaseVignetteIntensity = 0.3f;
 
     private Volume _volume;
     private VolumeProfile _profile;
@@ -63,8 +63,8 @@ public class NoirPostProcess : MonoBehaviour
         tonemapping.mode.Override(TonemappingMode.Neutral);
 
         _colorAdj = _profile.Add<ColorAdjustments>();
-        _colorAdj.postExposure.Override(0.4f);
-        _colorAdj.contrast.Override(10f);
+        _colorAdj.postExposure.Override(0.2f);
+        _colorAdj.contrast.Override(15f);
         _colorAdj.saturation.Override(BaseSaturation);
         _colorAdj.colorFilter.Override(new Color32(0xFF, 0xF4, 0xE6, 0xFF));
 
@@ -80,8 +80,8 @@ public class NoirPostProcess : MonoBehaviour
         _vignette.color.Override(Color.black);
 
         FilmGrain grain = _profile.Add<FilmGrain>();
-        grain.type.Override(FilmGrainLookup.Thin1);
-        grain.intensity.Override(0.12f);
+        grain.type.Override(FilmGrainLookup.Medium1);
+        grain.intensity.Override(0.18f);
     }
 
     /// <summary>
