@@ -133,7 +133,7 @@ Captura(s):
 
 ## 15. Corrección 3A2-fix
 - **Causa:** `Shadows.hlsl` (URP 14.0.12) usa `LerpWhiteTo`, definido en `render-pipelines.core/ShaderLibrary/CommonMaterial.hlsl`. URP Lit lo recibe de forma indirecta; el pase ShadowCaster de `CartoonEnvironment` incluía `Shadows.hlsl` sin esa dependencia, así que Unity rechazaba todo el shader (escenario rosado).
-- **Commit:** 9e7216a — `dia3a2(david): fix include de CommonMaterial en shaders del escenario`
+- **Commit:** 880ec8a — `dia3a2(david): fix include de CommonMaterial en shaders del escenario`
 
 | Shader | Pase | Includes | ¿Cambió? |
 |---|---|---|---|
