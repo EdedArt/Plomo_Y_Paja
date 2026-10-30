@@ -5,33 +5,50 @@ using UnityEditor;
 using UnityEngine;
 
 /// <summary>
-/// Ajustes de importación para todo lo que se suelte en Audio/Voices y Audio/SFX:
-/// - Siempre mono (los sonidos 3D no necesitan estéreo)
-/// - Voces: Decompress On Load
-/// - Nombres que empiezan por "lluvia_" o "musica_": Streaming (son largos)
+/// Ajustes de importación por carpeta (Audio/Voices, Audio/SFX, Audio/Music y lo mismo dentro de Audio/_SinUso):
+/// - Voces y SFX: Decompress On Load, Vorbis calidad 70, mono (los sonidos 3D no necesitan estéreo)
+/// - Música y ambiente (carpeta Music o nombres "lluvia_"/"musica_"): Streaming, Vorbis calidad 60, se respeta el estéreo
+/// El bucle (lluvia) no es un ajuste de importación: lo decide el AudioSource (loop = true) que lo reproduzca.
 /// </summary>
 public class GameAudioImporter : AssetPostprocessor
 {
     public const string AudioRoot = "Assets/_Game/Audio";
     public const string VoicesFolder = AudioRoot + "/Voices";
     public const string SfxFolder = AudioRoot + "/SFX";
+    public const string MusicFolder = AudioRoot + "/Music";
+    /// <summary>Audios entregados que ningún código pide todavía (misma estructura Voices/SFX/Music).</summary>
+    public const string UnusedFolder = AudioRoot + "/_SinUso";
+
+    private const float VoiceSfxQuality = 0.7f;
+    private const float MusicQuality = 0.6f;
 
     private void OnPreprocessAudio()
     {
         string path = assetPath.Replace('\\', '/');
-        bool isVoice = path.StartsWith(VoicesFolder + "/");
-        bool isSfx = path.StartsWith(SfxFolder + "/");
-        if (!isVoice && !isSfx) return;
+        string rel = path.StartsWith(UnusedFolder + "/") ? AudioRoot + path.Substring(UnusedFolder.Length) : path;
+        bool isVoice = rel.StartsWith(VoicesFolder + "/");
+        bool isSfx = rel.StartsWith(SfxFolder + "/");
+        bool inMusic = rel.StartsWith(MusicFolder + "/");
+        if (!isVoice && !isSfx && !inMusic) return;
 
         var importer = (UnityEditor.AudioImporter)assetImporter;
-        importer.forceToMono = true;
+        string file = Path.GetFileNameWithoutExtension(path).ToLowerInvariant();
+        bool isLong = inMusic || file.StartsWith("lluvia_") || file.StartsWith("musica_");
+
+        importer.forceToMono = !isLong;
 
         AudioImporterSampleSettings settings = importer.defaultSampleSettings;
-        string file = Path.GetFileNameWithoutExtension(path).ToLowerInvariant();
-        if (file.StartsWith("lluvia_") || file.StartsWith("musica_"))
+        settings.compressionFormat = AudioCompressionFormat.Vorbis;
+        if (isLong)
+        {
             settings.loadType = AudioClipLoadType.Streaming;
-        else if (isVoice)
+            settings.quality = MusicQuality;
+        }
+        else
+        {
             settings.loadType = AudioClipLoadType.DecompressOnLoad;
+            settings.quality = VoiceSfxQuality;
+        }
         importer.defaultSampleSettings = settings;
     }
 }

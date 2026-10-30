@@ -72,3 +72,6 @@ graphify-out/.graphify_labels.json
 **/graphify-out/cache/
 **/Assets/**/graphify-out/
 **/Assets/**/graphify-out.meta
+
+# audio entrante de Cristian (originales; lo importado vive en Assets/_Game/Audio)
+PLOMO_Y_PAJAV_1/_entrante_audio/
