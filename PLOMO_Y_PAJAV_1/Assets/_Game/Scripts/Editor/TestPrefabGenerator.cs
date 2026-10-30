@@ -74,14 +74,17 @@ public static class TestPrefabGenerator
         var subtitleGo = new GameObject("Subtitle", typeof(RectTransform));
         subtitleGo.transform.SetParent(canvasGo.transform, false);
         RectTransform rect = (RectTransform)subtitleGo.transform;
-        rect.anchorMin = rect.anchorMax = new Vector2(0.5f, 0f);
-        rect.pivot = new Vector2(0.5f, 0f);
-        rect.anchoredPosition = new Vector2(0f, 120f);
+        // Pensamientos de Wilbur: arriba al centro, 90 px desde el borde (el diálogo va abajo)
+        rect.anchorMin = rect.anchorMax = new Vector2(0.5f, 1f);
+        rect.pivot = new Vector2(0.5f, 1f);
+        rect.anchoredPosition = new Vector2(0f, -90f);
         rect.sizeDelta = new Vector2(1200f, 120f);
 
         TextMeshProUGUI text = subtitleGo.AddComponent<TextMeshProUGUI>();
         text.fontSize = 32f;
-        text.color = Cream;
+        text.fontStyle = FontStyles.Italic;
+        text.color = new Color32(0xF2, 0xE6, 0xC8, 0xFF);
+        text.fontSharedMaterial = GetUnderlayMaterial(text.font, text.fontSharedMaterial);
         text.alignment = TextAlignmentOptions.Center;
         text.enableWordWrapping = true;
         text.raycastTarget = false;
@@ -164,6 +167,7 @@ public static class TestPrefabGenerator
 
         root.AddComponent<RubberHoseMotion>();
         root.AddComponent<EnemyCombatFx>();
+        root.AddComponent<EnemyBarks>();
 
         SaveAndDestroy(root, GuardPath);
     }
@@ -318,6 +322,26 @@ public static class TestPrefabGenerator
         {
             PrefabUtility.UnloadPrefabContents(contents);
         }
+    }
+
+    /// <summary>Copia del material TMP con sombra oscura (underlay), guardada como asset para que sobreviva en el prefab.</summary>
+    private static Material GetUnderlayMaterial(TMP_FontAsset font, Material fallback)
+    {
+        if (font == null || fallback == null) return fallback;
+        LevelBuilderUtils.EnsureFolder(LevelBuilderUtils.MaterialFolder);
+        string path = LevelBuilderUtils.MaterialFolder + "/Pensamiento_Underlay.mat";
+        Material mat = AssetDatabase.LoadAssetAtPath<Material>(path);
+        if (mat != null) return mat;
+
+        mat = new Material(fallback) { name = "Pensamiento_Underlay" };
+        mat.EnableKeyword("UNDERLAY_ON");
+        mat.SetColor("_UnderlayColor", new Color(0f, 0f, 0f, 0.85f));
+        mat.SetFloat("_UnderlayOffsetX", 0.6f);
+        mat.SetFloat("_UnderlayOffsetY", -0.6f);
+        mat.SetFloat("_UnderlayDilate", 0.4f);
+        mat.SetFloat("_UnderlaySoftness", 0.3f);
+        AssetDatabase.CreateAsset(mat, path);
+        return mat;
     }
 
     private static void EnsureCartoonFx(GameObject playerRoot)
