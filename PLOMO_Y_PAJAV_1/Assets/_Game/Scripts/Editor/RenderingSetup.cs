@@ -9,7 +9,7 @@ using UnityEngine.Rendering.Universal;
 /// - Añade la feature "Screen Space Ambient Occlusion" (si no está) con:
 ///   Intensity 1, Radius 0.3, Direct Lighting Strength 0.25, Source Depth Normals,
 ///   Samples Medium, Blur High, Downsample off, After Opaque off, Falloff 100 m.
-/// - Activa sombras suaves en el asset del pipeline (la luna las usa).
+/// - Activa sombras suaves en el asset del pipeline (la luna las usa) y sube a 8 las luces adicionales por objeto.
 /// La clase de URP es internal en URP 14: se crea por reflexión y se configura con SerializedObject.
 /// </summary>
 public static class RenderingSetup
@@ -29,6 +29,9 @@ public static class RenderingSetup
         var pipelineSo = new SerializedObject(pipeline);
         SerializedProperty soft = pipelineSo.FindProperty("m_SoftShadowsSupported");
         if (soft != null) soft.boolValue = true;
+        // Piso y paredes de la casa son mallas grandes: con el límite de 4 se perdían lámparas
+        SerializedProperty perObject = pipelineSo.FindProperty("m_AdditionalLightsPerObjectLimit");
+        if (perObject != null) perObject.intValue = 8;
         pipelineSo.ApplyModifiedPropertiesWithoutUndo();
 
         SerializedProperty list = pipelineSo.FindProperty("m_RendererDataList");

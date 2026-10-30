@@ -27,6 +27,16 @@ public static partial class CartoonKit
     public static Transform Wall(string name, Vector3 start, Vector3 end, float height, float thickness, Material core,
         WallFace faceRight, WallFace faceLeft, Transform parent, params WallOpening[] openings)
     {
+        return Wall(name, start, end, height, thickness, core, faceRight, faceLeft, parent, null, openings);
+    }
+
+    /// <summary>
+    /// Igual, con "holes": rectángulos (x = distancia desde start, y = altura) donde la paja no se dibuja, para
+    /// que las ventanas decorativas queden hundidas entre los fardos.
+    /// </summary>
+    public static Transform Wall(string name, Vector3 start, Vector3 end, float height, float thickness, Material core,
+        WallFace faceRight, WallFace faceLeft, Transform parent, Rect[] holes, params WallOpening[] openings)
+    {
         Transform wall = CreateGroup(name, parent);
         Vector3 delta = end - start;
         delta.y = 0f;
@@ -48,14 +58,15 @@ public static partial class CartoonKit
         }
 
         // Decoración: una sola malla por pared con submallas (núcleo, madera oscura, moldura, paja, paja oscura, cuerda)
-        string key = "Pared_" + name + "_" + Cm(length) + "_" + Cm(height) + "_" + (int)faceRight + (int)faceLeft;
+        string key = "Pared_" + name + "_" + Cm(length) + "_" + Cm(height) + "_" + (int)faceRight + (int)faceLeft +
+                     (holes != null ? "_h" + holes.Length : "");
         Mesh decor = GetMesh(key, b =>
         {
             System.Random rng = Rng(key);
             foreach (Vector4 seg in segments)
             {
-                BuildFace(b, seg, thickness, +1, faceRight, rng);
-                BuildFace(b, seg, thickness, -1, faceLeft, rng);
+                BuildFace(b, seg, thickness, +1, faceRight, rng, holes);
+                BuildFace(b, seg, thickness, -1, faceLeft, rng, holes);
             }
             if (openings != null)
                 foreach (WallOpening o in openings)
@@ -70,7 +81,8 @@ public static partial class CartoonKit
     }
 
     /// <summary>Acabado de una cara de un tramo (coordenadas locales: z a lo largo de la pared, x hacia la cara).</summary>
-    private static void BuildFace(KitMesh b, Vector4 seg, float thickness, int side, WallFace face, System.Random rng)
+    private static void BuildFace(KitMesh b, Vector4 seg, float thickness, int side, WallFace face, System.Random rng,
+        Rect[] holes)
     {
         if (face == WallFace.None) return;
         float from = seg.x + 0.01f, to = seg.y - 0.01f, bottom = seg.z, top = seg.w;
@@ -120,7 +132,7 @@ public static partial class CartoonKit
                     {
                         float bundle = Range(rng, 0.85f, 1.25f);
                         float z0 = Mathf.Max(z, from), z1 = Mathf.Min(z + bundle, to);
-                        if (z1 - z0 > 0.12f)
+                        if (z1 - z0 > 0.12f && !InHole(holes, z0, z1, y, radius))
                         {
                             b.Submesh = (n + row) % 3 == 0 ? SubStrawDark : SubStraw;
                             float r = radius * Range(rng, 0.9f, 1.08f);
@@ -133,6 +145,14 @@ public static partial class CartoonKit
                 }
                 break;
         }
+    }
+
+    private static bool InHole(Rect[] holes, float z0, float z1, float y, float radius)
+    {
+        if (holes == null) return false;
+        foreach (Rect h in holes)
+            if (z1 > h.xMin && z0 < h.xMax && y + radius * 0.6f > h.yMin && y - radius * 0.6f < h.yMax) return true;
+        return false;
     }
 
     /// <summary>Fardo de paja acostado a lo largo de Z local (cilindro abultado), con dos cuerdas si tied.</summary>
