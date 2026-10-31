@@ -13,6 +13,7 @@ MonoBehaviour:
   m_Name: VM_Revolver
   m_EditorClassIdentifier: 
   weaponId: revolver
+  timingVersion: 2
   idle:
     frames: []
     fps: 0
@@ -20,11 +21,11 @@ MonoBehaviour:
   fire:
     frames: []
     fps: 0
-    minDuration: 0.12
+    minDuration: 0.08
   cycle:
     frames: []
     fps: 0
-    minDuration: 0.45
+    minDuration: 0.35
   reload:
     frames: []
     fps: 0
@@ -36,11 +37,11 @@ MonoBehaviour:
   aimFire:
     frames: []
     fps: 0
-    minDuration: 0.12
+    minDuration: 0.08
   aimCycle:
     frames: []
     fps: 0
-    minDuration: 0.45
+    minDuration: 0.35
   defaultFps: 12
   idleLoopFps: 8
   flashSprites:
@@ -67,8 +68,8 @@ MonoBehaviour:
   kickOffset: {x: 30, y: -45}
   kickRotation: 6
   kickSquash: {x: 1.1, y: 0.9}
-  kickSpringFrequency: 22
-  kickSpringDamping: 0.6
+  kickSpringFrequency: 32
+  kickSpringDamping: 0.7
   reloadDip: 500
   reloadEase: 0.4
   aimInTime: 0.15

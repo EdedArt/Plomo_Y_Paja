@@ -13,6 +13,7 @@ MonoBehaviour:
   m_Name: VM_Shotgun
   m_EditorClassIdentifier: 
   weaponId: shotgun
+  timingVersion: 2
   idle:
     frames:
     - {fileID: 21300000, guid: 10a0b0ec5fd3e99409bb2a6aaeb92332, type: 3}
@@ -22,12 +23,12 @@ MonoBehaviour:
     frames:
     - {fileID: 21300000, guid: 552b388b30ddd05408c8f11cc9fd4e25, type: 3}
     fps: 0
-    minDuration: 0.15
+    minDuration: 0.08
   cycle:
     frames:
     - {fileID: 21300000, guid: 4cebadd441e6fc04980c4aa39c2e1900, type: 3}
     fps: 0
-    minDuration: 0.45
+    minDuration: 0.35
   reload:
     frames: []
     fps: 0
@@ -40,12 +41,12 @@ MonoBehaviour:
   aimFire:
     frames: []
     fps: 0
-    minDuration: 0.15
+    minDuration: 0.08
   aimCycle:
     frames:
     - {fileID: 21300000, guid: 74967e7ab28633a4d85fa6c171ee5bfe, type: 3}
     fps: 0
-    minDuration: 0.45
+    minDuration: 0.35
   defaultFps: 12
   idleLoopFps: 8
   flashSprites:
@@ -72,8 +73,8 @@ MonoBehaviour:
   kickOffset: {x: 40, y: -60}
   kickRotation: 8
   kickSquash: {x: 1.1, y: 0.9}
-  kickSpringFrequency: 22
-  kickSpringDamping: 0.6
+  kickSpringFrequency: 32
+  kickSpringDamping: 0.7
   reloadDip: 500
   reloadEase: 0.4
   aimInTime: 0.15
