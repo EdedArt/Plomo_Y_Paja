@@ -71,17 +71,19 @@ Todos miden 512×512. El pivote lo calcula `CharacterSpriteImporter` (fila más 
 ## 8. Pruebas (las llena David)
 | # | Prueba | ¿OK? | Notas |
 |---|---|---|---|
-| 1 | Consola sin warnings "more materials than submeshes" | | |
-| 2 | Al matar un guardia nunca se oyen 2 voces a la vez | | |
-| 3 | Siempre suena un sonido de muerte; frase solo de vez en cuando | | |
-| 4 | Guardias hablan poco y sin cansar (ver, patrulla, daño) | | |
-| 5 | Nevera de los años 30 en la cocina | | |
-| 6 | Pistas: nota (cómoda) y contrato (bajo el sofá) se ven y se recogen | | |
-| 7 | El guardia anima: idle (respira, 4 cuadros), camina, dispara, recibe golpe, se rinde, habla, muere | | |
-| 8 | Al morir queda tirado con su dibujo de muerte, sin hacerse una rayita, y con los pies/cuerpo en el piso | | |
-| 9 | Forzando "sin SSAO", el nivel se ve normal (no negro) | | |
+| 1 | Consola sin warnings "more materials than submeshes" | |X|
+| 2 | Al matar un guardia nunca se oyen 2 voces a la vez |Y| |
+| 3 | Siempre suena un sonido de muerte; frase solo de vez en cuando |Y| |
+| 4 | Guardias hablan poco y sin cansar (ver, patrulla, daño) |Y| |
+| 5 | Nevera de los años 30 en la cocina | Y | |
+| 6 | Pistas: nota (cómoda) y contrato (bajo el sofá) se ven y se recogen ||X|
+| 7 | El guardia anima: idle (respira, 4 cuadros), camina, dispara, recibe golpe, se rinde, habla, muere |Y| |
+| 8 | Al morir queda tirado con su dibujo de muerte, sin hacerse una rayita, y con los pies/cuerpo en el piso |Y| |
+| 9 | Forzando "sin SSAO", el nivel se ve normal (no negro) |Y| |
 
 **Errores de consola:**
+
+No hay gamestatetracker en la escena: la pista "testimonio_puerta_01" no se pudo registrar
 
 **Captura(s):**
 

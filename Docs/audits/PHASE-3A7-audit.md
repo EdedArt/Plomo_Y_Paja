@@ -1,6 +1,6 @@
 # Auditoría Fase 3A7 — Arreglos del playtest (voces, warnings de mallas, nevera)
 
-ESTADO: PENDIENTE DE REVISIÓN
+ESTADO: Aprobado por el orquestador
 
 ## 1. Resumen
 - Las voces de los enemigos pasan por un único canal con prioridades y probabilidades: ya no se solapan, la muerte siempre suena (sonido no verbal) y la frase hablada sale solo de vez en cuando. Todo se ajusta en `AudioLibrary.asset` → *Mix*.
