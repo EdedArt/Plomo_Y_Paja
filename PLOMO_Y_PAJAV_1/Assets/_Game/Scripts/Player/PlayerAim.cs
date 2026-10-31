@@ -25,7 +25,7 @@ public class PlayerAim : MonoBehaviour
     public event Action<bool> OnAimChanged;
 
     private PlayerController _player;
-    private ShotgunController _shotgun;
+    private IWeapon _weapon;
     private float _baseFov = -1f;
     private float _suppressUntil = -1f;
     private bool _dead;
@@ -33,7 +33,7 @@ public class PlayerAim : MonoBehaviour
     private void Awake()
     {
         TryGetComponent(out _player);
-        _shotgun = GetComponentInChildren<ShotgunController>(true);
+        _weapon = GetComponentInChildren<IWeapon>(true);
         if (TryGetComponent(out PlayerHealth health)) health.OnDeath += HandleDeath;
         OnAimChanged += UpdateCrosshair;
     }
@@ -56,6 +56,12 @@ public class PlayerAim : MonoBehaviour
         SetAiming(false);
         AimBlend = 0f;
         ApplyFov();
+    }
+
+    /// <summary>Arma activa (fase 2: cambio de arma). La recarga de esta arma cancela el apuntado.</summary>
+    public void SetWeapon(IWeapon weapon)
+    {
+        _weapon = weapon;
     }
 
     /// <summary>Tiempos y zoom del arma activa (ViewmodelProfile).</summary>
@@ -86,7 +92,7 @@ public class PlayerAim : MonoBehaviour
 
     private void Update()
     {
-        bool reloading = _shotgun != null && _shotgun.IsReloading;
+        bool reloading = _weapon != null && _weapon.IsReloading;
         bool runningStart = !IsAiming && _player != null && _player.IsRunning && _player.IsMoving;
         bool want = Input.GetMouseButton(1)
                     && !reloading && !runningStart && !_dead

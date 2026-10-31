@@ -18,7 +18,7 @@ using UnityEngine.Events;
 /// Dispara múltiples "pellets" (perdigones) con dispersión aleatoria.
 /// Eso da el efecto scatter característico de la escopeta.
 /// </summary>
-public class ShotgunController : MonoBehaviour
+public class ShotgunController : MonoBehaviour, IWeapon
 {
     [Header("Configuración del arma")]
     [Tooltip("Daño por perdigón — la escopeta dispara varios a la vez")]
