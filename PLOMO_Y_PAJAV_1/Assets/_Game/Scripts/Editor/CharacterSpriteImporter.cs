@@ -11,13 +11,15 @@ using UnityEngine;
 /// Pivote: el X va al centro del lienzo y el Y a la fila más baja con alpha > 0.1 (los pies), como pivote
 /// personalizado, para que cualquier frame quede pegado al suelo aunque el dibujo tenga margen debajo.
 /// guardia → 236 px por metro (el primer dibujo mide 449 px de alto en un lienzo de 512: 449 / 236 ≈ 1.9 m).
+/// La muerte (dibujo tumbado) usa la misma regla: su fila más baja es el cuerpo en el piso, sin pivote al centro.
 /// </summary>
 public class CharacterSpriteImporter : AssetPostprocessor
 {
     public const string CharactersFolder = "Assets/_Game/Art/Characters";
 
-    // Subir la versión obliga a Unity a reimportar los PNG con los ajustes nuevos
-    public override uint GetVersion() => 3;
+    // Subir la versión obliga a Unity a reimportar los PNG con los ajustes nuevos.
+    // 4: los .meta que llegan con PPU/pivote puestos a mano (p. ej. los del guardia de Edgar) se pisan aquí.
+    public override uint GetVersion() => 4;
 
     /// <summary>Alpha mínimo (0..255) para considerar que un píxel es parte del personaje.</summary>
     private const byte FeetAlpha = 26; // 0.1
