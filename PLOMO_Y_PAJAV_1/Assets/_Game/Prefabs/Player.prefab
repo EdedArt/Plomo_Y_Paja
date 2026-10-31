@@ -157,6 +157,7 @@ MonoBehaviour:
   sortingOrder: -10
   overscan: 1.08
   debugFireLog: 0
+  debugSightLog: 0
 --- !u!1 &2507189665885187698
 GameObject:
   m_ObjectHideFlags: 0
@@ -823,3 +824,11 @@ MonoBehaviour:
   popupColor: {r: 1, g: 0.8235294, b: 0.24705882, a: 1}
   popupViewport: {x: 0.7, y: 0.3}
   popupDuration: 0.4
+  minShotsBetweenWords: 15
+  maxShotsBetweenWords: 20
+  words:
+  - "\xA1BANG!"
+  - "\xA1BLAM!"
+  - "\xA1POW!"
+  - "\xA1KABOOM!"
+  popupRotationDegrees: 12

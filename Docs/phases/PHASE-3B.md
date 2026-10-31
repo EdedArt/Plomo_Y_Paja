@@ -166,3 +166,17 @@ Commit: `dia3b(cristian): Nivel Porky completo con HUD y salida`
 ## Finish
 Write `docs/audits/PHASE-3B-audit.md` (Spanish), commit with the last part, `git push origin player`.
 Stop. Do not start Phase 4.
+
+---
+
+## Viewmodel notes (added 31 Oct, after Viewmodel phases 1–1.4 — read `docs/phases/REGISTRO.md`)
+- **A crosshair already exists:** `UI/RubberHoseCrosshair.cs` (own Overlay canvas; hides on aim, dialogue, pause
+  and death; red hit marker). The HUD must NOT create another one; checklist item 7 "mira" is this one.
+  `UIManager` is not present in any scene: prefer a new `HUD` component (Part 4 item 2).
+- **Ammo medallion bottom-right** sits over Wilbur's hands (as in Mouse P.I.); keep it compact in the corner,
+  Screen Space - Overlay (no grain/vignette).
+- **Read ammo through `IWeapon`.** If it lacks `LoadedRounds`, `MagazineSize`, `ReserveRounds`, add them read-only
+  and implement them in `ShotgunController` with its existing fields (Phase VM2 adds the revolver).
+- **Damage falloff (Part 2 item 6):** only change the damage value. Keep `ShootPellet`'s camera-axis spread and the
+  aim spread multiplier exactly as they are.
+- `PlayerAim` writes the main camera FOV every frame: never set `fieldOfView` directly.

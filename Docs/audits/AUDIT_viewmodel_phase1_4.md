@@ -1,6 +1,6 @@
 # Auditoría Viewmodel Fase 1.4 — Mira centrada al apuntar, mira estilo Mouse, onomatopeya rara y limpieza de Git
 
-ESTADO: PENDIENTE DE REVISIÓN
+ESTADO: LUZ VERDE — aprobado por el orquestador
 
 Rama: `player`, publicada en `origin/player`. Compila con 0 errores y 0 warnings nuevos (Runtime 59, Editor 0). **No se probó nada en Unity.**
 La medición del error de centrado en Unity (sección 1) está pendiente: el flag **Debug Sight Log** ya está listo.

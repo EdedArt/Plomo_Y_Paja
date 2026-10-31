@@ -128,3 +128,17 @@ Commit: `dia4(david): decision final y paso al final`
 ## Finish
 Write `docs/audits/PHASE-4-audit.md` (Spanish), commit with the last part, `git push origin player`.
 Stop. Do not start Phase 5.
+
+---
+
+## Viewmodel notes (added 31 Oct, after Viewmodel phases 1–1.4 — read `docs/phases/REGISTRO.md`)
+- **"Lower the weapon" (Part 3 item 3):** add `FirstPersonViewmodel.SetLowered(bool)` that eases the hands
+  off-screen with the same curve as the reload dip and blocks firing and aiming while lowered. Don't hide the
+  canvas abruptly.
+- **FOV narrowing (Part 3 item 1):** `PlayerAim` writes the main camera FOV every frame. Do NOT write
+  `fieldOfView` directly; add an extra-offset API to `PlayerAim` (e.g. `SetExtraFovOffset(float)`) and use it.
+  Block aiming during the Decision.
+- **Slow motion 0.6:** the viewmodel clock `ViewmodelTime` uses unscaled time so the hit-stop (`timeScale` 0)
+  doesn't freeze the hands. Change it to: `timeScale == 0` → unscaled delta; otherwise scaled delta (keep the 1/30
+  clamp), so the hands also slow down during the cinematic moment.
+- **"Any shotgun hit" (Part 3 item 2):** if Phase VM2 already ran, treat it as any weapon hit (`IWeapon`).

@@ -1,6 +1,6 @@
 # Auditoría Viewmodel Fase 1 — Manos rubber-hose, apuntar (ADS) y fogonazo (solo escopeta)
 
-ESTADO: PENDIENTE DE REVISIÓN
+ESTADO: LUZ VERDE — aprobado por el orquestador
 
 Rama: `player` (local, **sin push**). Antes de empezar, `player` local se adelantó (fast-forward) hasta
 `integracion/dia3` (d55e7ce): `player` estaba 33 commits atrás, sin commits propios, y sin eso faltaba

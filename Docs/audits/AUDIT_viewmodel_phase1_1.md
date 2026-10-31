@@ -1,6 +1,6 @@
 # Auditoría Viewmodel Fase 1.1 — Calidad de imagen e integración con la escena
 
-ESTADO: PENDIENTE DE REVISIÓN
+ESTADO: LUZ VERDE — aprobado por el orquestador
 
 Rama: `player` (local, **sin push**). No se probó nada en Unity: lo que dice "verificado" abajo es por lectura de código y de
 la documentación de URP, y está marcado así. Compila con 0 errores y 0 warnings nuevos (Runtime 59, uno menos que antes; Editor 0).

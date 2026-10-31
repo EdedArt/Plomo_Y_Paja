@@ -1,6 +1,6 @@
 # Auditoría Viewmodel Fase 1.2 — Esquina, salto al disparar y orden de render
 
-ESTADO: PENDIENTE DE REVISIÓN
+ESTADO: LUZ VERDE — aprobado por el orquestador
 
 Rama: `player` (local, **sin push**). Compila con 0 errores y 0 warnings nuevos (Runtime 59, Editor 0). **No se probó nada en Unity.**
 Para activar todo hay que ejecutar **Plomo y Paja → Crear Prefabs de Prueba** (crea la capa `Viewmodel`, la ViewmodelCamera y el stack

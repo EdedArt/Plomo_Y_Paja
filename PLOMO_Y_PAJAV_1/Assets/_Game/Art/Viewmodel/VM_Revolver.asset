@@ -74,6 +74,8 @@ MonoBehaviour:
   reloadEase: 0.4
   aimInTime: 0.15
   aimOutTime: 0.12
+  aimSightPoint: {x: 960.5, y: 575}
+  sightVersion: 1
   aimOffset: {x: 0, y: 0}
   aimOffsetNoSprite: {x: -320, y: 140}
   aimScaleNoSprite: 1.15

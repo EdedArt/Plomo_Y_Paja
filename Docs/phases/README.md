@@ -9,13 +9,18 @@ a phase may only start when the previous phase's audit file carries the green-li
 | [3A2](PHASE-3A2.md) | Fri 30 Oct | "Mouse P.I." look: unlit 2D characters, painted 3D cartoon environment | Opus 5.5 |
 | 3A3 ([auditoría](../audits/PHASE-3A3-audit.md): PENDIENTE DE REVISIÓN) | Fri 30 Oct | First real guard sprite, interior contrast, menus blocked in Play mode | Sonnet 5.5 |
 | 3A4 ([auditoría](../audits/PHASE-3A4-audit.md): PENDIENTE DE REVISIÓN) | Fri 30 Oct | Feet grounding, "worst house" crime scene, rain, broken street lamp, frame guide | Sonnet 5.5 |
+| VM 1 → 1.4 (CERRADA, ver [registro](REGISTRO.md)) | Sat 31 Oct | Wilbur viewmodel: rubber-hose hands, ADS, crosshair, onomatopoeia | Sonnet 5.5 |
 | [3B](PHASE-3B.md) | Fri 30 Oct | Informants, GameStateTracker wiring, clues, Level 1 complete | Opus 5.5 |
 | [4](PHASE-4.md) | Sat 31 Oct | Level 2 (Campamento), Don Lobo boss, final decision | Opus 5.5 |
 | [5](PHASE-5.md) | Sun 1 Nov | Intro storybook, 3 endings, menus, death/retry | Sonnet 5.5 |
 | [6](PHASE-6.md) | Mon 2 Nov | Asset integration, optional live AI voice, polish, FEATURE FREEZE | Sonnet 5.5 |
 | [7](PHASE-7.md) | Tue 3 Nov | Windows build, README, release checklist | Sonnet 5.5 |
+| [VM2](PHASE-VM2.md) | When time allows (after 4) | Revolver, weapon switching, visible-rounds reload | Opus 5.5 |
 
 Delivery: **Wed 4 Nov 2026**.
+
+**Closed work log:** [REGISTRO.md](REGISTRO.md) — one entry per closed block (newest first). Read it before any
+phase that touches the player, the camera, weapons or the HUD.
 
 ## Workflow per phase (David)
 
@@ -29,6 +34,7 @@ Delivery: **Wed 4 Nov 2026**.
 6. Paste the audit file to the orchestrator (Claude chat). If approved, add this line at the very
    top of the audit file and commit it:
    `ESTADO: LUZ VERDE — aprobado por el orquestador`
+   When a whole block closes, the orchestrator adds an entry to `REGISTRO.md`.
 7. Open the PR `player` -> `dev` on GitHub.
 
 ## Rules every phase follows (in addition to CLAUDE.md)
