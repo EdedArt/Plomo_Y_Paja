@@ -6,10 +6,24 @@ using UnityEngine;
 /// culatazo con resorte, bajada de recarga (si el arma no tiene cuadros de recarga) y paso a apuntar.
 /// DÓNDE VA: lo crea FirstPersonViewmodel en "ViewmodelCanvas" y mueve "ViewmodelRoot".
 /// Todos los valores salen del ViewmodelProfile activo (SetProfile). Independiente del frame rate.
+///
+/// TIEMPO: una sola fuente, Time.deltaTime (con escala) recortado a 1/30 s. Así el hit-stop de CartoonFx (timeScale 0)
+/// congela las manos junto con el mundo y un tirón de FPS nunca mete un paso enorme. El resorte del culatazo se integra
+/// en sub-pasos de 1/120 s (Euler semi-implícito, estable con w·h = 22/120 ≈ 0.18, muy por debajo del límite de 2).
+///
+/// BORDES: las manos se dibujan más grandes que la pantalla (overscan). Después de sumar todos los desplazamientos, la
+/// posición se corrige para que el borde derecho y el inferior del arte NUNCA entren en la pantalla, con la rotación y la
+/// escala ya aplicadas. Cada eje de escala queda en [0.8, 1.2].
 /// </summary>
 public class ViewmodelMotion : MonoBehaviour
 {
+    private const float MaxDt = 1f / 30f;
+    private const float SpringStep = 1f / 120f;
+    private const float MinScale = 0.8f;
+    private const float MaxScale = 1.2f;
+
     private RectTransform _root;
+    private RectTransform _hands;
     private ViewmodelProfile _profile;
     private PlayerAim _aim;
     private PlayerController _player;
@@ -34,9 +48,10 @@ public class ViewmodelMotion : MonoBehaviour
     private float _punchScale = 1f;
     private const float PunchDuration = 0.12f;
 
-    public void Init(RectTransform root, PlayerAim aim, PlayerController player)
+    public void Init(RectTransform root, RectTransform hands, PlayerAim aim, PlayerController player)
     {
         _root = root;
+        _hands = hands;
         _aim = aim;
         _player = player;
         if (player != null) player.TryGetComponent(out _body);
@@ -80,7 +95,7 @@ public class ViewmodelMotion : MonoBehaviour
     {
         if (_root == null || _profile == null) return;
         ViewmodelProfile p = _profile;
-        float dt = Time.deltaTime;
+        float dt = Mathf.Min(Time.deltaTime, MaxDt);
         _time += dt;
 
         float aimT = _aim != null ? Mathf.SmoothStep(0f, 1f, _aim.AimBlend) : 0f;
@@ -124,10 +139,14 @@ public class ViewmodelMotion : MonoBehaviour
 
         // --- Culatazo: resorte amortiguado (vuelve en ~0.25 s con un pequeño rebote) ---
         float w = p.kickSpringFrequency;
-        float accel = -w * w * _kick - 2f * p.kickSpringDamping * w * _kickVelocity;
-        float step = Mathf.Min(dt, 1f / 30f);
-        _kickVelocity += accel * step;
-        _kick += _kickVelocity * step;
+        int steps = Mathf.Max(1, Mathf.CeilToInt(dt / SpringStep));
+        float h = dt / steps;
+        for (int i = 0; i < steps; i++)
+        {
+            float accel = -w * w * _kick - 2f * p.kickSpringDamping * w * _kickVelocity;
+            _kickVelocity += accel * h;   // primero la velocidad...
+            _kick += _kickVelocity * h;   // ...y luego la posición (semi-implícito)
+        }
         float k = _kick * _kickStrength;
 
         // --- Recarga sin cuadros: bajar al principio, esperar, subir al final ---
@@ -164,8 +183,46 @@ public class ViewmodelMotion : MonoBehaviour
         float sx = Mathf.LerpUnclamped(1f, p.kickSquash.x, k) * aimScale * punch;
         float sy = Mathf.LerpUnclamped(1f, p.kickSquash.y, k) * aimScale * punch * breathScaleY;
 
+        sx = Mathf.Clamp(sx, MinScale, MaxScale);
+        sy = Mathf.Clamp(sy, MinScale, MaxScale);
+        pos = KeepEdgesOffscreen(pos, rot, new Vector2(sx, sy));
+
         _root.anchoredPosition = pos;
         _root.localRotation = Quaternion.Euler(0f, 0f, rot);
         _root.localScale = new Vector3(sx, sy, 1f);
+    }
+
+    /// <summary>
+    /// Corrige la posición para que el borde derecho y el inferior del dibujo de las manos no entren en la pantalla.
+    /// Trabaja en el espacio de ViewmodelRoot en reposo (relativo a su pivote): la pantalla es root.rect y el dibujo es el
+    /// rect de HandsImage (anclado abajo a la derecha). Se transforman 3 esquinas con la escala, la rotación y la
+    /// posición del frame; un borde recto cumple si sus dos extremos cumplen.
+    /// </summary>
+    private Vector2 KeepEdgesOffscreen(Vector2 pos, float rotDegrees, Vector2 scale)
+    {
+        if (_hands == null) return pos;
+        Rect screen = _root.rect;
+        Vector2 size = _hands.rect.size;
+        float right = screen.xMax + _hands.anchoredPosition.x;
+        float bottom = screen.yMin + _hands.anchoredPosition.y;
+        float left = right - size.x;
+        float top = bottom + size.y;
+
+        float rad = rotDegrees * Mathf.Deg2Rad;
+        float c = Mathf.Cos(rad), s = Mathf.Sin(rad);
+        Vector2 br = Transform2D(right, bottom, c, s, scale, pos);
+        Vector2 tr = Transform2D(right, top, c, s, scale, pos);
+        Vector2 bl = Transform2D(left, bottom, c, s, scale, pos);
+
+        float dx = Mathf.Max(0f, screen.xMax - Mathf.Min(br.x, tr.x));   // borde derecho: mover a la derecha si entró
+        float dy = Mathf.Min(0f, screen.yMin - Mathf.Max(br.y, bl.y));   // borde inferior: mover hacia abajo si entró
+        return pos + new Vector2(dx, dy);
+    }
+
+    private static Vector2 Transform2D(float x, float y, float cos, float sin, Vector2 scale, Vector2 pos)
+    {
+        x *= scale.x;
+        y *= scale.y;
+        return new Vector2(x * cos - y * sin, x * sin + y * cos) + pos;
     }
 }

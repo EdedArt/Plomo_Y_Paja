@@ -46,7 +46,12 @@ public class PlayerAim : MonoBehaviour
 
     private void Start()
     {
-        if (playerCamera == null) playerCamera = GetComponentInChildren<Camera>();
+        if (playerCamera == null)
+        {
+            // La cámara del mundo, no la ViewmodelCamera (FOV fijo): el zoom de apuntar solo toca la principal
+            foreach (Camera cam in GetComponentsInChildren<Camera>(true))
+                if (cam.name != ViewmodelCameraRig.CameraName) { playerCamera = cam; break; }
+        }
         if (playerCamera == null) playerCamera = Camera.main;
         if (playerCamera != null) _baseFov = playerCamera.fieldOfView;
     }

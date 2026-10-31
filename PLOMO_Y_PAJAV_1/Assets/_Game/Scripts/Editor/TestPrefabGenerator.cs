@@ -47,6 +47,7 @@ public static class TestPrefabGenerator
         // Los sets se rellenan con los PNG de Art/Characters ANTES de crear prefabs: así el guardia nunca
         // vuelve al placeholder por haber olvidado "Reconstruir Sets de Sprites" (fase 3A3)
         CharacterSpriteSetBuilder.RebuildAll();
+        ViewmodelLayerSetup.EnsureLayer(); // capa "Viewmodel": la necesita el stack de cámaras de las manos (fase 1.2)
 
         if (regenerate || !File.Exists(AICompanionPath)) CreateAICompanionPrefab();
         if (regenerate || !File.Exists(GuardPath)) CreateGuardPrefab();
@@ -280,6 +281,11 @@ public static class TestPrefabGenerator
             {
                 cam.gameObject.tag = "MainCamera";
                 cam.GetUniversalAdditionalCameraData().renderPostProcessing = true;
+
+                // Manos en su propia cámara Overlay (URP camera stacking): nada del mundo se dibuja encima. La cámara principal
+                // deja de dibujar la capa Viewmodel y el near clip se queda como está en el prefab.
+                if (ViewmodelCameraRig.Ensure(cam) == null)
+                    Debug.LogWarning("[Viewmodel] No se pudo armar la ViewmodelCamera (¿falta la capa 'Viewmodel'?).");
 
                 // Sin skybox el fondo quedaba negro: cielo nocturno índigo (fase 3A)
                 cam.clearFlags = CameraClearFlags.SolidColor;

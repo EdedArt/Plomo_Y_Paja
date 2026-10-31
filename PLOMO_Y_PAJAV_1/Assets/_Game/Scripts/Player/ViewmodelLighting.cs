@@ -11,7 +11,7 @@ using UnityEngine.UI;
 public class ViewmodelLighting : MonoBehaviour
 {
     [Tooltip("Tinte de las manos (se multiplica con el dibujo). Blanco = sin teñir")]
-    [SerializeField] private Color baseTint = new Color(0.85f, 0.80f, 0.75f, 1f);
+    [SerializeField] private Color baseTint = new Color(0.95f, 0.92f, 0.88f, 1f);
     [Tooltip("Segundos que quedan en blanco puro al disparar")]
     [SerializeField] private float flashHold = 0.06f;
     [Tooltip("Segundos que tarda en volver al tinte base después del blanco")]
@@ -45,7 +45,7 @@ public class ViewmodelLighting : MonoBehaviour
         Color tint = CurrentBase();
         if (_flashTimer >= 0f)
         {
-            _flashTimer += Time.unscaledDeltaTime;
+            _flashTimer += Mathf.Min(Time.deltaTime, 1f / 30f); // misma fuente de tiempo que ViewmodelMotion
             if (_flashTimer < flashHold) tint = Color.white;
             else
             {

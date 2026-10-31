@@ -1,18 +1,22 @@
 using UnityEngine;
+using UnityEngine.Rendering;
 using UnityEngine.UI;
 
 /// <summary>
 /// Manos de Wilbur en primera persona (viewmodel 2D estilo rubber-hose) para el arma activa.
 /// DÓNDE VA: cámara del Player (lo añade "Crear Prefabs de Prueba" con el perfil VM_Shotgun).
 ///
-/// Crea en runtime:
-///   ViewmodelCanvas (Screen Space - Camera con la cámara del Player, pegado a la cámara: recibe el mismo post-procesado
-///                    que el mundo (grano, viñeta, color, bloom). El HUD sigue en Overlay, sin post-procesado.
-///                    Scale With Screen Size 1920x1080, match 0.5)
+/// Crea en runtime (capa "Viewmodel", la dibuja la ViewmodelCamera Overlay del stack; ver ViewmodelCameraRig):
+///   ViewmodelCanvas (Screen Space - Camera sobre la ViewmodelCamera, planeDistance 1, CanvasScaler 1920x1080 con match = 1 (alto))
 ///   └── ViewmodelRoot (pantalla completa; lo mueve ViewmodelMotion)
-///       ├── HandsImage (cuadro completo 16:9 apoyado abajo; preserveAspect, sin clics)
+///       ├── HandsImage (cuadro 16:9 anclado y con pivote ABAJO A LA DERECHA, más grande que la pantalla: overscan)
 ///       └── MuzzleFlashImage (encima de las manos)
 /// y le añade ViewmodelAnimator (cuadros + fogonazo), ViewmodelMotion (movimiento) y ViewmodelLighting (tinte).
+/// El HUD sigue en Screen Space - Overlay (sin grano ni viñeta).
+///
+/// ESQUINA: el tamaño sale del ALTO de la pantalla (match = 1) × overscan, siempre 16:9 como el arte. El borde derecho y el
+/// inferior del arte se pasan de la pantalla. Pantallas más anchas que 16:9: pegado a la derecha. Más angostas (16:10, 4:3):
+/// se recorta por la IZQUIERDA, nunca por la derecha ni abajo. ViewmodelMotion además mantiene esos dos bordes fuera de pantalla.
 ///
 /// Sin perfil o sin cuadros en idle: no se crea nada (el juego sigue funcionando sin manos).
 /// Se oculta en pausa, en diálogo/interrogatorio y al morir.
@@ -21,18 +25,25 @@ using UnityEngine.UI;
 /// </summary>
 public class FirstPersonViewmodel : MonoBehaviour
 {
+    private const float ArtAspect = 16f / 9f;
+
     [SerializeField] private ViewmodelProfile profile;
-    [Tooltip("Orden entre canvases de cámara. El HUD, el BANG y el diálogo son Overlay y siempre quedan encima")]
+    [Tooltip("Orden entre canvases de la ViewmodelCamera")]
     [SerializeField] private int sortingOrder = -10;
-    [Tooltip("Distancia del canvas por delante del plano cercano de la cámara (m)")]
-    [SerializeField] private float planeOffset = 0.02f;
-    [Tooltip("Si nearClipPlane es mayor que esto, se baja a nearClipPlaneWhenLowered")]
-    [SerializeField] private float maxNearClip = 0.05f;
-    [SerializeField] private float nearClipPlaneWhenLowered = 0.03f;
+    [Tooltip("Las manos se dibujan este factor más grandes que el ajuste por alto (1.08 = 8 % más). El sobrante queda " +
+             "fuera de la pantalla por la derecha y por abajo")]
+    [SerializeField, Range(1f, 1.3f)] private float overscan = 1.08f;
+
+    [Header("Depuración (apagada por defecto)")]
+    [Tooltip("Escribe en consola, cada frame durante 0.5 s después de disparar: posición, rotación Z y escala de ViewmodelRoot, " +
+             "sprite, deltaTime, unscaledDeltaTime y timeScale, y la pose de las cámaras al renderizar (bug del salto al disparar)")]
+    [SerializeField] private bool debugFireLog = false;
 
     private IWeapon _weapon;
     private PlayerController _player;
     private PlayerAim _aim;
+    private Camera _mainCamera;
+    private Camera _viewmodelCamera;
     private Canvas _canvas;
     private RectTransform _root;
     private Image _hands;
@@ -40,8 +51,9 @@ public class FirstPersonViewmodel : MonoBehaviour
     private ViewmodelAnimator _animator;
     private ViewmodelMotion _motion;
     private ViewmodelLighting _lighting;
-    private Material _uiMaterial;
     private bool _dead;
+    private float _debugUntil = -1f;
+    private int _debugFrame;
 
     public ViewmodelProfile Profile => profile;
 
@@ -64,13 +76,16 @@ public class FirstPersonViewmodel : MonoBehaviour
         SetProfile(profile);
     }
 
-    private void OnEnable() => Subscribe(_weapon);
-
-    private void OnDisable() => Unsubscribe(_weapon);
-
-    private void OnDestroy()
+    private void OnEnable()
     {
-        if (_uiMaterial != null) Destroy(_uiMaterial);
+        Subscribe(_weapon);
+        RenderPipelineManager.beginCameraRendering += LogCameraRender;
+    }
+
+    private void OnDisable()
+    {
+        Unsubscribe(_weapon);
+        RenderPipelineManager.beginCameraRendering -= LogCameraRender;
     }
 
     private void Subscribe(IWeapon weapon)
@@ -116,6 +131,12 @@ public class FirstPersonViewmodel : MonoBehaviour
     {
         if (_animator != null) _animator.HandleFired();
         if (_lighting != null) _lighting.Flash();
+        if (debugFireLog)
+        {
+            _debugUntil = Time.unscaledTime + 0.5f;
+            _debugFrame = 0;
+            Debug.Log("[VM-DEBUG] OnFired — log de 0.5 s (frame | pos | rotZ | escala | sprite | dt | unscaledDt | timeScale)");
+        }
     }
 
     public void HandleReloadStarted()
@@ -134,15 +155,33 @@ public class FirstPersonViewmodel : MonoBehaviour
 
     private void BuildCanvas()
     {
+        _mainCamera = GetComponent<Camera>();
+        if (_mainCamera == null) _mainCamera = GetComponentInChildren<Camera>();
+        if (_mainCamera == null) _mainCamera = Camera.main;
+        _viewmodelCamera = ViewmodelCameraRig.Ensure(_mainCamera);
+
         var canvasGo = new GameObject("ViewmodelCanvas", typeof(RectTransform));
         canvasGo.transform.SetParent(transform, false);
         _canvas = canvasGo.AddComponent<Canvas>();
-        ConfigureCanvasRender();
+        _canvas.sortingOrder = sortingOrder;
+        if (_viewmodelCamera != null)
+        {
+            _canvas.renderMode = RenderMode.ScreenSpaceCamera;
+            _canvas.worldCamera = _viewmodelCamera;
+            _canvas.planeDistance = ViewmodelCameraRig.PlaneDistance;
+        }
+        else
+        {
+            _canvas.renderMode = RenderMode.ScreenSpaceOverlay;
+            Debug.LogWarning("[Viewmodel] Sin capa '" + ViewmodelCameraRig.LayerName + "' o sin cámara: las manos se dibujan en " +
+                             "Overlay (sin post-procesado y detrás de nada). Ejecuta Plomo y Paja → Crear Prefabs de Prueba.");
+        }
 
         CanvasScaler scaler = canvasGo.AddComponent<CanvasScaler>();
         scaler.uiScaleMode = CanvasScaler.ScaleMode.ScaleWithScreenSize;
         scaler.referenceResolution = new Vector2(1920f, 1080f);
-        scaler.matchWidthOrHeight = 0.5f;
+        scaler.screenMatchMode = CanvasScaler.ScreenMatchMode.MatchWidthOrHeight;
+        scaler.matchWidthOrHeight = 1f; // el alto manda: el tamaño de las manos no cambia con el ancho de la pantalla
 
         // Raíz a pantalla completa; el pivote cerca de las manos (abajo a la derecha) para girar y escalar desde ahí
         var rootGo = new GameObject("ViewmodelRoot", typeof(RectTransform));
@@ -153,63 +192,30 @@ public class FirstPersonViewmodel : MonoBehaviour
         _root.pivot = new Vector2(0.65f, 0.1f);
         _root.offsetMin = _root.offsetMax = Vector2.zero;
 
-        // Siempre por encima del mundo aunque la cámara esté pegada a una pared (ZTest Always)
-        _uiMaterial = new Material(Graphic.defaultGraphicMaterial) { name = "ViewmodelUI_ZAlways" };
-        _uiMaterial.SetInt("unity_GUIZTestMode", (int)UnityEngine.Rendering.CompareFunction.Always);
-
+        // Manos: ancla y pivote abajo a la derecha (la esquina nunca se despega)
         _hands = CreateImage("HandsImage", _root);
-        _hands.material = _uiMaterial;
         RectTransform handsRect = _hands.rectTransform;
-        handsRect.anchorMin = handsRect.anchorMax = new Vector2(0.5f, 0f);
-        handsRect.pivot = new Vector2(0.5f, 0f);
+        handsRect.anchorMin = handsRect.anchorMax = new Vector2(1f, 0f);
+        handsRect.pivot = new Vector2(1f, 0f);
         _hands.preserveAspect = true;
 
         // Hermano posterior = se dibuja encima de las manos
         _flash = CreateImage("MuzzleFlashImage", _root);
-        _flash.material = _uiMaterial;
         RectTransform flashRect = _flash.rectTransform;
         flashRect.anchorMin = flashRect.anchorMax = flashRect.pivot = new Vector2(0.5f, 0.5f);
         _flash.preserveAspect = true;
         _flash.enabled = false;
 
         _motion = canvasGo.AddComponent<ViewmodelMotion>();
-        _motion.Init(_root, _aim, _player);
+        _motion.Init(_root, handsRect, _aim, _player);
         _animator = canvasGo.AddComponent<ViewmodelAnimator>();
         _animator.Init(_hands, _flash, _aim, _motion);
         _lighting = canvasGo.AddComponent<ViewmodelLighting>();
         _lighting.Init(_hands);
         FitHands();
-    }
 
-    /// <summary>
-    /// Screen Space - Camera con la cámara del Player, justo después del plano cercano. Así las manos pasan por
-    /// el mismo post-procesado de URP que el mundo. El canvas se ajusta solo al frustum, así que el zoom del
-    /// FOV al apuntar NO cambia el tamaño de las manos (lo da el CanvasScaler, que mira la pantalla).
-    /// Sin cámara: vuelve a Overlay (se ve igual, sin post-procesado).
-    /// </summary>
-    private void ConfigureCanvasRender()
-    {
-        Camera cam = GetComponent<Camera>();
-        if (cam == null) cam = GetComponentInChildren<Camera>();
-        if (cam == null) cam = Camera.main;
-
-        _canvas.sortingOrder = sortingOrder;
-        if (cam == null)
-        {
-            _canvas.renderMode = RenderMode.ScreenSpaceOverlay;
-            Debug.LogWarning("[Viewmodel] Sin cámara: el viewmodel se dibuja en Overlay (sin post-procesado).");
-            return;
-        }
-
-        if (cam.nearClipPlane > maxNearClip)
-        {
-            Debug.Log("[Viewmodel] nearClipPlane " + cam.nearClipPlane.ToString("0.###") + " → " +
-                      nearClipPlaneWhenLowered.ToString("0.###") + " (el canvas de las manos va pegado a la cámara)");
-            cam.nearClipPlane = nearClipPlaneWhenLowered;
-        }
-        _canvas.renderMode = RenderMode.ScreenSpaceCamera;
-        _canvas.worldCamera = cam;
-        _canvas.planeDistance = cam.nearClipPlane + planeOffset;
+        // Todo el canvas en la capa Viewmodel: solo la ViewmodelCamera lo dibuja
+        if (_viewmodelCamera != null) ViewmodelCameraRig.SetLayerRecursive(canvasGo, ViewmodelCameraRig.Layer);
     }
 
     private static Image CreateImage(string name, Transform parent)
@@ -221,18 +227,23 @@ public class FirstPersonViewmodel : MonoBehaviour
         return image;
     }
 
-    /// <summary>Cuadro 16:9 completo apoyado abajo: en pantallas más angostas (4:3, 16:10) llena el ancho
-    /// y queda pegado al borde inferior; en más anchas (21:9) llena el alto.</summary>
+    /// <summary>
+    /// Cuadro 16:9 con el ALTO de la pantalla × overscan, apoyado en la esquina inferior derecha y pasándose de ella
+    /// por la derecha y por abajo. Más ancha que 16:9: pegado a la derecha. Más angosta: se recorta por la izquierda.
+    /// </summary>
     private void FitHands()
     {
         if (_hands == null || _root == null) return;
         Rect area = _root.rect;
         if (area.width <= 0f || area.height <= 0f) return;
-        const float aspect = 16f / 9f;
-        Vector2 size = area.width / area.height > aspect
-            ? new Vector2(area.height * aspect, area.height)
-            : new Vector2(area.width, area.width / aspect);
-        if (_hands.rectTransform.sizeDelta != size) _hands.rectTransform.sizeDelta = size;
+
+        float fitHeight = area.height;
+        float height = fitHeight * overscan;
+        var size = new Vector2(height * ArtAspect, height);
+        var offset = new Vector2(size.x - fitHeight * ArtAspect, -(height - fitHeight)); // lo que sobra: a la derecha y abajo
+        RectTransform rt = _hands.rectTransform;
+        if (rt.sizeDelta != size) rt.sizeDelta = size;
+        if (rt.anchoredPosition != offset) rt.anchoredPosition = offset;
     }
 
     private void LateUpdate()
@@ -241,5 +252,32 @@ public class FirstPersonViewmodel : MonoBehaviour
         bool hidden = _dead || PlayerAim.GameplayBlocked();
         if (_canvas.enabled == hidden) _canvas.enabled = !hidden;
         FitHands();
+        LogFireFrame();
+    }
+
+    // ============ Depuración del salto al disparar (fase 1.2, apagada por defecto) ============
+
+    private void LogFireFrame()
+    {
+        if (!debugFireLog || Time.unscaledTime > _debugUntil || _root == null) return;
+        Vector2 p = _root.anchoredPosition;
+        Vector3 s = _root.localScale;
+        Debug.Log(string.Format("[VM-DEBUG] f{0:00} pos=({1:F1},{2:F1}) rotZ={3:F1} scale=({4:F3},{5:F3}) sprite={6} dt={7:F4} unscaledDt={8:F4} timeScale={9:F2}",
+            _debugFrame++, p.x, p.y, Mathf.DeltaAngle(0f, _root.localEulerAngles.z), s.x, s.y,
+            _hands != null && _hands.sprite != null ? _hands.sprite.name : "-", Time.deltaTime, Time.unscaledDeltaTime, Time.timeScale));
+    }
+
+    /// <summary>Pose de la cámara principal y de la ViewmodelCamera justo antes de que cada una renderice
+    /// (ShotgunFeedback mueve la principal en este mismo evento: el orden entre los dos no está garantizado).</summary>
+    private void LogCameraRender(ScriptableRenderContext context, Camera cam)
+    {
+        if (!debugFireLog || Time.unscaledTime > _debugUntil || _mainCamera == null) return;
+        if (cam != _mainCamera && cam != _viewmodelCamera) return;
+        Transform m = _mainCamera.transform;
+        Vector3 vm = _viewmodelCamera != null ? _viewmodelCamera.transform.localPosition : Vector3.zero;
+        Debug.Log(string.Format("[VM-DEBUG] render '{0}': principal localPos=({1:F3},{2:F3},{3:F3}) localEuler=({4:F1},{5:F1},{6:F1}) | ViewmodelCamera localPos=({7:F3},{8:F3},{9:F3})",
+            cam.name, m.localPosition.x, m.localPosition.y, m.localPosition.z,
+            Mathf.DeltaAngle(0f, m.localEulerAngles.x), Mathf.DeltaAngle(0f, m.localEulerAngles.y), Mathf.DeltaAngle(0f, m.localEulerAngles.z),
+            vm.x, vm.y, vm.z));
     }
 }
