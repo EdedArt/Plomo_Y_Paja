@@ -183,13 +183,14 @@ public class FirstPersonViewmodel : MonoBehaviour
         scaler.screenMatchMode = CanvasScaler.ScreenMatchMode.MatchWidthOrHeight;
         scaler.matchWidthOrHeight = 1f; // el alto manda: el tamaño de las manos no cambia con el ancho de la pantalla
 
-        // Raíz a pantalla completa; el pivote cerca de las manos (abajo a la derecha) para girar y escalar desde ahí
+        // Raíz a pantalla completa; el pivote casi en la esquina inferior derecha (0.9, 0.05) para girar y escalar desde ahí:
+        // con la raíz estirada la pose en reposo no cambia al mover el pivote, y el culatazo casi no mueve la esquina.
         var rootGo = new GameObject("ViewmodelRoot", typeof(RectTransform));
         rootGo.transform.SetParent(canvasGo.transform, false);
         _root = (RectTransform)rootGo.transform;
         _root.anchorMin = Vector2.zero;
         _root.anchorMax = Vector2.one;
-        _root.pivot = new Vector2(0.65f, 0.1f);
+        _root.pivot = new Vector2(0.9f, 0.05f);
         _root.offsetMin = _root.offsetMax = Vector2.zero;
 
         // Manos: ancla y pivote abajo a la derecha (la esquina nunca se despega)

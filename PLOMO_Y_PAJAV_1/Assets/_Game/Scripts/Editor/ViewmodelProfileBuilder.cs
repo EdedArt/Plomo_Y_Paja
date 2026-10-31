@@ -132,6 +132,44 @@ public static class ViewmodelProfileBuilder
         return BuildProfile("shotgun", "Shotgun", "VM_Shotgun", "fx_fogonazo");
     }
 
+    /// <summary>Versión actual de los tiempos "snappy" (fase 1.3). Un perfil con timingVersion menor se actualiza solo.</summary>
+    public const int TimingVersion = 2;
+
+    /// <summary>
+    /// Fase 1.3: disparo 0.08 s, bombeo 0.35 s (también apuntando) y culatazo que vuelve en ~0.15 s (32 rad/s, amortiguación 0.7).
+    /// Solo toca esos campos; el resto de lo ajustado a mano se conserva.
+    /// </summary>
+    public static bool ApplyTiming(ViewmodelProfile p)
+    {
+        if (p == null || p.timingVersion >= TimingVersion) return false;
+        p.fire.minDuration = 0.08f;
+        p.aimFire.minDuration = 0.08f;
+        p.cycle.minDuration = 0.35f;
+        p.aimCycle.minDuration = 0.35f;
+        p.kickSpringFrequency = 32f;
+        p.kickSpringDamping = 0.7f;
+        p.timingVersion = TimingVersion;
+        EditorUtility.SetDirty(p);
+        return true;
+    }
+
+    /// <summary>Al abrir el Editor, los VM_*.asset que ya existen reciben los tiempos nuevos (no se editan a mano).</summary>
+    [InitializeOnLoadMethod]
+    private static void MigrateTimingOnLoad()
+    {
+        EditorApplication.delayCall += () =>
+        {
+            int changed = 0;
+            foreach (string guid in AssetDatabase.FindAssets("t:ViewmodelProfile", new[] { ViewmodelArtImporter.ViewmodelFolder }))
+                if (ApplyTiming(AssetDatabase.LoadAssetAtPath<ViewmodelProfile>(AssetDatabase.GUIDToAssetPath(guid)))) changed++;
+            if (changed > 0)
+            {
+                AssetDatabase.SaveAssets();
+                Debug.Log("[Viewmodel] " + changed + " perfil(es) actualizados a los tiempos de la fase 1.3 (disparo 0.08 s, bombeo 0.35 s).");
+            }
+        };
+    }
+
     public const string RevolverProfilePath = ViewmodelArtImporter.ViewmodelFolder + "/VM_Revolver.asset";
 
     [MenuItem("Plomo y Paja/Crear Perfil Viewmodel Revólver")]
@@ -154,8 +192,6 @@ public static class ViewmodelProfileBuilder
             p.flashSize = 280f;
             p.kickOffset = new Vector2(30f, -45f);
             p.kickRotation = 6f;
-            p.fire.minDuration = 0.12f;
-            p.aimFire.minDuration = 0.12f;
         });
     }
 
@@ -171,6 +207,7 @@ public static class ViewmodelProfileBuilder
         {
             profile = ScriptableObject.CreateInstance<ViewmodelProfile>();
             profile.weaponId = weaponId;
+            profile.timingVersion = TimingVersion; // los valores por defecto de la clase ya son los nuevos
             if (onCreate != null) onCreate(profile);
             AssetDatabase.CreateAsset(profile, assetPath);
         }
@@ -195,6 +232,7 @@ public static class ViewmodelProfileBuilder
             if (System.Array.IndexOf(KnownClips, clip) < 0)
                 Debug.LogWarning($"[Viewmodel] Clip desconocido '{clip}' en {weaponFolder} (válidos: {string.Join(", ", KnownClips)})");
 
+        ApplyTiming(profile);
         EditorUtility.SetDirty(profile);
         AssetDatabase.SaveAssets();
         Debug.Log($"[Viewmodel] {assetName}: idle {profile.idle.frames.Length}, fire {profile.fire.frames.Length}, " +

@@ -7,9 +7,9 @@ using UnityEngine;
 /// DÓNDE VA: lo crea FirstPersonViewmodel en "ViewmodelCanvas" y mueve "ViewmodelRoot".
 /// Todos los valores salen del ViewmodelProfile activo (SetProfile). Independiente del frame rate.
 ///
-/// TIEMPO: una sola fuente, Time.deltaTime (con escala) recortado a 1/30 s. Así el hit-stop de CartoonFx (timeScale 0)
-/// congela las manos junto con el mundo y un tirón de FPS nunca mete un paso enorme. El resorte del culatazo se integra
-/// en sub-pasos de 1/120 s (Euler semi-implícito, estable con w·h = 22/120 ≈ 0.18, muy por debajo del límite de 2).
+/// TIEMPO: una sola fuente, ViewmodelTime.Delta (tiempo real, sin escala, recortado a 1/30 s). Así las manos siguen
+/// recuperándose durante el hit-stop de CartoonFx (timeScale 0) y un tirón de FPS nunca mete un paso enorme. El resorte del
+/// culatazo se integra en sub-pasos de 1/120 s (Euler semi-implícito, estable: w·h = 32/120 ≈ 0.27, muy por debajo del límite de 2).
 ///
 /// BORDES: las manos se dibujan más grandes que la pantalla (overscan). Después de sumar todos los desplazamientos, la
 /// posición se corrige para que el borde derecho y el inferior del arte NUNCA entren en la pantalla, con la rotación y la
@@ -17,7 +17,6 @@ using UnityEngine;
 /// </summary>
 public class ViewmodelMotion : MonoBehaviour
 {
-    private const float MaxDt = 1f / 30f;
     private const float SpringStep = 1f / 120f;
     private const float MinScale = 0.8f;
     private const float MaxScale = 1.2f;
@@ -95,7 +94,7 @@ public class ViewmodelMotion : MonoBehaviour
     {
         if (_root == null || _profile == null) return;
         ViewmodelProfile p = _profile;
-        float dt = Mathf.Min(Time.deltaTime, MaxDt);
+        float dt = ViewmodelTime.Delta;
         _time += dt;
 
         float aimT = _aim != null ? Mathf.SmoothStep(0f, 1f, _aim.AimBlend) : 0f;

@@ -45,7 +45,7 @@ public class ViewmodelLighting : MonoBehaviour
         Color tint = CurrentBase();
         if (_flashTimer >= 0f)
         {
-            _flashTimer += Mathf.Min(Time.deltaTime, 1f / 30f); // misma fuente de tiempo que ViewmodelMotion
+            _flashTimer += ViewmodelTime.Delta; // misma fuente de tiempo que ViewmodelMotion
             if (_flashTimer < flashHold) tint = Color.white;
             else
             {

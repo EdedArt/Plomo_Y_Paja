@@ -99,7 +99,7 @@ public class ViewmodelAnimator : MonoBehaviour
     private void Update()
     {
         if (_profile == null || _hands == null) return;
-        float dt = Time.deltaTime;
+        float dt = ViewmodelTime.Delta; // tiempo real: el hit-stop no congela los cuadros
 
         if (_flashTimer >= 0f)
         {

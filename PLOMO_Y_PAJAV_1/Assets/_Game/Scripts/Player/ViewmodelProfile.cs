@@ -28,19 +28,22 @@ public class ViewmodelProfile : ScriptableObject
 
     [Header("Arma")]
     public string weaponId = "shotgun";
+    [Tooltip("Versión de los tiempos (la sube ViewmodelProfileBuilder al aplicar los valores 'snappy' de la fase 1.3 a un asset viejo)")]
+    public int timingVersion;
 
     [Header("Clips (vacío = se usa idle)")]
     public Clip idle = new Clip();
-    public Clip fire = new Clip { minDuration = 0.15f };
-    [Tooltip("Bombeo / amartillar tras el disparo (opcional)")]
-    public Clip cycle = new Clip { minDuration = 0.45f };
+    [Tooltip("Disparo: un cuadro \"de a dos\" (0.08 s) y sigue el bombeo")]
+    public Clip fire = new Clip { minDuration = 0.08f };
+    [Tooltip("Bombeo / amartillar tras el disparo (opcional): 0.35 s en total (el sonido del bombeo suena a 0.35 s del disparo)")]
+    public Clip cycle = new Clip { minDuration = 0.35f };
     [Tooltip("Opcional: sin cuadros, las manos bajan durante la recarga")]
     public Clip reload = new Clip();
     public Clip aimIdle = new Clip();
     [Tooltip("Opcional: sin cuadros, al disparar apuntando se queda aimIdle + culatazo")]
-    public Clip aimFire = new Clip { minDuration = 0.15f };
+    public Clip aimFire = new Clip { minDuration = 0.08f };
     [Tooltip("Opcional: sin cuadros, sale del apuntado, bombea con 'cycle' y vuelve")]
-    public Clip aimCycle = new Clip { minDuration = 0.45f };
+    public Clip aimCycle = new Clip { minDuration = 0.35f };
 
     [Header("Velocidad de animación")]
     [Tooltip("\"Animando de a dos\": 12 fps")]
@@ -93,9 +96,9 @@ public class ViewmodelProfile : ScriptableObject
     public float kickRotation = 8f;
     public Vector2 kickSquash = new Vector2(1.10f, 0.90f);
     [Tooltip("Frecuencia del resorte de vuelta (rad/s)")]
-    public float kickSpringFrequency = 22f;
-    [Tooltip("0.6 ≈ vuelve en ~0.25 s con un pequeño rebote")]
-    public float kickSpringDamping = 0.6f;
+    public float kickSpringFrequency = 32f;
+    [Tooltip("0.7 con 32 rad/s: pico en el primer cuadro, de vuelta en reposo en ~0.15 s y solo un 5 % de rebote")]
+    public float kickSpringDamping = 0.7f;
 
     [Header("Recarga sin cuadros (las manos bajan)")]
     public float reloadDip = 500f;

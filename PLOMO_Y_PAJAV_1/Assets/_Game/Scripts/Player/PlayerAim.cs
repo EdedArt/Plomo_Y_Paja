@@ -81,7 +81,7 @@ public class PlayerAim : MonoBehaviour
     /// Si el botón sigue apretado, vuelve a apuntar solo.</summary>
     public void SuppressFor(float seconds)
     {
-        _suppressUntil = Mathf.Max(_suppressUntil, Time.time + seconds);
+        _suppressUntil = Mathf.Max(_suppressUntil, Time.unscaledTime + seconds);
     }
 
     /// <summary>Pausa, diálogo/interrogatorio o muerte (estados que ya existen en el juego).</summary>
@@ -101,12 +101,12 @@ public class PlayerAim : MonoBehaviour
         bool runningStart = !IsAiming && _player != null && _player.IsRunning && _player.IsMoving;
         bool want = Input.GetMouseButton(1)
                     && !reloading && !runningStart && !_dead
-                    && Time.time >= _suppressUntil
+                    && Time.unscaledTime >= _suppressUntil
                     && !GameplayBlocked();
         SetAiming(want);
 
         float duration = IsAiming ? aimInTime : aimOutTime;
-        AimBlend = Mathf.MoveTowards(AimBlend, IsAiming ? 1f : 0f, Time.deltaTime / duration);
+        AimBlend = Mathf.MoveTowards(AimBlend, IsAiming ? 1f : 0f, ViewmodelTime.Delta / duration);
         ApplyFov();
     }
 
