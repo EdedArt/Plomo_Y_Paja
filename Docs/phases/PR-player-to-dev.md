@@ -1,4 +1,4 @@
-# PR: integracion/dia3 → dev — Look de cartoon años 30, enemigos de Edgar y audio de Cristian (fases 3A–3A6)
+# PR: integracion/dia3 → dev — Look de cartoon años 30, enemigos de Edgar y audio de Cristian (fases 3A–3A8)
 
 Rama de integración creada desde `player` con `enemies` (Edgar) mezclada encima y el audio de Cristian importado.
 Sustituye al antiguo PR `player → dev`: trae todo lo de player más el trabajo de Edgar ya resuelto.
@@ -12,11 +12,15 @@ Sustituye al antiguo PR `player → dev`: trae todo lo de player más el trabajo
 - **3A5 — Cristian:** 75 audios importados (barks de guardia/informante, escopeta, impactos, humo, estrellas, pista y el resto para las fases 4–6). Importación por carpeta (voces/SFX Decompress On Load + Vorbis 70; música/ambiente Streaming + Vorbis 60).
 - **3A6 — Edgar:** `RubberHoseAnimator` en los guardias (en `SpriteHolder`, reemplaza a `RubberHoseMotion`); un solo aplastado de muerte (el de RubberHose, al aterrizar). `EnemyCombatFx` conserva destello, empujón, sangre, vuelo y desvanecido.
 - **3A6 — Cristian:** sin `_SinUso` (todo en `Voices/`, `SFX/`, `Music/`); Wilbur se queja al recibir daño y avisa con poca vida; pasos de madera bajo techo y de barro afuera; lluvia en bucle (ahogada bajo techo) y truenos cada 25–60 s con destello. Volúmenes en `AudioLibrary.asset` → *Mix*.
+- **3A7 — Cristian:** voces de enemigos por un solo canal con prioridades (patrulla < ver < daño < rendición < muerte) y probabilidades; la muerte siempre suena (silbato/golpe/humo) y la frase solo a veces; sin warnings "more materials than submeshes" (`CartoonKit.FitMaterials`); nevera con sombra azul fría.
+- **3A8 — Edgar:** `origin/enemies` mezclada otra vez (5 commits `dia4`): guardia con 10 cuadros (idle 1–4, walk, shoot, hit, surrender, talk, death) y además sprites de informante, Don Lobo, Porky, Max y efectos (`fx`). Se quitó el viejo `guardia_idle_01.png`. `CharacterSpriteImporter` (versión 4) manda: guardia a PPU 236 y pivote en los pies, también en `death_01`. Con dibujo de muerte ya no se aplasta al 15 %: `RubberHoseAnimator.deathWithDrawing` (Bounce por defecto: 1 → 0.85 → 1 en 0.2 s).
+- **3A8 — David:** `GraphicsSettingsService` apaga el SSAO al arrancar en GPUs sin soporte (shader model < 4.5, sin R32 SFloat/R8 o sin profundidad) y avisa "[Graficos] SSAO desactivado: GPU sin soporte". `SetAmbientOcclusion(bool)` para el futuro menú de opciones. `CartoonEnvironment` solo lee el AO con la keyword `_SCREEN_SPACE_OCCLUSION` y la luz directa no baja de 0.6 por AO: el nivel ya no sale negro en la PC de Edgar. Prueba en una PC buena: Plomo y Paja → Gráficos → Forzar sin SSAO (prueba), o `-sinssao` en una build.
 
 ## Resolución del merge con `enemies`
 - `BillboardSprite.cs`: base de player (sin luz, sets de sprites, `AlignFeetToGround`, `BlobShadow`, accesorio) + lo de Edgar (`PlayAttack`, `hitPoseDuration`, poses sueltas, sin volteo por defecto, muerte que sigue mirando a la cámara, renderer en hijo `Art`, `anchorFeet` opcional).
 - `EnemyAI.cs`: versión de Edgar (ya hace todas las llamadas de pose que player necesitaba).
 - `Art.meta`, `Art/Characters.meta`: GUID de player.
+- 3A8: `Art/Characters/guardia.meta` (carpeta, add/add): GUID de Edgar. Los `.meta` de sus PNG se conservan (GUID de Edgar); su PPU 256 y pivote a mano se pisan al reimportar.
 - Sin conflictos en `.unity` / `.prefab` / `.asset` (Edgar no los tocó).
 
 ## Menús (en este orden, fuera de Play)
@@ -25,6 +29,11 @@ Sustituye al antiguo PR `player → dev`: trae todo lo de player más el trabajo
 3. Plomo y Paja → Reconstruir Librería de Audio (**obligatorio**: debe decir "48 voces y 17 efectos")
 4. Plomo y Paja → Generar Nivel Porky
 Otros: Crear Materiales de Personajes, Reconstruir Sets de Sprites, Verificar URP.
+
+## Requisitos mínimos (provisional)
+- **Recomendado:** GPU DirectX 11 / shader model 4.5 o superior (SSAO activo, el look completo).
+- **Mínimo conocido:** GPU de nivel DirectX 10 (la PC de Edgar). Funciona, pero sin SSAO: se apaga solo al arrancar.
+- Pendiente de medir: RAM, VRAM, CPU y FPS en cada PC (fase 7).
 
 ## Al mezclar dev en tu rama
 - **Edgar (`enemies`):** tus cambios ya están en dev. Haz `git pull origin dev` antes de seguir; `BillboardSprite` conserva tu API (`PlayIdle/Walk/Attack/Hit/Surrender/Talk/Death`). `RubberHoseAnimator` ya lo pone el generador en `SpriteHolder`; `RubberHoseMotion` ya no se añade (solo queda para prefabs viejos). Nuevo: `RubberHoseAnimator.PlayDeathSquash()` lo llama `EnemyCombatFx` al aterrizar.
@@ -43,6 +52,9 @@ Otros: Crear Materiales de Personajes, Reconstruir Sets de Sprites, Verificar UR
 - [ ] Interrogatorio: pose talk, la pista se registra (Colmillo y Tuerto).
 - [ ] Las 2 pistas siguen en su sitio y se recogen; jugador y guardias recorren todo el nivel.
 - [ ] Menús en Play muestran el aviso; `Time.timeScale` nunca queda distinto de 1.
+- [ ] 3A7: nunca 2 voces de guardia a la vez; la muerte siempre suena; sin warnings de submallas.
+- [ ] 3A8: el guardia anima con sus 10 cuadros; al morir queda tirado con su dibujo, sin hacerse una rayita y apoyado en el piso.
+- [ ] 3A8: con "Forzar sin SSAO" el nivel se ve normal (no negro); en la PC de Edgar sale "[Graficos] SSAO desactivado: GPU sin soporte".
 
 ## Nota
-Los assets generados (escena, prefabs, mallas, materiales, `AudioLibrary.asset`) se versionan en un commit aparte tras regenerar en Unity: `chore: assets generados 3A2-3A6`.
+Los assets generados (escena, prefabs, mallas, materiales, `AudioLibrary.asset`) se versionan en un commit aparte tras regenerar en Unity: `chore: assets generados 3A2-3A8`.
