@@ -269,6 +269,10 @@ public static class TestPrefabGenerator
             if (contents.GetComponent<PlayerAim>() == null)
                 contents.AddComponent<PlayerAim>();
 
+            // Mira rubber-hose del HUD (construye su propio canvas Overlay; UIManager no existe en las escenas)
+            if (contents.GetComponent<RubberHoseCrosshair>() == null)
+                contents.AddComponent<RubberHoseCrosshair>();
+
             // Mantiene cargada la librería de audio (sin referencia no entraría en el build)
             AudioLibraryLoader loader = contents.GetComponent<AudioLibraryLoader>();
             if (loader == null) loader = contents.AddComponent<AudioLibraryLoader>();

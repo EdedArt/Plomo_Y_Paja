@@ -281,6 +281,8 @@ public class ShotgunController : MonoBehaviour, IWeapon
     public int CurrentAmmo => currentAmmo;
     public int ReserveAmmo => reserveAmmo;
     public bool IsReloading => _isReloading;
+    /// <summary>Dispersión actual (con el multiplicador de apuntar). Solo lectura, para la mira del HUD; ShootPellet no cambió.</summary>
+    public float SpreadAngle => spreadAngle * (_aim != null && _aim.IsAiming ? aimSpreadMultiplier : 1f);
     /// <summary>Segundos que dura la recarga (el viewmodel sincroniza la bajada de manos con esto).</summary>
     public float ReloadDuration => reloadTime;
 
