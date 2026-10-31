@@ -194,11 +194,10 @@ public class ShotgunController : MonoBehaviour, IWeapon
         // Calcular una dirección con dispersión aleatoria dentro del spreadAngle
         Vector3 shootDirection = playerCamera.transform.forward;
         float spread = spreadAngle * (_aim != null && _aim.IsAiming ? aimSpreadMultiplier : 1f);
-        shootDirection += new Vector3(
-            Random.Range(-spread, spread) * 0.01f,
-            Random.Range(-spread, spread) * 0.01f,
-            0f
-        );
+        // La dispersión va en los ejes de la CÁMARA (derecha y arriba), no en los del mundo: el cono queda centrado
+        // en la mira mirando hacia donde sea. Misma magnitud que antes (spread · 0.01 por eje).
+        shootDirection += playerCamera.transform.right * (Random.Range(-spread, spread) * 0.01f)
+                        + playerCamera.transform.up * (Random.Range(-spread, spread) * 0.01f);
         shootDirection.Normalize();
 
         Ray ray = new Ray(playerCamera.transform.position, shootDirection);
