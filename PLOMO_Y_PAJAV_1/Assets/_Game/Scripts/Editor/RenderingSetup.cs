@@ -122,4 +122,24 @@ public static class RenderingSetup
         if (p != null) p.boolValue = value;
         else Debug.LogWarning("[RenderingSetup] Propiedad no encontrada: " + path);
     }
+    // ------------------------------------------------------------------
+    // Prueba del modo sin SSAO (fase 3A8) en una PC buena: GraphicsSettingsService lo lee al entrar en Play.
+    // ------------------------------------------------------------------
+    private const string ForceNoSsaoMenu = "Plomo y Paja/Gráficos/Forzar sin SSAO (prueba)";
+
+    [MenuItem(ForceNoSsaoMenu)]
+    private static void ToggleForceNoSsao()
+    {
+        bool on = PlayerPrefs.GetInt(GraphicsSettingsService.ForceNoSsaoKey, 0) == 1;
+        PlayerPrefs.SetInt(GraphicsSettingsService.ForceNoSsaoKey, on ? 0 : 1);
+        PlayerPrefs.Save();
+        Debug.Log("[Graficos] Modo de prueba sin SSAO: " + (on ? "APAGADO (SSAO normal)" : "ENCENDIDO (se aplica al entrar en Play)"));
+    }
+
+    [MenuItem(ForceNoSsaoMenu, true)]
+    private static bool ToggleForceNoSsaoValidate()
+    {
+        Menu.SetChecked(ForceNoSsaoMenu, PlayerPrefs.GetInt(GraphicsSettingsService.ForceNoSsaoKey, 0) == 1);
+        return true;
+    }
 }

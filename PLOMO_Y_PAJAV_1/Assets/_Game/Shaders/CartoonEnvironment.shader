@@ -157,8 +157,18 @@ Shader "PlomoYPaja/CartoonEnvironment"
                 float3 n = normalize(i.normalWS);
                 half3 albedo = Albedo(i, n);
 
+                // AO = 1 (sin oscurecer) siempre que el SSAO no esté activo: la textura de AO solo se lee con la
+                // keyword _SCREEN_SPACE_OCCLUSION (fase 3A8: en GPUs DX10 la textura faltaba y el nivel salía negro).
+                half aoIndirect = 1.0;
+                half aoDirect = 1.0;
+            #if defined(_SCREEN_SPACE_OCCLUSION)
                 float2 screenUV = GetNormalizedScreenSpaceUV(i.positionCS);
                 AmbientOcclusionFactor ao = GetScreenSpaceAmbientOcclusion(screenUV);
+                aoIndirect = ao.indirectAmbientOcclusion;
+                // La luz directa nunca baja de 0.6 por AO (el mínimo que da URP con Direct Lighting Strength 0.4,
+                // el valor de RenderingSetup): aunque la textura llegue vacía, faroles y luna siguen iluminando.
+                aoDirect = max(ao.directAmbientOcclusion, 0.6);
+            #endif
 
                 float4 shadowCoord = TransformWorldToShadowCoord(i.positionWS);
                 Light mainLight = GetMainLight(shadowCoord);
@@ -176,8 +186,8 @@ Shader "PlomoYPaja/CartoonEnvironment"
                 // Ambiente teñido de violeta: lo que no ilumina ninguna luz queda violeta, no negro
                 half3 ambient = SampleSH(n) * _ShadowColor.rgb * 1.6 + _ShadowColor.rgb * 0.04;
                 // El AO se eleva al cuadrado en el ambiente: esquinas y bases claramente más oscuras (fase 3A3)
-                half aoAmbient = ao.indirectAmbientOcclusion * ao.indirectAmbientOcclusion;
-                half3 color = albedo * (ambient * aoAmbient + direct * ao.directAmbientOcclusion);
+                half aoAmbient = aoIndirect * aoIndirect;
+                half3 color = albedo * (ambient * aoAmbient + direct * aoDirect);
                 color += _EmissionColor.rgb;
                 color = MixFog(color, i.fogFactor);
                 return half4(color, 1);
