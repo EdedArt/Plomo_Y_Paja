@@ -32,8 +32,15 @@ public class ShotgunFeedback : MonoBehaviour
     [Tooltip("Posición en pantalla (0..1) cerca del cañón")]
     [SerializeField] private Vector2 popupViewport = new Vector2(0.7f, 0.3f);
     [SerializeField] private float popupDuration = 0.4f;
+    [Tooltip("La onomatopeya solo sale cuando el contador de disparos llega a un umbral al azar entre min y max (inclusive); " +
+             "después el contador vuelve a 0 y se sortea otro umbral")]
+    [SerializeField, Min(1)] private int minShotsBetweenWords = 15;
+    [SerializeField, Min(1)] private int maxShotsBetweenWords = 20;
+    [Tooltip("Palabras posibles (una al azar, sin repetir la anterior)")]
+    [SerializeField] private string[] words = { "¡BANG!", "¡BLAM!", "¡POW!", "¡KABOOM!" };
+    [Tooltip("Giro al azar de la palabra, en grados a cada lado")]
+    [SerializeField] private float popupRotationDegrees = 12f;
 
-    private static readonly string[] Words = { "¡BANG!", "¡BLAM!", "¡POW!" };
     private const int PopupPool = 4;
 
     private ShotgunController _shotgun;
@@ -52,6 +59,8 @@ public class ShotgunFeedback : MonoBehaviour
     private float[] _popupStart;
     private int _nextPopup;
     private int _lastWord = -1;
+    private int _shotsSinceWord;
+    private int _shotsThreshold;
 
     private void Awake()
     {
@@ -73,6 +82,7 @@ public class ShotgunFeedback : MonoBehaviour
         _muzzleLight.enabled = false;
 
         BuildPopups();
+        _shotsThreshold = PickThreshold();
     }
 
     private void OnEnable()
@@ -96,7 +106,22 @@ public class ShotgunFeedback : MonoBehaviour
         _shakeUntil = Time.unscaledTime + shakeDuration;
         _muzzleLight.enabled = true;
         _muzzleOffAt = Time.unscaledTime + muzzleLightDuration;
-        ShowPopup();
+
+        // La onomatopeya es rara: solo al llegar a un umbral de 15–20 disparos (configurable)
+        _shotsSinceWord++;
+        if (_shotsSinceWord >= _shotsThreshold)
+        {
+            ShowPopup();
+            _shotsSinceWord = 0;
+            _shotsThreshold = PickThreshold();
+        }
+    }
+
+    private int PickThreshold()
+    {
+        int min = Mathf.Max(1, minShotsBetweenWords);
+        int max = Mathf.Max(min, maxShotsBetweenWords);
+        return Random.Range(min, max + 1); // el máximo entero es exclusivo
     }
 
     private void Update()
@@ -178,8 +203,9 @@ public class ShotgunFeedback : MonoBehaviour
 
     private void ShowPopup()
     {
-        int word = Random.Range(0, Words.Length);
-        if (word == _lastWord) word = (word + 1) % Words.Length;
+        if (words == null || words.Length == 0) return;
+        int word = Random.Range(0, words.Length);
+        if (words.Length > 1 && word == _lastWord) word = (word + 1) % words.Length;
         _lastWord = word;
 
         TextMeshProUGUI text = _popups[_nextPopup];
@@ -191,8 +217,8 @@ public class ShotgunFeedback : MonoBehaviour
         rect.anchoredPosition = new Vector2(
             (popupViewport.x + Random.Range(-0.04f, 0.04f)) * size.x,
             (popupViewport.y + Random.Range(-0.04f, 0.04f)) * size.y);
-        rect.localRotation = Quaternion.Euler(0f, 0f, Random.Range(-14f, 14f));
-        text.text = Words[word];
+        rect.localRotation = Quaternion.Euler(0f, 0f, Random.Range(-popupRotationDegrees, popupRotationDegrees));
+        text.text = words[word];
         text.alpha = 1f;
         text.gameObject.SetActive(true);
     }
