@@ -38,6 +38,9 @@ public class FirstPersonViewmodel : MonoBehaviour
     [Tooltip("Escribe en consola, cada frame durante 0.5 s después de disparar: posición, rotación Z y escala de ViewmodelRoot, " +
              "sprite, deltaTime, unscaledDeltaTime y timeScale, y la pose de las cámaras al renderizar (bug del salto al disparar)")]
     [SerializeField] private bool debugFireLog = false;
+    [Tooltip("Mientras se apunta quieto (aim al 100 %), escribe cada 0.5 s dónde está en pantalla la punta de la mira delantera, el " +
+             "centro de la pantalla y el error en píxeles (debe ser < 2 px en cualquier formato). Apagada por defecto")]
+    [SerializeField] private bool debugSightLog = false;
 
     private IWeapon _weapon;
     private PlayerController _player;
@@ -53,6 +56,7 @@ public class FirstPersonViewmodel : MonoBehaviour
     private ViewmodelLighting _lighting;
     private bool _dead;
     private float _debugUntil = -1f;
+    private float _sightLogNext;
     private int _debugFrame;
 
     public ViewmodelProfile Profile => profile;
@@ -254,6 +258,26 @@ public class FirstPersonViewmodel : MonoBehaviour
         if (_canvas.enabled == hidden) _canvas.enabled = !hidden;
         FitHands();
         LogFireFrame();
+        LogSightError();
+    }
+
+    // ============ Depuración del centrado al apuntar (fase 1.4, apagada por defecto) ============
+
+    private void LogSightError()
+    {
+        if (!debugSightLog || _aim == null || profile == null || _hands == null || _canvas == null) return;
+        if (_aim.AimBlend < 0.999f || Time.unscaledTime < _sightLogNext) return;
+        _sightLogNext = Time.unscaledTime + 0.5f;
+
+        // Punto del arte (px 1920x1080, origen abajo-izquierda) → rect de HandsImage → mundo → pantalla
+        Rect r = _hands.rectTransform.rect;
+        var local = new Vector3(r.xMin + profile.aimSightPoint.x / 1920f * r.width, r.yMin + profile.aimSightPoint.y / 1080f * r.height, 0f);
+        Vector3 world = _hands.rectTransform.TransformPoint(local);
+        Camera cam = _canvas.renderMode == RenderMode.ScreenSpaceOverlay ? null : _canvas.worldCamera;
+        Vector2 screen = RectTransformUtility.WorldToScreenPoint(cam, world);
+        var center = new Vector2(Screen.width * 0.5f, Screen.height * 0.5f);
+        Debug.Log(string.Format("[VM-SIGHT] pantalla {0}x{1} (aspecto {2:F3}) · mira=({3:F1},{4:F1}) centro=({5:F1},{6:F1}) error={7:F2}px (solo vale quieto y sin culatazo)",
+            Screen.width, Screen.height, Screen.width / (float)Screen.height, screen.x, screen.y, center.x, center.y, (screen - center).magnitude));
     }
 
     // ============ Depuración del salto al disparar (fase 1.2, apagada por defecto) ============

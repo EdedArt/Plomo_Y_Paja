@@ -108,7 +108,13 @@ public class ViewmodelProfile : ScriptableObject
     [Header("Apuntar (clic derecho)")]
     public float aimInTime = 0.15f;
     public float aimOutTime = 0.12f;
-    [Tooltip("Desplazamiento de las manos al apuntar con dibujo aimIdle (px de canvas)")]
+    [Tooltip("Punta de la mira delantera (bead) en el dibujo aimIdle: px del arte 1920x1080, origen ABAJO a la izquierda. " +
+             "Al apuntar se lleva EXACTAMENTE al centro de la pantalla, en cualquier formato. La mide ViewmodelProfileBuilder " +
+             "(y Tools/viewmodel_sight.py) del PNG aimIdle")]
+    public Vector2 aimSightPoint = new Vector2(960.5f, 575f);
+    [Tooltip("Versión de la medición de aimSightPoint (la sube ViewmodelProfileBuilder al medir el PNG)")]
+    public int sightVersion;
+    [Tooltip("Ajuste fino a mano (px de canvas) sobre el centro exacto al apuntar con dibujo aimIdle. 0 = centro exacto")]
     public Vector2 aimOffset = Vector2.zero;
     [Tooltip("Sin dibujo aimIdle: las manos se mueven hacia el centro y crecen")]
     public Vector2 aimOffsetNoSprite = new Vector2(-320f, 140f);
@@ -117,7 +123,8 @@ public class ViewmodelProfile : ScriptableObject
     public float aimSwapPunch = 1.03f;
     [Tooltip("Grados que baja el FOV de la cámara al apuntar")]
     public float aimFovDelta = 15f;
-    [Tooltip("Multiplicadores mientras apunta")]
+    [Tooltip("Multiplicadores mientras apunta SIN mira centrada (con aimSightPoint y dibujo aimIdle, el balanceo, la inercia y la " +
+             "respiración valen 0 al apuntar del todo y estos no se usan)")]
     public float aimBobMultiplier = 0.25f;
     public float aimSwayMultiplier = 0.3f;
     public float aimBreathMultiplier = 0.5f;

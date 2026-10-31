@@ -18,6 +18,8 @@ using UnityEngine;
 public class ViewmodelMotion : MonoBehaviour
 {
     private const float SpringStep = 1f / 120f;
+    private const float ArtWidth = 1920f;    // el arte de las manos se dibuja en 1920x1080
+    private const float ArtHeight = 1080f;
     private const float MinScale = 0.8f;
     private const float MaxScale = 1.2f;
 
@@ -98,9 +100,13 @@ public class ViewmodelMotion : MonoBehaviour
         _time += dt;
 
         float aimT = _aim != null ? Mathf.SmoothStep(0f, 1f, _aim.AimBlend) : 0f;
-        float bobMul = Mathf.Lerp(1f, p.aimBobMultiplier, aimT);
-        float swayMul = Mathf.Lerp(1f, p.aimSwayMultiplier, aimT);
-        float breathMul = Mathf.Lerp(1f, p.aimBreathMultiplier, aimT);
+        bool hasAimSprite = p.aimIdle != null && p.aimIdle.HasFrames;
+        // Mira centrada: con dibujo de apuntar y punto de mira, al apuntar la punta de la mira va EXACTAMENTE al centro de la
+        // pantalla y el balanceo, la inercia y la respiración se anulan del todo (solo el culatazo puede moverla)
+        bool centered = hasAimSprite && p.aimSightPoint != Vector2.zero && _hands != null;
+        float bobMul = centered ? 1f - aimT : Mathf.Lerp(1f, p.aimBobMultiplier, aimT);
+        float swayMul = centered ? 1f - aimT : Mathf.Lerp(1f, p.aimSwayMultiplier, aimT);
+        float breathMul = centered ? 1f - aimT : Mathf.Lerp(1f, p.aimBreathMultiplier, aimT);
 
         // --- Caminar / correr ---
         float speed = 0f;
@@ -160,8 +166,9 @@ public class ViewmodelMotion : MonoBehaviour
         else _dip = Mathf.MoveTowards(_dip, 0f, dt / Mathf.Max(0.01f, p.reloadEase));
 
         // --- Apuntar ---
-        bool hasAimSprite = p.aimIdle != null && p.aimIdle.HasFrames;
-        Vector2 aimOffset = (hasAimSprite ? p.aimOffset : p.aimOffsetNoSprite) * aimT;
+        Vector2 aimOffset = centered
+            ? (SightCenterOffset(p.aimSightPoint) + p.aimOffset) * aimT
+            : (hasAimSprite ? p.aimOffset : p.aimOffsetNoSprite) * aimT;
         float aimScale = Mathf.Lerp(1f, hasAimSprite ? 1f : p.aimScaleNoSprite, aimT);
 
         float punch = 1f;
@@ -184,7 +191,9 @@ public class ViewmodelMotion : MonoBehaviour
 
         sx = Mathf.Clamp(sx, MinScale, MaxScale);
         sy = Mathf.Clamp(sy, MinScale, MaxScale);
-        pos = KeepEdgesOffscreen(pos, rot, new Vector2(sx, sy));
+        // Con la mira centrada el dibujo de apuntar se corre a la izquierda en pantallas anchas: el borde derecho ya no se
+        // protege (solo el inferior); el peso baja con el apuntado
+        pos = KeepEdgesOffscreen(pos, rot, new Vector2(sx, sy), centered ? 1f - aimT : 1f);
 
         _root.anchoredPosition = pos;
         _root.localRotation = Quaternion.Euler(0f, 0f, rot);
@@ -197,7 +206,7 @@ public class ViewmodelMotion : MonoBehaviour
     /// rect de HandsImage (anclado abajo a la derecha). Se transforman 3 esquinas con la escala, la rotación y la
     /// posición del frame; un borde recto cumple si sus dos extremos cumplen.
     /// </summary>
-    private Vector2 KeepEdgesOffscreen(Vector2 pos, float rotDegrees, Vector2 scale)
+    private Vector2 KeepEdgesOffscreen(Vector2 pos, float rotDegrees, Vector2 scale, float rightWeight)
     {
         if (_hands == null) return pos;
         Rect screen = _root.rect;
@@ -213,9 +222,25 @@ public class ViewmodelMotion : MonoBehaviour
         Vector2 tr = Transform2D(right, top, c, s, scale, pos);
         Vector2 bl = Transform2D(left, bottom, c, s, scale, pos);
 
-        float dx = Mathf.Max(0f, screen.xMax - Mathf.Min(br.x, tr.x));   // borde derecho: mover a la derecha si entró
+        float dx = Mathf.Max(0f, screen.xMax - Mathf.Min(br.x, tr.x)) * rightWeight; // borde derecho: mover a la derecha si entró
         float dy = Mathf.Min(0f, screen.yMin - Mathf.Max(br.y, bl.y));   // borde inferior: mover hacia abajo si entró
         return pos + new Vector2(dx, dy);
+    }
+
+    /// <summary>
+    /// Desplazamiento de ViewmodelRoot (en reposo, rotación 0 y escala 1) que lleva el punto del arte `artPoint` (px 1920x1080,
+    /// origen abajo-izquierda) al centro EXACTO de la pantalla. Se recalcula cada frame con el rect real de la raíz y de HandsImage:
+    /// vale para cualquier formato y resolución (el tamaño de las manos sale del alto, el ancla es la esquina inferior derecha).
+    /// </summary>
+    private Vector2 SightCenterOffset(Vector2 artPoint)
+    {
+        Rect screen = _root.rect;                       // relativo al pivote de la raíz
+        Vector2 size = _hands.rect.size;
+        float right = screen.xMax + _hands.anchoredPosition.x;
+        float bottom = screen.yMin + _hands.anchoredPosition.y;
+        var sight = new Vector2(right - size.x + artPoint.x / ArtWidth * size.x,
+                                bottom + artPoint.y / ArtHeight * size.y);
+        return screen.center - sight;
     }
 
     private static Vector2 Transform2D(float x, float y, float cos, float sin, Vector2 scale, Vector2 pos)

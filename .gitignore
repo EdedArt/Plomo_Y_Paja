@@ -78,3 +78,6 @@ PLOMO_Y_PAJAV_1/_entrante_audio/
 
 # arte del viewmodel original (fondo verde); lo recortado vive en Assets/_Game/Art/Viewmodel
 PLOMO_Y_PAJAV_1/_entrante_viewmodel/
+
+# bytecode de las herramientas Python
+__pycache__/

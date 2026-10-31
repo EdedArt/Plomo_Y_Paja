@@ -153,20 +153,76 @@ public static class ViewmodelProfileBuilder
         return true;
     }
 
-    /// <summary>Al abrir el Editor, los VM_*.asset que ya existen reciben los tiempos nuevos (no se editan a mano).</summary>
+    /// <summary>Versión de la medición del punto de mira (fase 1.4).</summary>
+    public const int SightVersion = 1;
+
+    /// <summary>Mide aimSightPoint del PNG aimIdle del perfil (si aún no está medido). Mismo algoritmo que Tools/viewmodel_sight.py.</summary>
+    public static bool ApplySight(ViewmodelProfile p)
+    {
+        if (p == null || p.sightVersion >= SightVersion) return false;
+        if (p.aimIdle != null && p.aimIdle.HasFrames && MeasureSightPoint(p.aimIdle.frames[0], out Vector2 point))
+            p.aimSightPoint = point;
+        p.sightVersion = SightVersion;
+        EditorUtility.SetDirty(p);
+        return true;
+    }
+
+    /// <summary>
+    /// Punta de la mira delantera del dibujo de apuntar: el cúmulo opaco (alpha ≥ 128) más alto en la franja central (30–70 % del
+    /// ancho), en px del arte con el origen abajo-izquierda. Lee el PNG del disco (no depende de cómo esté importado).
+    /// </summary>
+    public static bool MeasureSightPoint(Sprite sprite, out Vector2 point)
+    {
+        point = Vector2.zero;
+        if (sprite == null) return false;
+        string path = AssetDatabase.GetAssetPath(sprite);
+        if (string.IsNullOrEmpty(path) || !File.Exists(path)) return false;
+
+        var tex = new Texture2D(2, 2, TextureFormat.RGBA32, false);
+        try
+        {
+            if (!ImageConversion.LoadImage(tex, File.ReadAllBytes(path), false)) return false;
+            int w = tex.width, h = tex.height;
+            Color32[] px = tex.GetPixels32();          // fila 0 = abajo
+            int x0 = (int)(w * 0.30f), x1 = (int)(w * 0.70f);
+            int topRow = -1;                            // fila más alta con algún píxel opaco en la franja
+            for (int y = h - 1; y >= 0 && topRow < 0; y--)
+                for (int x = x0; x < x1; x++)
+                    if (px[y * w + x].a >= 128) { topRow = y; break; }
+            if (topRow < 0) return false;
+
+            double sumX = 0;
+            int count = 0;
+            for (int y = topRow; y > topRow - 3 && y >= 0; y--)   // las 3 filas superiores del cúmulo
+                for (int x = x0; x < x1; x++)
+                    if (px[y * w + x].a >= 128) { sumX += x + 0.5; count++; }
+            if (count == 0) return false;
+            point = new Vector2((float)(sumX / count), topRow + 1); // borde superior de la fila más alta, origen abajo
+            return true;
+        }
+        finally { Object.DestroyImmediate(tex); }
+    }
+
+    /// <summary>Al abrir el Editor, los VM_*.asset que ya existen reciben los tiempos y el punto de mira nuevos (no se editan a mano).</summary>
     [InitializeOnLoadMethod]
-    private static void MigrateTimingOnLoad()
+    private static void MigrateOnLoad()
     {
         EditorApplication.delayCall += () =>
         {
             int changed = 0;
             foreach (string guid in AssetDatabase.FindAssets("t:ViewmodelProfile", new[] { ViewmodelArtImporter.ViewmodelFolder }))
-                if (ApplyTiming(AssetDatabase.LoadAssetAtPath<ViewmodelProfile>(AssetDatabase.GUIDToAssetPath(guid)))) changed++;
-            if (changed > 0)
             {
-                AssetDatabase.SaveAssets();
-                Debug.Log("[Viewmodel] " + changed + " perfil(es) actualizados a los tiempos de la fase 1.3 (disparo 0.08 s, bombeo 0.35 s).");
+                var profile = AssetDatabase.LoadAssetAtPath<ViewmodelProfile>(AssetDatabase.GUIDToAssetPath(guid));
+                bool timing = ApplyTiming(profile);
+                bool sight = ApplySight(profile);
+                if (timing || sight)
+                {
+                    changed++;
+                    Debug.Log("[Viewmodel] " + profile.name + " actualizado" + (timing ? " · tiempos de la fase 1.3" : "") +
+                              (sight ? " · aimSightPoint = " + profile.aimSightPoint : ""));
+                }
             }
+            if (changed > 0) AssetDatabase.SaveAssets();
         };
     }
 
@@ -233,6 +289,7 @@ public static class ViewmodelProfileBuilder
                 Debug.LogWarning($"[Viewmodel] Clip desconocido '{clip}' en {weaponFolder} (válidos: {string.Join(", ", KnownClips)})");
 
         ApplyTiming(profile);
+        ApplySight(profile);
         EditorUtility.SetDirty(profile);
         AssetDatabase.SaveAssets();
         Debug.Log($"[Viewmodel] {assetName}: idle {profile.idle.frames.Length}, fire {profile.fire.frames.Length}, " +
