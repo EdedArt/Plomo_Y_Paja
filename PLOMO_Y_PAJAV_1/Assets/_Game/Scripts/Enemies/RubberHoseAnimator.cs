@@ -19,6 +19,8 @@ using UnityEngine;               // Tipos básicos de Unity
 ///   4. Estiramiento al ver a Wilbur                       ← EnemyAI.OnStateChanged → Alert
 ///   5. Temblor al rendirse                                ← EnemyAI.OnStateChanged → Surrender
 ///   6. Aplastarse como tortilla al morir                  ← EnemyAI.OnStateChanged → Dead
+///      (solo sin dibujo de muerte: si el set trae "death", el cuerpo ya está tirado y
+///       se usa deathWithDrawing → rebotecito al caer o nada; ver DeathSquashMode)
 ///
 /// CONSERVAR EL VOLUMEN: cuando se estira a lo alto se adelgaza, y cuando se aplasta
 /// se ensancha (ancho = 1 / alto). Es el truco clásico del "squash and stretch".
@@ -78,10 +80,27 @@ public class RubberHoseAnimator : MonoBehaviour
     [Tooltip("Segundos que tarda en quedar aplastado")]
     [SerializeField, Min(0.01f)] private float deathDuration = 0.25f;
 
+    /// <summary>Qué hacer al morir cuando el personaje YA tiene dibujo de muerte (BillboardSprite.HasDeathDrawing).</summary>
+    public enum DeathSquashMode
+    {
+        Bounce,   // Rebotecito al caer: alto 1 → drawnDeathBounceHeight → 1
+        None,     // Nada: el dibujo de muerte se queda tal cual
+        Flatten,  // Aplastado a deathFlatHeight igual que sin dibujo (el comportamiento viejo, doble aplastado)
+    }
+
+    [Tooltip("Con dibujo de muerte en el set: Bounce = rebotecito al caer, None = nada, Flatten = aplastar igual (doble). " +
+             "Sin dibujo de muerte (placeholder) siempre se aplasta a deathFlatHeight.")]
+    [SerializeField] private DeathSquashMode deathWithDrawing = DeathSquashMode.Bounce;
+    [Tooltip("Alto mínimo del rebotecito con dibujo de muerte (0.85 = baja al 85 % y vuelve)")]
+    [SerializeField, Range(0.5f, 1f)] private float drawnDeathBounceHeight = 0.85f;
+    [Tooltip("Segundos que dura el rebotecito con dibujo de muerte")]
+    [SerializeField, Min(0.01f)] private float drawnDeathBounceDuration = 0.2f;
+
     // ===================== Estado interno =====================
 
     private EnemyAI _ai;                     // Para la velocidad y los cambios de estado (opcional)
     private EnemyHealth _health;             // Para los golpes (opcional)
+    private BillboardSprite _billboard;      // Para saber si hay dibujo de muerte (opcional)
     private Vector3 _baseScale;              // Escala original del SpriteHolder
     private Vector3 _basePosition;           // Posición local original del SpriteHolder
 
@@ -101,6 +120,8 @@ public class RubberHoseAnimator : MonoBehaviour
     {
         _ai = GetComponentInParent<EnemyAI>();                          // Busca en este objeto y hacia arriba (la raíz)
         _health = GetComponentInParent<EnemyHealth>();
+        _billboard = GetComponentInParent<BillboardSprite>();
+        if (_billboard == null) _billboard = GetComponentInChildren<BillboardSprite>();
         _baseScale = transform.localScale;                              // Recordar la forma original
         _basePosition = transform.localPosition;
         _phaseOffset = Random.value * 10f;                              // Número al azar entre 0 y 10
@@ -230,10 +251,25 @@ public class RubberHoseAnimator : MonoBehaviour
             return;
         }
         _deathTimer += dt;
+        transform.localPosition = _basePosition;                        // Pegado al piso, sin saltito ni temblor
+
+        // Con dibujo de muerte el cuerpo ya viene tirado: no aplastarlo otra vez (se haría una rayita)
+        bool drawn = _billboard != null && _billboard.HasDeathDrawing;
+        if (drawn && deathWithDrawing == DeathSquashMode.None)
+        {
+            ApplyShape(1f);
+            return;
+        }
+        if (drawn && deathWithDrawing == DeathSquashMode.Bounce)
+        {
+            float b = Mathf.Clamp01(_deathTimer / drawnDeathBounceDuration);       // 0 → 1
+            ApplyShape(1f - (1f - drawnDeathBounceHeight) * Mathf.Sin(b * Mathf.PI)); // 1 → 0.85 → 1
+            return;
+        }
+
         float t = Mathf.Clamp01(_deathTimer / deathDuration);           // 0 → 1 durante deathDuration
         float eased = EaseOutBack(t);                                   // Se pasa un poquito y vuelve: efecto goma
         ApplyShape(Mathf.LerpUnclamped(1f, deathFlatHeight, eased));    // De altura normal a aplastado
-        transform.localPosition = _basePosition;                        // Pegado al piso, sin saltito ni temblor
     }
 
     /// <summary>Aplica el alto y calcula el ancho para conservar el volumen (ancho = 1 / alto).</summary>

@@ -119,6 +119,10 @@ public class BillboardSprite : MonoBehaviour
     /// <summary>¿Se están mostrando sprites (set o modo antiguo)? Si no, se ve el placeholder.</summary>
     public bool HasSprites => _useSet || HasFrames(walkSprites) || HasFrames(idleSprites);
 
+    /// <summary>¿Hay un dibujo de muerte propio? (animación "death" en el set, o deathSprite en modo antiguo).
+    /// RubberHoseAnimator lo usa para no aplastar un cuerpo que ya viene dibujado tirado en el piso.</summary>
+    public bool HasDeathDrawing => _useSet ? spriteSet.TryGet("death", out _) : deathSprite != null;
+
     private void Awake()
     {
         _mainCamera = Camera.main;
