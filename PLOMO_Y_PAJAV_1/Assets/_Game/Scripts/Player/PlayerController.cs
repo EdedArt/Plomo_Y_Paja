@@ -21,6 +21,9 @@ public class PlayerController : MonoBehaviour
     [Tooltip("Velocidad al correr (Shift)")]
     [SerializeField] private float runSpeed = 7f;
 
+    [Tooltip("Multiplicador de velocidad mientras se apunta (clic derecho, PlayerAim); apuntando no se corre")]
+    [SerializeField] private float aimSpeedMultiplier = 0.6f;
+
     [Tooltip("Fuerza del salto — ponlo en 0 si no quieres salto")]
     [SerializeField] private float jumpForce = 0f; // FPS noir: sin salto por defecto
 
@@ -50,14 +53,17 @@ public class PlayerController : MonoBehaviour
     private float _xRotation = 0f;    // Rotación vertical de la cámara
     private bool _isGrounded;
     private bool _canMove = true;      // Se desactiva durante diálogos
+    private PlayerAim _aim;
 
     // ============ Propiedades públicas ============
-    public bool IsRunning => Input.GetKey(KeyCode.LeftShift) && _canMove;
+    public bool IsRunning => Input.GetKey(KeyCode.LeftShift) && _canMove && !IsAimingNow;
+    private bool IsAimingNow => _aim != null && _aim.IsAiming;
     public bool IsMoving => _controller.velocity.magnitude > 0.1f;
 
     private void Awake()
     {
         _controller = GetComponent<CharacterController>();
+        TryGetComponent(out _aim);
     }
 
     private void Start()
@@ -122,6 +128,7 @@ public class PlayerController : MonoBehaviour
 
         // Velocidad según si corre o camina
         float speed = IsRunning ? runSpeed : walkSpeed;
+        if (IsAimingNow) speed *= aimSpeedMultiplier;
         _controller.Move(move * speed * Time.deltaTime);
 
         // Salto (desactivado por defecto en este juego noir)

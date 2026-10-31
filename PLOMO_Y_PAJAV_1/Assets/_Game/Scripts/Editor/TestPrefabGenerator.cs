@@ -264,6 +264,10 @@ public static class TestPrefabGenerator
             if (contents.GetComponent<PlayerHealth>() == null)
                 contents.AddComponent<PlayerHealth>();
 
+            // Apuntar con clic derecho (viewmodel, dispersión, velocidad, FOV y mira)
+            if (contents.GetComponent<PlayerAim>() == null)
+                contents.AddComponent<PlayerAim>();
+
             // Mantiene cargada la librería de audio (sin referencia no entraría en el build)
             AudioLibraryLoader loader = contents.GetComponent<AudioLibraryLoader>();
             if (loader == null) loader = contents.AddComponent<AudioLibraryLoader>();
@@ -281,11 +285,11 @@ public static class TestPrefabGenerator
                 cam.clearFlags = CameraClearFlags.SolidColor;
                 cam.backgroundColor = new Color32(0x2A, 0x26, 0x55, 0xFF);
 
-                // Manos con escopeta en 2D (invisibles mientras el set wilbur_hands esté vacío)
+                // Manos con escopeta en 2D: perfil VM_Shotgun con los PNG de Art/Viewmodel (sin cuadros no se ven)
                 FirstPersonViewmodel viewmodel = cam.GetComponent<FirstPersonViewmodel>();
                 if (viewmodel == null) viewmodel = cam.gameObject.AddComponent<FirstPersonViewmodel>();
                 var viewmodelSo = new SerializedObject(viewmodel);
-                viewmodelSo.FindProperty("handsSet").objectReferenceValue = CharacterSpriteSetBuilder.GetOrCreateSet("wilbur_hands");
+                viewmodelSo.FindProperty("profile").objectReferenceValue = ViewmodelProfileBuilder.GetOrCreateShotgunProfile();
                 viewmodelSo.ApplyModifiedPropertiesWithoutUndo();
 
                 // Luz de relleno suave que acompaña al jugador: nunca hay negro total delante

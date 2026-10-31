@@ -30,6 +30,9 @@ public class ShotgunController : MonoBehaviour
     [Tooltip("Ángulo de dispersión en grados (más alto = más imprecisa)")]
     [SerializeField] private float spreadAngle = 5f;
 
+    [Tooltip("Multiplicador de la dispersión mientras se apunta (clic derecho, PlayerAim)")]
+    [SerializeField] private float aimSpreadMultiplier = 0.6f;
+
     [Tooltip("Alcance máximo del disparo en metros")]
     [SerializeField] private float range = 30f;
 
@@ -91,6 +94,7 @@ public class ShotgunController : MonoBehaviour
     private bool _canFire = true;
     private bool _isReloading = false;
     private Animator _animator;
+    private PlayerAim _aim;
 
     // ============ Hashes del Animator (más eficiente que strings) ============
     private static readonly int FireHash = Animator.StringToHash("Fire");
@@ -102,6 +106,7 @@ public class ShotgunController : MonoBehaviour
         // con el que "?." no funciona
         TryGetComponent(out _animator);
         TryGetComponent(out _audioSource);
+        _aim = GetComponentInParent<PlayerAim>();
 
         // Si no se asignó la cámara en el Inspector, buscarla automáticamente
         if (playerCamera == null)
@@ -188,9 +193,10 @@ public class ShotgunController : MonoBehaviour
     {
         // Calcular una dirección con dispersión aleatoria dentro del spreadAngle
         Vector3 shootDirection = playerCamera.transform.forward;
+        float spread = spreadAngle * (_aim != null && _aim.IsAiming ? aimSpreadMultiplier : 1f);
         shootDirection += new Vector3(
-            Random.Range(-spreadAngle, spreadAngle) * 0.01f,
-            Random.Range(-spreadAngle, spreadAngle) * 0.01f,
+            Random.Range(-spread, spread) * 0.01f,
+            Random.Range(-spread, spread) * 0.01f,
             0f
         );
         shootDirection.Normalize();
@@ -275,6 +281,8 @@ public class ShotgunController : MonoBehaviour
     public int CurrentAmmo => currentAmmo;
     public int ReserveAmmo => reserveAmmo;
     public bool IsReloading => _isReloading;
+    /// <summary>Segundos que dura la recarga (el viewmodel sincroniza la bajada de manos con esto).</summary>
+    public float ReloadDuration => reloadTime;
 
     /// <summary>
     /// Añadir balas a la reserva (cuando el jugador recoge munición).

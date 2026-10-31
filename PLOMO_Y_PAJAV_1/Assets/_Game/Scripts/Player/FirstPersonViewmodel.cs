@@ -2,58 +2,58 @@ using UnityEngine;
 using UnityEngine.UI;
 
 /// <summary>
-/// Manos de Wilbur con la escopeta, dibujadas en 2D abajo a la derecha de la pantalla.
-/// DÓNDE VA: cámara del Player (lo añade "Crear Prefabs de Prueba").
+/// Manos de Wilbur en primera persona (viewmodel 2D estilo rubber-hose) para el arma activa.
+/// DÓNDE VA: cámara del Player (lo añade "Crear Prefabs de Prueba" con el perfil VM_Shotgun).
 ///
-/// Usa el set "wilbur_hands" (animaciones idle / fire / reload). Sin sprites no se ve nada.
-/// Se balancea al caminar, da un culatazo al disparar y baja durante la recarga.
-/// La imagen no recibe clics y no llega al centro de la pantalla (la mira queda libre).
+/// Crea en runtime:
+///   ViewmodelCanvas (Screen Space - Overlay, Scale With Screen Size 1920x1080, match 0.5, debajo del HUD)
+///   └── ViewmodelRoot (pantalla completa; lo mueve ViewmodelMotion)
+///       ├── HandsImage (cuadro completo 16:9 apoyado abajo; preserveAspect, sin clics)
+///       └── MuzzleFlashImage (encima de las manos)
+/// y le añade ViewmodelAnimator (cuadros + fogonazo) y ViewmodelMotion (movimiento).
+///
+/// Sin perfil o sin cuadros en idle: no se crea nada (el juego sigue funcionando sin manos).
+/// Se oculta en pausa, en diálogo/interrogatorio y al morir.
+/// FASE 2 (revólver y cambio de arma): llamar SetProfile(perfilDelArma) y conectar el arma nueva con
+/// HandleFired / HandleReloadStarted / HandleReloadFinished (hoy se conectan solos a ShotgunController).
 /// </summary>
 public class FirstPersonViewmodel : MonoBehaviour
 {
-    [SerializeField] private CharacterSpriteSet handsSet;
+    [SerializeField] private ViewmodelProfile profile;
     [Tooltip("Vacío = se busca en el Player")]
     [SerializeField] private ShotgunController shotgun;
-
-    [Header("Tamaño y posición (resolución de referencia 1920x1080)")]
-    [SerializeField] private Vector2 size = new Vector2(640f, 640f);
-    [SerializeField] private Vector2 margin = new Vector2(0f, 0f);
-
-    [Header("Movimiento")]
-    [SerializeField] private float swayAmount = 14f;
-    [SerializeField] private float swaySpeed = 9f;
-    [SerializeField] private float fireKick = 70f;
-    [SerializeField] private float fireKickRecovery = 0.25f;
-    [SerializeField] private float reloadDip = 160f;
+    [Tooltip("Orden del canvas: por debajo del HUD (0), del BANG (-5) y del diálogo (100)")]
+    [SerializeField] private int sortingOrder = -10;
 
     private PlayerController _player;
+    private PlayerAim _aim;
     private Canvas _canvas;
-    private Image _image;
-    private RectTransform _rect;
+    private RectTransform _root;
+    private Image _hands;
+    private Image _flash;
+    private ViewmodelAnimator _animator;
+    private ViewmodelMotion _motion;
+    private bool _dead;
 
-    private CharacterSpriteSet.AnimClip _clip;
-    private string _anim;
-    private bool _loop;
-    private int _frame;
-    private float _frameTimer;
-
-    private float _swayPhase;
-    private float _kick;        // 1 → 0 tras disparar
-    private float _dip;         // 0..1 suavizado durante la recarga
-    private bool _reloading;
+    public ViewmodelProfile Profile => profile;
 
     private void Awake()
     {
         _player = GetComponentInParent<PlayerController>();
+        _aim = GetComponentInParent<PlayerAim>();
         if (shotgun == null) shotgun = transform.root.GetComponentInChildren<ShotgunController>();
+        PlayerHealth health = GetComponentInParent<PlayerHealth>();
+        if (health != null) health.OnDeath += HandleDeath;
 
-        if (handsSet == null || !handsSet.HasAnyFrames)
+        if (profile == null || !profile.idle.HasFrames)
         {
-            enabled = false; // sin sprites: no se crea nada
+            Debug.LogWarning("[Viewmodel] Sin ViewmodelProfile con cuadros de idle: no se muestran las manos. " +
+                             "Ejecuta Plomo y Paja → Crear Prefabs de Prueba.");
+            enabled = false;
             return;
         }
         BuildCanvas();
-        SetAnim("idle", true);
+        SetProfile(profile);
     }
 
     private void OnEnable()
@@ -72,98 +72,108 @@ public class FirstPersonViewmodel : MonoBehaviour
         shotgun.OnReloadFinished -= HandleReloadFinished;
     }
 
+    /// <summary>Cambia de arma en runtime: cuadros, fogonazo, anclas, movimiento y tiempos de apuntado.</summary>
+    public void SetProfile(ViewmodelProfile newProfile)
+    {
+        if (newProfile == null) return;
+        profile = newProfile;
+        if (_animator == null) return; // todavía sin canvas (Awake sin perfil)
+        _motion.SetProfile(profile);
+        _animator.SetProfile(profile);
+        if (_aim != null) _aim.SetTiming(profile.aimInTime, profile.aimOutTime, profile.aimFovDelta);
+    }
+
+    // ============ Eventos del arma (públicos para el arma de la fase 2) ============
+
+    public void HandleFired()
+    {
+        if (_animator != null) _animator.HandleFired();
+    }
+
+    public void HandleReloadStarted()
+    {
+        if (_animator != null) _animator.HandleReloadStarted(shotgun != null ? shotgun.ReloadDuration : 1f);
+    }
+
+    public void HandleReloadFinished()
+    {
+        if (_animator != null) _animator.HandleReloadFinished();
+    }
+
+    private void HandleDeath() => _dead = true;
+
+    // ============ Canvas ============
+
     private void BuildCanvas()
     {
-        var canvasGo = new GameObject("Viewmodel_Canvas", typeof(RectTransform));
+        var canvasGo = new GameObject("ViewmodelCanvas", typeof(RectTransform));
         canvasGo.transform.SetParent(transform, false);
         _canvas = canvasGo.AddComponent<Canvas>();
         _canvas.renderMode = RenderMode.ScreenSpaceOverlay;
-        _canvas.sortingOrder = -10; // debajo de HUD, subtítulos y diálogo
+        _canvas.sortingOrder = sortingOrder;
 
         CanvasScaler scaler = canvasGo.AddComponent<CanvasScaler>();
         scaler.uiScaleMode = CanvasScaler.ScaleMode.ScaleWithScreenSize;
         scaler.referenceResolution = new Vector2(1920f, 1080f);
         scaler.matchWidthOrHeight = 0.5f;
 
-        var imageGo = new GameObject("Hands", typeof(RectTransform));
-        imageGo.transform.SetParent(canvasGo.transform, false);
-        _rect = (RectTransform)imageGo.transform;
-        _rect.anchorMin = _rect.anchorMax = new Vector2(1f, 0f);
-        _rect.pivot = new Vector2(1f, 0f);
-        _rect.sizeDelta = size;
+        // Raíz a pantalla completa; el pivote cerca de las manos (abajo a la derecha) para girar y escalar desde ahí
+        var rootGo = new GameObject("ViewmodelRoot", typeof(RectTransform));
+        rootGo.transform.SetParent(canvasGo.transform, false);
+        _root = (RectTransform)rootGo.transform;
+        _root.anchorMin = Vector2.zero;
+        _root.anchorMax = Vector2.one;
+        _root.pivot = new Vector2(0.65f, 0.1f);
+        _root.offsetMin = _root.offsetMax = Vector2.zero;
 
-        _image = imageGo.AddComponent<Image>();
-        _image.preserveAspect = true;
-        _image.raycastTarget = false;
+        _hands = CreateImage("HandsImage", _root);
+        RectTransform handsRect = _hands.rectTransform;
+        handsRect.anchorMin = handsRect.anchorMax = new Vector2(0.5f, 0f);
+        handsRect.pivot = new Vector2(0.5f, 0f);
+        _hands.preserveAspect = true;
+
+        // Hermano posterior = se dibuja encima de las manos
+        _flash = CreateImage("MuzzleFlashImage", _root);
+        RectTransform flashRect = _flash.rectTransform;
+        flashRect.anchorMin = flashRect.anchorMax = flashRect.pivot = new Vector2(0.5f, 0.5f);
+        _flash.preserveAspect = true;
+        _flash.enabled = false;
+
+        _motion = canvasGo.AddComponent<ViewmodelMotion>();
+        _motion.Init(_root, _aim, _player);
+        _animator = canvasGo.AddComponent<ViewmodelAnimator>();
+        _animator.Init(_hands, _flash, _aim, _motion);
+        FitHands();
     }
 
-    private void HandleFired()
+    private static Image CreateImage(string name, Transform parent)
     {
-        _kick = 1f;
-        SetAnim("fire", false);
+        var go = new GameObject(name, typeof(RectTransform));
+        go.transform.SetParent(parent, false);
+        Image image = go.AddComponent<Image>();
+        image.raycastTarget = false;
+        return image;
     }
 
-    private void HandleReloadStarted()
+    /// <summary>Cuadro 16:9 completo apoyado abajo: en pantallas más angostas (4:3, 16:10) llena el ancho
+    /// y queda pegado al borde inferior; en más anchas (21:9) llena el alto.</summary>
+    private void FitHands()
     {
-        _reloading = true;
-        SetAnim("reload", true);
+        if (_hands == null || _root == null) return;
+        Rect area = _root.rect;
+        if (area.width <= 0f || area.height <= 0f) return;
+        const float aspect = 16f / 9f;
+        Vector2 size = area.width / area.height > aspect
+            ? new Vector2(area.height * aspect, area.height)
+            : new Vector2(area.width, area.width / aspect);
+        if (_hands.rectTransform.sizeDelta != size) _hands.rectTransform.sizeDelta = size;
     }
 
-    private void HandleReloadFinished()
+    private void LateUpdate()
     {
-        _reloading = false;
-        SetAnim("idle", true);
-    }
-
-    private void SetAnim(string anim, bool loop)
-    {
-        if (handsSet == null || _image == null) return;
-        if (!handsSet.TryGet(anim, out CharacterSpriteSet.AnimClip clip) && !handsSet.TryGet("idle", out clip))
-            return;
-        _anim = anim;
-        _clip = clip;
-        _loop = loop;
-        _frame = 0;
-        _frameTimer = 0f;
-        _image.sprite = clip.frames[0];
-    }
-
-    private void Update()
-    {
-        float dt = Time.deltaTime;
-
-        // Frames
-        if (_clip != null)
-        {
-            _frameTimer += dt * Mathf.Max(0.1f, _clip.fps);
-            if (_frameTimer >= 1f)
-            {
-                _frameTimer -= 1f;
-                _frame++;
-                if (_frame >= _clip.frames.Length)
-                {
-                    if (_loop) _frame = 0;
-                    else if (_anim == "fire") { SetAnim(_reloading ? "reload" : "idle", true); return; }
-                    else _frame = _clip.frames.Length - 1;
-                }
-                _image.sprite = _clip.frames[_frame];
-            }
-        }
-
-        // Balanceo al caminar
-        bool moving = _player != null && _player.IsMoving;
-        if (moving) _swayPhase += dt * swaySpeed;
-        float swayWeight = moving ? 1f : 0.25f;
-        float swayX = Mathf.Sin(_swayPhase) * swayAmount * swayWeight;
-        float swayY = -Mathf.Abs(Mathf.Cos(_swayPhase)) * swayAmount * 0.6f * swayWeight;
-
-        // Culatazo y bajada de recarga
-        _kick = Mathf.MoveTowards(_kick, 0f, dt / fireKickRecovery);
-        _dip = Mathf.MoveTowards(_dip, _reloading ? 1f : 0f, dt * 4f);
-        float kickOffset = _kick * _kick * fireKick;
-
-        _rect.anchoredPosition = new Vector2(-margin.x + swayX + kickOffset * 0.4f,
-                                             margin.y + swayY - kickOffset - _dip * reloadDip);
-        _rect.localRotation = Quaternion.Euler(0f, 0f, -_kick * 6f);
+        if (_canvas == null) return;
+        bool hidden = _dead || PlayerAim.GameplayBlocked();
+        if (_canvas.enabled == hidden) _canvas.enabled = !hidden;
+        FitHands();
     }
 }
