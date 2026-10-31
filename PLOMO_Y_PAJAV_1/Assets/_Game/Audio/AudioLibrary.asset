@@ -12,8 +12,174 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 3652402d98f243c5b2b218bac4fa3c2c, type: 3}
   m_Name: AudioLibrary
   m_EditorClassIdentifier: 
-  voices: []
-  sfx: []
+  voices:
+  - lineId: donlobo_combate_01
+    clip: {fileID: 8300000, guid: 6059b1f35b5044dcba9d28f42a67bd11, type: 3}
+  - lineId: donlobo_combate_02
+    clip: {fileID: 8300000, guid: 2c4f9b05172d4d248f31af33340eee50, type: 3}
+  - lineId: donlobo_combate_03
+    clip: {fileID: 8300000, guid: bab5d34cf0dd45b494080f66d75b0a45, type: 3}
+  - lineId: donlobo_dano_01
+    clip: {fileID: 8300000, guid: 3f355143e9ae41b09e759f5dc53aaefb, type: 3}
+  - lineId: donlobo_dano_02
+    clip: {fileID: 8300000, guid: a7b3c973c1aa4bf1855098f27a9c1b90, type: 3}
+  - lineId: donlobo_encuentro_01
+    clip: {fileID: 8300000, guid: 8ebf42176dbc43219ae9b872cfb187a0, type: 3}
+  - lineId: donlobo_encuentro_02
+    clip: {fileID: 8300000, guid: aac21d0513ea41e1a1d2fc8ed8a6b295, type: 3}
+  - lineId: donlobo_finalc_01
+    clip: {fileID: 8300000, guid: a552da8abf824a46bc8988903e351155, type: 3}
+  - lineId: donlobo_morir_01
+    clip: {fileID: 8300000, guid: a2e0814197154650b17b84d0cf7719c0, type: 3}
+  - lineId: donlobo_rendir_01
+    clip: {fileID: 8300000, guid: 72501a5da81c479499d63d3ac2f5975a, type: 3}
+  - lineId: donlobo_rendir_02
+    clip: {fileID: 8300000, guid: 6f6657e58cac40b1837e8b65a7934a55, type: 3}
+  - lineId: guardia_dano_01
+    clip: {fileID: 8300000, guid: ea963de89e66439da3392c84df57f0dc, type: 3}
+  - lineId: guardia_dano_02
+    clip: {fileID: 8300000, guid: eaae358240364854b94de812620a99e1, type: 3}
+  - lineId: guardia_dano_03
+    clip: {fileID: 8300000, guid: 75659be0c83d4f0da2a2eaae09399378, type: 3}
+  - lineId: guardia_morir_01
+    clip: {fileID: 8300000, guid: a6d6b4c8dbe541efbaf4dc554c056287, type: 3}
+  - lineId: guardia_morir_02
+    clip: {fileID: 8300000, guid: abc7e541a2474d9db5677327bfd06ffe, type: 3}
+  - lineId: guardia_morir_03
+    clip: {fileID: 8300000, guid: 0ff8c4cf5a4944028e05be288dc11bc7, type: 3}
+  - lineId: guardia_patrulla_01
+    clip: {fileID: 8300000, guid: 1280fad8077047e2b3839075426dd298, type: 3}
+  - lineId: guardia_patrulla_02
+    clip: {fileID: 8300000, guid: bac2b3b1e6ab431da2e27de2e9cd2efb, type: 3}
+  - lineId: guardia_patrulla_03
+    clip: {fileID: 8300000, guid: 05221aa2a30d41da9c085d83afa96c90, type: 3}
+  - lineId: guardia_rendir_01
+    clip: {fileID: 8300000, guid: 4ca5d92985d5491195a8a879ca93d4f8, type: 3}
+  - lineId: guardia_rendir_02
+    clip: {fileID: 8300000, guid: dfbbd382ca8845a8894b26a88ad6a464, type: 3}
+  - lineId: guardia_rendir_03
+    clip: {fileID: 8300000, guid: 1eb797afc6eb4047a743fa8d4f8f9173, type: 3}
+  - lineId: guardia_ver_01
+    clip: {fileID: 8300000, guid: a8ac79004805454ab5ab2607f0b14c3b, type: 3}
+  - lineId: guardia_ver_02
+    clip: {fileID: 8300000, guid: a8973ec96b904d95a4f3cbda197c7c29, type: 3}
+  - lineId: guardia_ver_03
+    clip: {fileID: 8300000, guid: 9647bf9dfb524c699825898ae3864ff1, type: 3}
+  - lineId: guardia_ver_04
+    clip: {fileID: 8300000, guid: 616f9cce54de41dca76f270541d775e8, type: 3}
+  - lineId: informante_dano_01
+    clip: {fileID: 8300000, guid: 3c22e14e5ca4474d84b2663972da4cf6, type: 3}
+  - lineId: informante_morir_01
+    clip: {fileID: 8300000, guid: 31fb8f5211cd456c97739b8eed3fb144, type: 3}
+  - lineId: informante_rendir_01
+    clip: {fileID: 8300000, guid: 27c5d5187a484afea4fe155b55bbf0e6, type: 3}
+  - lineId: informante_rendir_02
+    clip: {fileID: 8300000, guid: c88ac31b8cc744ea8e5df6fe8c4bda0e, type: 3}
+  - lineId: informante_ver_01
+    clip: {fileID: 8300000, guid: ea6af8f428eb45128a8f57855d7753d3, type: 3}
+  - lineId: informante_ver_02
+    clip: {fileID: 8300000, guid: d371e0bbe4a94521a26137978ba50da3, type: 3}
+  - lineId: max_testigo_01
+    clip: {fileID: 8300000, guid: fb7f027c6a0d4f2caab6927d7f22b6a6, type: 3}
+  - lineId: max_testigo_02
+    clip: {fileID: 8300000, guid: 64af6f4e0ad14470a0b70aa47561cf5f, type: 3}
+  - lineId: narrador_intro_01
+    clip: {fileID: 8300000, guid: bec6239145964817841bcd83707bedc6, type: 3}
+  - lineId: narrador_intro_02
+    clip: {fileID: 8300000, guid: e81a8f52ab1c49479f4bf5fbdfe9175d, type: 3}
+  - lineId: narrador_intro_03
+    clip: {fileID: 8300000, guid: bc4ad5872b4f4093b194a509e36890ce, type: 3}
+  - lineId: narrador_intro_04
+    clip: {fileID: 8300000, guid: 23ab847fbc2f4713ad4ba5132864a442, type: 3}
+  - lineId: narrador_intro_05
+    clip: {fileID: 8300000, guid: d9cb9d015e7c41379b48ced40a41b0ea, type: 3}
+  - lineId: narrador_intro_06
+    clip: {fileID: 8300000, guid: b02e75706b26416dab5afdfd15263adb, type: 3}
+  - lineId: porky_confiesa_01
+    clip: {fileID: 8300000, guid: 06ed13dd7468491eb89f192ef41b5c87, type: 3}
+  - lineId: porky_mentira_01
+    clip: {fileID: 8300000, guid: ae7f1c72ffea48afa9cd4fa7411cdcce, type: 3}
+  - lineId: porky_nervios_01
+    clip: {fileID: 8300000, guid: 04ffa4f84aa9429cb1e431d2d9a1ecda, type: 3}
+  - lineId: wilbur_dano_01
+    clip: {fileID: 8300000, guid: 1bdd76bcce37495fbfb46a56a0dca5e8, type: 3}
+  - lineId: wilbur_dano_02
+    clip: {fileID: 8300000, guid: 066690e1a7ff4e3f953ab769479f78c2, type: 3}
+  - lineId: wilbur_dano_03
+    clip: {fileID: 8300000, guid: ce53018a38fe4008bc0465aaf0ed4c48, type: 3}
+  - lineId: wilbur_pocavida_01
+    clip: {fileID: 8300000, guid: 76747a774c5d49c78da4105d35255f08, type: 3}
+  sfx:
+  - name: caida_silbato
+    variants:
+    - {fileID: 8300000, guid: 29335a6e7529483c9657c5a5ea4d1671, type: 3}
+  - name: escopeta_bombeo
+    variants:
+    - {fileID: 8300000, guid: 551abb47b29e4575ae35b7a446584d12, type: 3}
+  - name: escopeta_cargar
+    variants:
+    - {fileID: 8300000, guid: a288c6f60cdd423e81d6b284878e84ce, type: 3}
+  - name: escopeta_disparo
+    variants:
+    - {fileID: 8300000, guid: d63d11fb88c6429096e1f30bade532ef, type: 3}
+    - {fileID: 8300000, guid: 598cf90d6acd43669b6d9b046f4d1de9, type: 3}
+    - {fileID: 8300000, guid: b8cc70e7bed4470e8ecd786f2bd3cefc, type: 3}
+  - name: escopeta_vacia
+    variants:
+    - {fileID: 8300000, guid: a14debf11f0b4e2882c709c4b38310fd, type: 3}
+  - name: estrellas
+    variants:
+    - {fileID: 8300000, guid: 109ed29fe84647e781052a1f998c1e04, type: 3}
+  - name: golpe_cartoon
+    variants:
+    - {fileID: 8300000, guid: 93e297e03e9244889004e7eb9ccdec6f, type: 3}
+  - name: humo_puf
+    variants:
+    - {fileID: 8300000, guid: 39e652da7d3f4652ad625ccab4929021, type: 3}
+  - name: impacto_carne
+    variants:
+    - {fileID: 8300000, guid: a248837b7321461cb12f36fd7b746e81, type: 3}
+    - {fileID: 8300000, guid: e23d32d93ced487b8bcbce85bb0bfd5c, type: 3}
+    - {fileID: 8300000, guid: 75663ab8a28640e7b4be18f1fdd4d5f2, type: 3}
+  - name: lluvia_loop
+    variants:
+    - {fileID: 8300000, guid: 95db9cb19e534384aedba6a31ac74e82, type: 3}
+  - name: musica_jazz
+    variants:
+    - {fileID: 8300000, guid: 5602a76c598a45538533aabb7820590a, type: 3}
+    - {fileID: 8300000, guid: 7f21c8a19c6b4f838c90c37684ed76f2, type: 3}
+    - {fileID: 8300000, guid: 3f195e6dd01641f7b9bf529561f3e88d, type: 3}
+  - name: pasos_barro
+    variants:
+    - {fileID: 8300000, guid: d9687d2ac26d4cdcb17239dd4a254be4, type: 3}
+    - {fileID: 8300000, guid: 077474f0a86b411db4e70e4f3cfe902b, type: 3}
+    - {fileID: 8300000, guid: 978bd769d50f4939bcb159ddc0f232e3, type: 3}
+  - name: pasos_madera
+    variants:
+    - {fileID: 8300000, guid: b9f5485f684a45b5ad974374a6b5975e, type: 3}
+    - {fileID: 8300000, guid: 7ba8482182cc42158e6f51f398a832ff, type: 3}
+    - {fileID: 8300000, guid: c5e3e9aa76b24132a4abfd3c5abf69ac, type: 3}
+  - name: pista_papel
+    variants:
+    - {fileID: 8300000, guid: aa8421bbac2c44188b7147f17ab3bc89, type: 3}
+  - name: puerta_cruje
+    variants:
+    - {fileID: 8300000, guid: 73f0d5f910c1434e9a6afd9bfde95bf2, type: 3}
+  - name: sangre_chorro
+    variants:
+    - {fileID: 8300000, guid: 1c26166d1fe848e28657b99ac3e06e96, type: 3}
+  - name: trueno
+    variants:
+    - {fileID: 8300000, guid: 78b7ce056db54fe0962d6775e4c01cb7, type: 3}
   voiceVolume: 1
   sfxVolume: 0.9
   maxDistance: 30
+  mix:
+    footsteps: 0.45
+    rainOutdoor: 0.4
+    rainIndoor: 0.12
+    rainIndoorCutoff: 900
+    thunder: 0.8
+    thunderMinInterval: 25
+    thunderMaxInterval: 60
+    hurtVoiceCooldown: 0.6

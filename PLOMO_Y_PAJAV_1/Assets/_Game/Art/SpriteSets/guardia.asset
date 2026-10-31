@@ -13,4 +13,35 @@ MonoBehaviour:
   m_Name: guardia
   m_EditorClassIdentifier: 
   characterId: guardia
-  clips: []
+  clips:
+  - name: death
+    frames:
+    - {fileID: 21300000, guid: 7b00031f06ddf5144b1694496104356e, type: 3}
+    fps: 8
+  - name: hit
+    frames:
+    - {fileID: 21300000, guid: cd0341611ea1ded41942f257ef0f61e9, type: 3}
+    fps: 1
+  - name: idle
+    frames:
+    - {fileID: 21300000, guid: 248e98dcafa0dee44aa48b169d1fbbe1, type: 3}
+    - {fileID: 21300000, guid: 09326608caf155346aba5e03bae89f34, type: 3}
+    - {fileID: 21300000, guid: 7262279816be4b64985cca31744aea9a, type: 3}
+    - {fileID: 21300000, guid: e523fc59295a18c4a8bebfe5904cded7, type: 3}
+    fps: 4
+  - name: shoot
+    frames:
+    - {fileID: 21300000, guid: 8961f19d94841904fb34379bd266daac, type: 3}
+    fps: 10
+  - name: surrender
+    frames:
+    - {fileID: 21300000, guid: db9e0ee19350b4e4e968ade38b1524bd, type: 3}
+    fps: 4
+  - name: talk
+    frames:
+    - {fileID: 21300000, guid: 08838dd47a9f58342b3e0158934358ed, type: 3}
+    fps: 6
+  - name: walk
+    frames:
+    - {fileID: 21300000, guid: 8407482aa656a784a9bedeca1cf14d97, type: 3}
+    fps: 8

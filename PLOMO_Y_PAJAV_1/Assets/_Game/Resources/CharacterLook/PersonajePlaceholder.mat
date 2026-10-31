@@ -26,6 +26,8 @@ Material:
     m_Ints: []
     m_Floats:
     - _FlashAmount: 0
+    - _Lift: 0.3
+    - _OutlinePixels: 3
     - _OutlineWidth: 0.025
     m_Colors:
     - _OutlineColor: {r: 0, g: 0, b: 0, a: 1}

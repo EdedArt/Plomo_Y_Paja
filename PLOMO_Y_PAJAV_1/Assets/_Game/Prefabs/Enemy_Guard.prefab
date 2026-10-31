@@ -13,7 +13,6 @@ GameObject:
   - component: {fileID: 8052226576990680862}
   - component: {fileID: 4343112917605100720}
   - component: {fileID: 352015180966304180}
-  - component: {fileID: 1557694866881595176}
   - component: {fileID: 4039528769264653899}
   - component: {fileID: 207031809930249505}
   m_Layer: 0
@@ -138,27 +137,6 @@ MonoBehaviour:
   chaseSpeed: 5
   playerTransform: {fileID: 0}
   billboardSprite: {fileID: 515989138658397395}
---- !u!114 &1557694866881595176
-MonoBehaviour:
-  m_ObjectHideFlags: 0
-  m_CorrespondingSourceObject: {fileID: 0}
-  m_PrefabInstance: {fileID: 0}
-  m_PrefabAsset: {fileID: 0}
-  m_GameObject: {fileID: 170928215907077665}
-  m_Enabled: 1
-  m_EditorHideFlags: 0
-  m_Script: {fileID: 11500000, guid: e65abb2de4054613a937fab787e9fd2c, type: 3}
-  m_Name: 
-  m_EditorClassIdentifier: 
-  target: {fileID: 0}
-  idleAmplitude: 0.03
-  idleFrequency: 1.5
-  stepsPerMeter: 1.6
-  stepStretch: 0.08
-  hitSquash: 0.25
-  hitDuration: 0.15
-  wobbleAngle: 8
-  wobbleFrequency: 3
 --- !u!114 &4039528769264653899
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -197,7 +175,6 @@ MonoBehaviour:
   voiceSet: guardia
   bubbleHeight: 2.3
   bubbleSeconds: 2
-  damageCooldown: 3
   patrolInterval: {x: 15, y: 30}
   patrolRange: 15
 --- !u!1 &981479489710905233
@@ -211,6 +188,7 @@ GameObject:
   - component: {fileID: 7867754001836748586}
   - component: {fileID: 2383578451586072597}
   - component: {fileID: 515989138658397395}
+  - component: {fileID: 8824470187509529424}
   m_Layer: 0
   m_Name: SpriteHolder
   m_TagString: Untagged
@@ -298,16 +276,54 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: 
   billboardType: 1
-  flipWithMovement: 1
+  flipWithMovement: 0
+  anchorFeet: 0
+  hitPoseDuration: 0.25
+  unlitLook: 1
   spriteSet: {fileID: 11400000, guid: 85946b115a2aac1458707602e00f44c0, type: 2}
   accessorySet: {fileID: 0}
   placeholderRenderers:
   - {fileID: 9008398592291616307}
   - {fileID: 5605530540528859595}
+  idleSprites: []
   walkSprites: []
+  shootSprites: []
+  hitSprites: []
+  surrenderSprites: []
+  talkSprites: []
   alertSprites: []
   deathSprite: {fileID: 0}
   animationSpeed: 8
+--- !u!114 &8824470187509529424
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 981479489710905233}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 5c23e650154e92d46a9f604d91a20c1a, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: 
+  walkHopsPerSecond: 2.2
+  runHopsPerSecond: 3.6
+  walkHopHeight: 0.06
+  runHopHeight: 0.12
+  hopStretch: 0.1
+  breathsPerSecond: 0.6
+  breathAmount: 0.03
+  hitSquash: 0.3
+  alertStretch: 0.35
+  springStiffness: 300
+  springDamping: 12
+  trembleFrequency: 18
+  trembleDistance: 0.025
+  deathFlatHeight: 0.15
+  deathDuration: 0.25
+  deathWithDrawing: 0
+  drawnDeathBounceHeight: 0.85
+  drawnDeathBounceDuration: 0.2
 --- !u!1 &3073398532080653988
 GameObject:
   m_ObjectHideFlags: 0

@@ -13,4 +13,19 @@ MonoBehaviour:
   m_Name: wilbur_hands
   m_EditorClassIdentifier: 
   characterId: wilbur_hands
-  clips: []
+  clips:
+  - name: fire
+    frames:
+    - {fileID: 21300000, guid: 9f0ad2fb4cccffb4aa07af708c56cb64, type: 3}
+    - {fileID: 21300000, guid: 10df6a0b828afd045aec296525b69db1, type: 3}
+    fps: 12
+  - name: idle
+    frames:
+    - {fileID: 21300000, guid: 56b48262bb08312479b39b6eaa33d2c2, type: 3}
+    fps: 4
+  - name: reload
+    frames:
+    - {fileID: 21300000, guid: f1b81de698096d147967893681d24b03, type: 3}
+    - {fileID: 21300000, guid: ab15f69b13d8acc4ca140bb38ec7d511, type: 3}
+    - {fileID: 21300000, guid: affd0389b43c03c49818b6f15e75ccbc, type: 3}
+    fps: 8

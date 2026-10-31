@@ -1,0 +1,41 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 20882899d7d7462a9035f02c34114ba7, type: 3}
+  m_Name: fx
+  m_EditorClassIdentifier: 
+  characterId: fx
+  clips:
+  - name: bang
+    frames:
+    - {fileID: 21300000, guid: 3a90fde26d86a4d42a4478e5ceee4892, type: 3}
+    fps: 8
+  - name: diente
+    frames:
+    - {fileID: 21300000, guid: fa13a9d12621a3b45bea8f0a4292c3b4, type: 3}
+    - {fileID: 21300000, guid: f4d637887461e5e4b8fdaa9365b8942c, type: 3}
+    - {fileID: 21300000, guid: e241326e032de494b89d6b603773d828, type: 3}
+    fps: 8
+  - name: estrella
+    frames:
+    - {fileID: 21300000, guid: c80590a4efc42434e98e769c66252558, type: 3}
+    fps: 8
+  - name: humo
+    frames:
+    - {fileID: 21300000, guid: fb1ae6997b38c6d409901bc6eb0a9698, type: 3}
+    fps: 8
+  - name: sangre
+    frames:
+    - {fileID: 21300000, guid: cb01d8e22e8904d459d806372df05b95, type: 3}
+    - {fileID: 21300000, guid: e76d1b2d98d8f8647b77f31351fd4afb, type: 3}
+    - {fileID: 21300000, guid: df522b6a5868ae042a95de2eb631cdc4, type: 3}
+    - {fileID: 21300000, guid: a107df6d92069124c9b2cc744596b09c, type: 3}
+    fps: 8
