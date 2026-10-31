@@ -33,8 +33,25 @@
   Con 2 o más fogonazos nunca sale el mismo dos veces seguidas.
 
 ## Importación (automática, `ViewmodelArtImporter`)
-Sprite (2D and UI), Single, Bilinear, sin mipmaps, tamaño máximo 2048, compresión de alta calidad.
-Si un PNG no se ve como Sprite: clic derecho en la carpeta → Reimport.
+Sprite (2D and UI), Single, **Compression None**, **Generate Mip Maps ON** (Kaiser), **Filter Trilinear**,
+Max Size 2048, **Alpha Is Transparency ON**. Se aplica al importar y se comprueba al abrir el Editor y al llegar PNG nuevos:
+si un PNG quedó con otros ajustes (Unity estaba abierto), se reimporta solo.
+
+## Cómo entran los PNG (herramienta de recorte, fase 1.1)
+Los PNG con fondo verde NO se copian a `Assets/`. Van a `PLOMO_Y_PAJAV_1/_entrante_viewmodel/<Arma|FX>/` (carpeta fuera
+de Assets e ignorada por git) y se procesan con:
+
+    cd PLOMO_Y_PAJAV_1
+    pip install pillow numpy
+    python Tools/viewmodel_key.py            # todo; o: python Tools/viewmodel_key.py Revolver
+
+La herramienta recorta con matte suave (`lo=20`, `hi=90`), quita el verde del contorno (despill), rellena 4 px de color
+bajo los bordes transparentes y recién después escala a 1920x1080 (Lanczos). Escribe los PNG ya con el nombre del
+contrato. Nunca recortar desde un PNG ya procesado: siempre desde el original.
+
+Nombres de los originales (`<arma>_<clip>.png`): `pump` → `cycle`, `aim` → `aimidle`, `aimpump` → `aimcycle`,
+`reloadopen` / `reloadinsert` / `reloadclose` → `reload_01` / `_02` / `_03`. Efectos: `fogonazo.png` → `fx_fogonazo_01.png`;
+los de nombre `rim` o `casing` (`fx_round_rim`, `fx_casing_revolver`) salen de 256x256, el resto de 1024x1024.
 
 ## Después de añadir o cambiar dibujos
 Plomo y Paja → **Crear Perfil Viewmodel Escopeta** (o Crear Prefabs de Prueba). Solo cambia los dibujos
@@ -45,5 +62,5 @@ En `VM_<Arma>.asset` → *Fogonazo*: `hipMuzzle` (cuadro `fire`) y `aimMuzzle` (
 en píxeles del cuadro 1920x1080 con el **origen abajo a la izquierda**. Para medir: abrir el PNG en un editor,
 leer la posición (x, y desde arriba) de la boca del cañón y usar `y = 1080 - y`.
 
-## Originales con fondo verde
-Los PNG con fondo verde se guardan fuera de Assets en `PLOMO_Y_PAJAV_1/_entrante_viewmodel/` (no van al repo).
+## Perfiles
+Plomo y Paja → **Crear Perfil Viewmodel Escopeta** / **Crear Perfil Viewmodel Revólver** (`VM_Shotgun.asset`, `VM_Revolver.asset`).
