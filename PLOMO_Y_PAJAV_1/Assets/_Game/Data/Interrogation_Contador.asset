@@ -1,0 +1,305 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: ca553f95cbd94c0d97c87db2d733bcbb, type: 3}
+  m_Name: Interrogation_Contador
+  m_EditorClassIdentifier: 
+  speakerName: CENTAVO
+  npcName: Centavo
+  initialEmotion: scared
+  clueId: registro_01
+  clueName: Registro de deudas
+  clueDescription: "Hoja del libro de Centavo: Porky sac\xF3 3.200 pesos de la caja
+    fuerte de Don Lobo"
+  clueFullText: Hoja arrancada del libro de cuentas de Don Lobo. Al margen, una P.
+    3.200 pesos y los intereses de la semana, sacados de la caja fuerte del jefe.
+    Con fecha y todo.
+  lines:
+  - id: contador_int_00
+    speaker: 0
+    text: "\xA1No me remate, se\xF1or! \xA1Yo no soy de los que pegan! Soy el contador.
+      N\xFAmeros, solo n\xFAmeros."
+    emotion: scared
+    condition: 0
+    trustDelta: 0
+    result: 0
+    lie: 0
+    givesClue: 0
+    cutByShot: 0
+  - id: wilbur_int_0A
+    speaker: 1
+    text: "Habla r\xE1pido o la pr\xF3xima no va al costado."
+    emotion: 
+    condition: 0
+    trustDelta: -1
+    result: 0
+    lie: 0
+    givesClue: 0
+    cutByShot: 0
+  - id: wilbur_int_0B
+    speaker: 1
+    text: "Tranquilo. Si cooperas, sales de aqu\xED con vida."
+    emotion: 
+    condition: 0
+    trustDelta: 1
+    result: 0
+    lie: 0
+    givesClue: 0
+    cutByShot: 0
+  - id: wilbur_int_0C
+    speaker: 1
+    text: "\xBFQu\xE9 hace el contador de Don Lobo escondido en el patio de mi hermano?"
+    emotion: 
+    condition: 0
+    trustDelta: 0
+    result: 0
+    lie: 0
+    givesClue: 0
+    cutByShot: 0
+  - id: contador_int_0A
+    speaker: 0
+    text: "\xA1S-s\xED, se\xF1or! \xA1Lo secuestraron! \xA1Se lo llevaron a la fuerza,
+      pataleando y todo!"
+    emotion: scared
+    condition: 0
+    trustDelta: 0
+    result: 0
+    lie: 1
+    givesClue: 0
+    cutByShot: 0
+  - id: contador_int_0B
+    speaker: 0
+    text: "G-gracias\u2026 ay\u2026 El jefe me mand\xF3 a revisar la casa. A ver
+      si quedaba algo de valor para cobrarse."
+    emotion: nervous
+    condition: 0
+    trustDelta: 0
+    result: 0
+    lie: 0
+    givesClue: 0
+    cutByShot: 0
+  - id: contador_int_0C
+    speaker: 0
+    text: "Vine por las cuentas, se\xF1or. Su hermano tiene una cuenta abierta con
+      el jefe. Muy, muy abierta."
+    emotion: talk
+    condition: 0
+    trustDelta: 0
+    result: 0
+    lie: 0
+    givesClue: 0
+    cutByShot: 0
+  - id: wilbur_int_1A
+    speaker: 1
+    text: "\xBFCu\xE1nto le debe Porky?"
+    emotion: 
+    condition: 0
+    trustDelta: 0
+    result: 0
+    lie: 0
+    givesClue: 0
+    cutByShot: 0
+  - id: wilbur_int_1B
+    speaker: 1
+    text: "\xBFD\xF3nde tienen a mi hermano?"
+    emotion: 
+    condition: 0
+    trustDelta: 0
+    result: 0
+    lie: 0
+    givesClue: 0
+    cutByShot: 0
+  - id: wilbur_int_1C
+    speaker: 1
+    text: "M\xEDrame a los ojos. Si me mientes, lo voy a saber."
+    emotion: 
+    condition: 0
+    trustDelta: 0
+    result: 0
+    lie: 0
+    givesClue: 0
+    cutByShot: 0
+  - id: contador_int_1A_v
+    speaker: 0
+    text: "Tres mil doscientos pesos\u2026 y los intereses de la semana. Pero no
+      es un pr\xE9stamo, se\xF1or. \xC9l los sac\xF3 de la caja fuerte del jefe.
+      Aqu\xED est\xE1 anotado, con fecha y todo."
+    emotion: talk
+    condition: 1
+    trustDelta: 0
+    result: 1
+    lie: 0
+    givesClue: 1
+    cutByShot: 0
+  - id: contador_int_1A_m
+    speaker: 0
+    text: "\xBFDeber? \xA1Nada, nada! Su hermano es un santo. El jefe es el malo,
+      se lo juro."
+    emotion: nervous
+    condition: 2
+    trustDelta: 0
+    result: 2
+    lie: 1
+    givesClue: 0
+    cutByShot: 0
+  - id: contador_int_1B_v
+    speaker: 0
+    text: "En la guarida del jefe, al otro lado del campamento. Nadie le ha tocado
+      un pelo\u2026 El se\xF1or Lobo solo quiere lo suyo."
+    emotion: talk
+    condition: 1
+    trustDelta: 0
+    result: 1
+    lie: 0
+    givesClue: 0
+    cutByShot: 0
+  - id: contador_int_1B_m
+    speaker: 0
+    text: "Lo\u2026 lo tienen colgado de los pies en el s\xF3tano. S\xED. Muy feo.
+      Vaya r\xE1pido y no pregunte m\xE1s."
+    emotion: nervous
+    condition: 2
+    trustDelta: 0
+    result: 2
+    lie: 1
+    givesClue: 0
+    cutByShot: 0
+  - id: contador_int_1C
+    speaker: 0
+    text: "\xA1Est\xE1 bien, est\xE1 bien! Nadie lo secuestr\xF3. \xC9l solito toc\xF3
+      la puerta del jefe\u2026 y el jefe todav\xEDa est\xE1 esperando su plata."
+    emotion: scared
+    condition: 0
+    trustDelta: 0
+    result: 1
+    lie: 0
+    givesClue: 0
+    cutByShot: 0
+  - id: contador_int_2
+    speaker: 0
+    text: "Ya le dije todo lo que s\xE9\u2026 ay\u2026 Tengo esposa, tres cachorros\u2026
+      y una calculadora que todav\xEDa estoy pagando a plazos."
+    emotion: plead
+    condition: 0
+    trustDelta: 0
+    result: 0
+    lie: 0
+    givesClue: 0
+    cutByShot: 0
+  - id: wilbur_dec_matar
+    speaker: 1
+    text: Las cuentas se saldan, Centavo.
+    emotion: 
+    condition: 0
+    trustDelta: 0
+    result: 0
+    lie: 0
+    givesClue: 0
+    cutByShot: 0
+  - id: contador_muerte_01
+    speaker: 0
+    text: "\xA1Espere, todav\xEDa no he cuadrado el\u2026!"
+    emotion: scared
+    condition: 0
+    trustDelta: 0
+    result: 0
+    lie: 0
+    givesClue: 0
+    cutByShot: 1
+  - id: wilbur_dec_perdonar
+    speaker: 1
+    text: "L\xE1rgate. Y no vuelvas a esta casa."
+    emotion: 
+    condition: 0
+    trustDelta: 0
+    result: 0
+    lie: 0
+    givesClue: 0
+    cutByShot: 0
+  - id: contador_perdon_01
+    speaker: 0
+    text: "\xA1Gracias, se\xF1or! \xA1Que Dios se lo pague\u2026 con intereses bajitos!"
+    emotion: relief
+    condition: 0
+    trustDelta: 0
+    result: 0
+    lie: 0
+    givesClue: 0
+    cutByShot: 0
+  - id: contador_perdon_02
+    speaker: 0
+    text: "Tome\u2026 la hoja del libro. Yo no la vi, usted no me la dio."
+    emotion: talk
+    condition: 3
+    trustDelta: 0
+    result: 0
+    lie: 0
+    givesClue: 1
+    cutByShot: 0
+  rounds:
+  - openingLineId: contador_int_00
+    options:
+    - playerLineId: wilbur_int_0A
+      responseLineIds:
+      - contador_int_0A
+    - playerLineId: wilbur_int_0B
+      responseLineIds:
+      - contador_int_0B
+    - playerLineId: wilbur_int_0C
+      responseLineIds:
+      - contador_int_0C
+  - openingLineId: 
+    options:
+    - playerLineId: wilbur_int_1A
+      responseLineIds:
+      - contador_int_1A_v
+      - contador_int_1A_m
+    - playerLineId: wilbur_int_1B
+      responseLineIds:
+      - contador_int_1B_v
+      - contador_int_1B_m
+    - playerLineId: wilbur_int_1C
+      responseLineIds:
+      - contador_int_1C
+  pleaLineId: contador_int_2
+  killLabel: Jalar el gatillo
+  spareLabel: Dejarlo ir
+  killLineIds:
+  - wilbur_dec_matar
+  - contador_muerte_01
+  spareLineIds:
+  - wilbur_dec_perdonar
+  - contador_perdon_01
+  - contador_perdon_02
+  thoughtWho: Centavo, el contador flaco y nervioso de Don Lobo, al que mandaron
+    a la casa de Porky a ver si quedaba algo de valor para cobrarse la deuda.
+  thoughtTimeoutSeconds: 5
+  fallbackThoughts:
+  - text: "Un contador vivo lleva la cuenta de qui\xE9n lo dej\xF3 ir. Uno muerto
+      no le cuenta nada a nadie."
+    requiresLineId: 
+    chance: 1
+  - text: "Tiembla como hoja. \xBFMiente por miedo\u2026 o el miedo es lo \xFAnico
+      que no est\xE1 fingiendo?"
+    requiresLineId: 
+    chance: 1
+  - text: "Porky nunca supo sumar. \xBFY si este es el \xFAnico que tiene las cuentas
+      claras?"
+    requiresLineId: 
+    chance: 1
+  - text: "Ya est\xE1 en el suelo, Wilbur. Lo dif\xEDcil no es disparar\u2026 es
+      saber a qui\xE9n le est\xE1s apretando el gatillo."
+    requiresLineId: 
+    chance: 1
+  - text: "Dijo que lo colgaron de los pies. Guarda bien esas palabras\u2026 y comp\xE1ralas
+      despu\xE9s."
+    requiresLineId: contador_int_1B_m
+    chance: 0.5

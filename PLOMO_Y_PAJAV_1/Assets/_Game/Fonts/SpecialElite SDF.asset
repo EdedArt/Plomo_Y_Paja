@@ -60,9 +60,9 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 71c1514a6bd24e1e882cebbe1904ce04, type: 3}
   m_Name: SpecialElite SDF
   m_EditorClassIdentifier: 
-  hashCode: 0
+  hashCode: -605760127
   material: {fileID: 123815013953920610}
-  materialHashCode: -2006316128
+  materialHashCode: -778988671
   m_Version: 1.1.0
   m_SourceFontFileGUID: 289f3b6abda82474a9847ebaaf584bf9
   m_SourceFontFile_EditorRef: {fileID: 12800000, guid: 289f3b6abda82474a9847ebaaf584bf9, type: 3}

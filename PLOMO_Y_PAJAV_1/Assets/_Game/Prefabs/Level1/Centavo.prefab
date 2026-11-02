@@ -707,7 +707,9 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: 
   canvasPrefab: {fileID: 2309262095403588181, guid: 519887b6c66f9ce40b5a6fff4cb3f596, type: 3}
-  demoThinkSeconds: 1.2
+  data: {fileID: 11400000, guid: 35092acf6c8ff974ea69c6a93877182d, type: 2}
+  killHoldSeconds: 0.8
+  clueNoticeSeconds: 3
 --- !u!1 &6986781214080463522
 GameObject:
   m_ObjectHideFlags: 0
