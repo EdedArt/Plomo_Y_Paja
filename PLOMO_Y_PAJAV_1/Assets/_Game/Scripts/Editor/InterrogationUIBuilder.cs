@@ -9,8 +9,11 @@ using UnityEngine.UI;
 /// <summary>
 /// MENÚ: Plomo y Paja → Contador → Crear UI de interrogatorio (fase 3C.3)
 /// Crea/actualiza:
-///  - Fonts/SpecialElite SDF.asset: TMP dinámico desde SpecialElite-Regular.ttf (se busca en Assets/_Game/Fonts y en
-///    Assets/TextMesh Pro/Fonts), con ñ ¿ ¡ y tildes ya cargadas. Sin el TTF se usa la fuente por defecto de TMP.
+///  - Fonts/SpecialElite SDF.asset: TMP desde SpecialElite-Regular.ttf (se busca en Assets/_Game/Fonts y en
+///    Assets/TextMesh Pro/Fonts) con ASCII + ¡ ¿ … — – « » y vocales con tilde, ü, ñ. Se genera una vez y queda ESTÁTICA
+///    (3C.4.1): en el juego no se genera nada. Si ya está completa (hecha por este menú o a mano con el Font Asset
+///    Creator) no se toca. La comprobación lee la tabla de caracteres del asset, no el texto que devuelve TMP.
+///    Sin el TTF se usa la fuente por defecto de TMP.
 ///  - Art/UI/ui_papel_dialogo.png importado como Sprite. Sin el PNG: panel crema con borde oscuro.
 ///  - Prefabs/UI/InterrogationCanvas.prefab (InterrogationDirector + InterrogationCanvas).
 ///  - Le asigna el prefab a CentavoInterrogation en Prefabs/Level1/Centavo.prefab (si existe).
@@ -31,9 +34,9 @@ public static class InterrogationUIBuilder
     /// <summary>Bordes del 9-slice del papel en px del PNG (izq, abajo, der, arriba): las orillas rotas no se estiran.</summary>
     private static readonly Vector4 PaperBorder = new Vector4(150f, 110f, 150f, 110f);
 
-    private const string SpanishCharacters =
-        "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789 .,;:¡!¿?…-—–'\"«»()[]/*%$#&+=_" +
-        "áéíóúüñÁÉÍÓÚÜÑ";
+    /// <summary>Lo que no es ASCII imprimible (32–126): signos del español y comillas tipográficas que puede escribir la IA.</summary>
+    private const string ExtraCharacters = "¡¿…—–«»“”‘’áéíóúüñÁÉÍÓÚÜÑ";
+    private const int SamplingPointSize = 56;
 
     private static readonly Vector2 Reference = new Vector2(1920f, 1080f);
     private static readonly Color Ink = new Color32(0x2A, 0x1F, 0x1A, 0xFF);
@@ -69,29 +72,58 @@ public static class InterrogationUIBuilder
     // Fuente
     // ==================================================================
 
+    /// <summary>ASCII imprimible + ExtraCharacters.</summary>
+    public static string RequiredCharacters()
+    {
+        var sb = new StringBuilder();
+        for (int c = 32; c < 127; c++) sb.Append((char)c);
+        sb.Append(ExtraCharacters);
+        return sb.ToString();
+    }
+
     private static TMP_FontAsset EnsureFont(StringBuilder report)
     {
+        Font source = FindSourceFont(report);
         TMP_FontAsset asset = AssetDatabase.LoadAssetAtPath<TMP_FontAsset>(FontAssetPath);
+
+        // Lo que el TTF no trae no cuenta como faltante (TMP usa la fuente de respaldo para eso)
+        string required = RequiredCharacters();
+        bool engineOk = false;
+        string notInFont = source != null ? CharactersNotInFont(source, required, report, out engineOk) : "";
+        string wanted = Without(required, notInFont);
+
+        // 1. ¿Ya está completa? (hecha por este menú o a mano) → no se toca, solo se deja estática
+        if (asset != null && MissingFrom(asset, wanted).Length == 0)
+        {
+            MakeStatic(asset);
+            report.AppendLine($"✓ Fuente Special Elite completa ({asset.characterTable.Count} caracteres), estática: no se regenera");
+            return asset;
+        }
+        if (source == null)
+        {
+            report.AppendLine("⚠ No está SpecialElite-Regular.ttf: se usa la fuente por defecto de TMP.");
+            return asset != null ? asset : TMP_Settings.defaultFontAsset;
+        }
+
+        // 2a. FontEngine no abre el TTF: no se toca lo que hay (nunca se vacía una fuente que funciona)
+        if (!engineOk)
+        {
+            string lacking = asset != null ? MissingFrom(asset, wanted) : wanted;
+            if (asset != null) MakeStatic(asset);
+            report.AppendLine($"✗ No se pudieron generar «{lacking}»: FontEngine no abre el TTF. La fuente actual se deja como está " +
+                              "(estática). Hacerla con Window → TextMeshPro → Font Asset Creator (pasos en la auditoría 3C.4.1).");
+            return asset != null ? asset : TMP_Settings.defaultFontAsset;
+        }
+
+        // 2b. Generar, o completar el MISMO asset (conserva el GUID que usa el canvas y los glifos que ya tiene)
         if (asset == null)
         {
-            Font source = null;
-            foreach (string path in FontSources)
-            {
-                source = AssetDatabase.LoadAssetAtPath<Font>(path);
-                if (source != null) break;
-            }
-            if (source == null)
-            {
-                report.AppendLine("⚠ No está SpecialElite-Regular.ttf: se usa la fuente por defecto de TMP.");
-                return TMP_Settings.defaultFontAsset;
-            }
-
             LevelBuilderUtils.EnsureFolder(FontFolder);
-            asset = TMP_FontAsset.CreateFontAsset(source, 56, 5, GlyphRenderMode.SDFAA, 1024, 1024,
+            asset = TMP_FontAsset.CreateFontAsset(source, SamplingPointSize, 5, GlyphRenderMode.SDFAA, 1024, 1024,
                 AtlasPopulationMode.Dynamic, false);
             if (asset == null)
             {
-                report.AppendLine("✗ TMP no pudo crear la fuente desde el TTF: se usa la fuente por defecto.");
+                report.AppendLine("✗ TMP no pudo crear la fuente desde el TTF: se usa la fuente por defecto. Ver la auditoría 3C.4.1 (Font Asset Creator).");
                 return TMP_Settings.defaultFontAsset;
             }
             asset.name = "SpecialElite SDF";
@@ -108,13 +140,98 @@ public static class InterrogationUIBuilder
                 AssetDatabase.AddObjectToAsset(asset.material, asset);
             }
         }
+        else
+        {
+            var so = new SerializedObject(asset);
+            SerializedProperty editorRef = so.FindProperty("m_SourceFontFile_EditorRef");
+            if (editorRef != null) editorRef.objectReferenceValue = source;
+            so.FindProperty("m_SourceFontFile").objectReferenceValue = source;
+            so.ApplyModifiedPropertiesWithoutUndo();
+            asset.atlasPopulationMode = AtlasPopulationMode.Dynamic; // para poder agregar (vuelve a estática abajo)
+        }
 
-        bool all = asset.TryAddCharacters(SpanishCharacters, out string missing);
-        EditorUtility.SetDirty(asset);
-        report.AppendLine(all || string.IsNullOrEmpty(missing)
-            ? $"✓ Fuente Special Elite ({FontAssetPath}) con ñ ¿ ¡ y tildes"
-            : $"⚠ Special Elite sin estos caracteres: {missing}");
+        // Solo se agregan los que faltan (TryAddCharacters salta los que ya están). Su texto de "faltantes" no es
+        // fiable (si FontEngine falla devuelve TODO el texto pedido): se comprueba con la tabla del asset.
+        asset.TryAddCharacters(MissingFrom(asset, wanted), out _);
+        string missing = MissingFrom(asset, wanted);
+        if (missing.Length == 0)
+        {
+            MakeStatic(asset);
+            report.AppendLine($"✓ Fuente Special Elite generada ({asset.characterTable.Count} caracteres) y estática");
+        }
+        else
+        {
+            EditorUtility.SetDirty(asset);
+            report.AppendLine($"✗ Special Elite: no se pudieron generar «{missing}». Queda dinámica. " +
+                              "Hacerla a mano con Window → TextMeshPro → Font Asset Creator (pasos en la auditoría 3C.4.1).");
+        }
         return asset;
+    }
+
+    private static Font FindSourceFont(StringBuilder report)
+    {
+        foreach (string path in FontSources)
+        {
+            var font = AssetDatabase.LoadAssetAtPath<Font>(path);
+            if (font == null) continue;
+            // El TTF tiene que traer sus datos (Include Font Data) para que TMP lo lea
+            if (AssetImporter.GetAtPath(path) is TrueTypeFontImporter importer && !importer.includeFontData)
+            {
+                importer.includeFontData = true;
+                importer.SaveAndReimport();
+                font = AssetDatabase.LoadAssetAtPath<Font>(path);
+                report.AppendLine("⚠ El TTF no tenía Include Font Data: se activó");
+            }
+            return font;
+        }
+        return null;
+    }
+
+    /// <summary>Caracteres que el TTF no tiene (consulta directa al FontEngine). Vacío si no se pudo abrir el TTF.</summary>
+    private static string CharactersNotInFont(Font source, string characters, StringBuilder report, out bool engineOk)
+    {
+        FontEngineError error = FontEngine.LoadFontFace(source, SamplingPointSize);
+        engineOk = error == FontEngineError.Success;
+        if (!engineOk)
+        {
+            report.AppendLine($"⚠ FontEngine no pudo abrir el TTF ({error})");
+            return "";
+        }
+        var missing = new StringBuilder();
+        foreach (char c in characters)
+            if (!FontEngine.TryGetGlyphWithUnicodeValue(c, GlyphLoadFlags.LOAD_DEFAULT, out _)) missing.Append(c);
+        if (missing.Length > 0)
+            report.AppendLine($"⚠ El TTF de Special Elite no trae «{missing}» (TMP los dibuja con la fuente de respaldo)");
+        return missing.ToString();
+    }
+
+    /// <summary>Los caracteres que NO están en la tabla del asset.</summary>
+    private static string MissingFrom(TMP_FontAsset asset, string characters)
+    {
+        var missing = new StringBuilder();
+        foreach (char c in characters)
+            if (!asset.HasCharacter(c, false, false)) missing.Append(c);
+        return missing.ToString();
+    }
+
+    private static string Without(string characters, string remove)
+    {
+        if (string.IsNullOrEmpty(remove)) return characters;
+        var sb = new StringBuilder();
+        foreach (char c in characters)
+            if (remove.IndexOf(c) < 0) sb.Append(c);
+        return sb.ToString();
+    }
+
+    /// <summary>Estática: el atlas queda guardado tal cual y en el juego no se genera nada (TMP suelta la referencia al TTF).</summary>
+    private static void MakeStatic(TMP_FontAsset asset)
+    {
+        if (asset.atlasPopulationMode != AtlasPopulationMode.Static) asset.atlasPopulationMode = AtlasPopulationMode.Static;
+        EditorUtility.SetDirty(asset);
+        if (asset.atlasTextures != null)
+            foreach (Texture2D texture in asset.atlasTextures)
+                if (texture != null) EditorUtility.SetDirty(texture);
+        if (asset.material != null) EditorUtility.SetDirty(asset.material);
     }
 
     // ==================================================================
@@ -389,6 +506,7 @@ public static class InterrogationUIBuilder
         image.color = Hover;
         Button button = rect.gameObject.AddComponent<Button>();
         button.targetGraphic = image;
+        button.transition = Selectable.Transition.None; // resaltado = tinta (InterrogationOptionHover), sin recuadro
         ColorBlock colors = button.colors;
         colors.normalColor = new Color(1f, 1f, 1f, 0f);       // invisible: se lee como texto escrito en el papel
         colors.highlightedColor = new Color(1f, 1f, 1f, 0.28f);
@@ -408,22 +526,11 @@ public static class InterrogationUIBuilder
     {
         RectTransform rect = Rect(name, parent, Vector2.zero, Vector2.one, new Vector2(0.5f, 0.5f));
         Image image = rect.gameObject.AddComponent<Image>();
-        image.color = DarkBorder;
-        Outline outline = rect.gameObject.AddComponent<Outline>();
-        outline.effectColor = Cream;
-        outline.effectDistance = new Vector2(3f, -3f);
+        image.color = new Color(1f, 1f, 1f, 0f); // escrita en el papel: sin caja (3C.4.1); el fondo invisible recibe el clic
         Button button = rect.gameObject.AddComponent<Button>();
+        button.transition = Selectable.Transition.None;
         button.targetGraphic = image;
-        ColorBlock colors = button.colors;
-        // Con multiplicador 2: normal = color tal cual; al pasar el mouse se aclara a café, al apretar se oscurece
-        colors.normalColor = new Color(0.5f, 0.5f, 0.5f, 1f);
-        colors.highlightedColor = new Color(0.85f, 0.68f, 0.5f, 1f);
-        colors.pressedColor = new Color(0.35f, 0.3f, 0.25f, 1f);
-        colors.selectedColor = new Color(0.5f, 0.5f, 0.5f, 1f);
-        colors.colorMultiplier = 2f;
-        colors.fadeDuration = 0.06f;
-        button.colors = colors;
-        label = Label("Texto", rect, new Vector2(0.04f, 0.05f), new Vector2(0.96f, 0.95f), font, 42f, Cream, FontStyles.Bold,
+        label = Label("Texto", rect, Vector2.zero, Vector2.one, font, 52f, Ink, FontStyles.Normal,
             TextAlignmentOptions.Center);
         return button;
     }

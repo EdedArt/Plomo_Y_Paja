@@ -23,14 +23,23 @@ using UnityEngine.Rendering.Universal;
 /// EXIT(outcome): lo inverso. El flujo lo llama al final; si el flujo termina sin llamarlo, sale como Cancelled.
 ///
 /// PAUSA: GameManager no deja pausar con Escape mientras IsActive (la escena ya congela el tiempo).
+///
+/// EPÍLOGO (3C.4.1): Exit(outcome, outro) cierra la escena (retrato, papel, desenfoque fuera, el tiempo vuelve a
+/// correr) pero el jugador sigue bloqueado, sin manos ni mira (IsActive sigue en true) mientras corre outro(this):
+/// movimientos de cámara (MoveCamera, TrackCamera) y un pensamiento en la banda de arriba (OutroThought, canvas en
+/// modo "solo pensamiento"). Al terminar, la cámara vuelve a la cabeza del jugador y se devuelve el control.
+/// IsActive = escena o epílogo (jugador bloqueado). IsSceneOpen = solo la escena (las voces del mundo callan).
 /// </summary>
 public class InterrogationDirector : MonoBehaviour
 {
     public enum Speaker { Target, Player }
 
-    /// <summary>Escena abierta (desde que empieza Enter hasta que termina Exit).</summary>
+    /// <summary>Escena o epílogo en curso (desde que empieza Enter hasta que se devuelve el control).</summary>
     public static InterrogationDirector Active { get; private set; }
     public static bool IsActive => Active != null;
+
+    /// <summary>Escena abierta (retrato y papel): ninguna voz del mundo debe sonar. En el epílogo ya es false.</summary>
+    public static bool IsSceneOpen => Active != null && Active._sceneOpen;
 
     [SerializeField] private InterrogationCanvas view;
     [Tooltip("Voz del interrogado (2D). La lee el lip-sync del retrato")]
@@ -44,6 +53,10 @@ public class InterrogationDirector : MonoBehaviour
     [SerializeField, Min(0.01f)] private float returnSeconds = 0.4f;
     [SerializeField, Min(0.01f)] private float blurSeconds = 0.35f;
     [SerializeField, Min(0.01f)] private float uiFadeSeconds = 0.25f;
+    [Tooltip("Epílogo: segundos para volver de la última toma a la vista del jugador")]
+    [SerializeField, Min(0.01f)] private float outroReturnSeconds = 0.6f;
+    [Tooltip("Epílogo: aparición y desaparición del pensamiento")]
+    [SerializeField, Min(0.01f)] private float outroThoughtFadeSeconds = 0.4f;
 
     [Header("Desenfoque y oscurecido")]
     [SerializeField] private float volumePriority = 100f;
@@ -71,6 +84,7 @@ public class InterrogationDirector : MonoBehaviour
     private string _initialEmotion;
     private bool _running;
     private bool _exiting;
+    private bool _sceneOpen;
 
     // Jugador
     private PlayerController _playerController;
@@ -109,18 +123,22 @@ public class InterrogationDirector : MonoBehaviour
         _initialEmotion = initialEmotion;
         _running = true;
         _exiting = false;
+        _sceneOpen = true;
         Active = this;
         StartCoroutine(EnterRoutine(flow));
         return true;
     }
 
-    /// <summary>Cierra la escena y devuelve todo como estaba. El objetivo ya debe estar en su estado final.</summary>
-    public void Exit(InterrogationOutcome outcome)
+    /// <summary>
+    /// Cierra la escena y devuelve todo como estaba. El objetivo ya debe estar en su estado final.
+    /// outro (opcional) = epílogo con el mundo corriendo y el jugador todavía bloqueado (ver arriba).
+    /// </summary>
+    public void Exit(InterrogationOutcome outcome, Func<InterrogationDirector, IEnumerator> outro = null)
     {
         if (!_running || _exiting) return;
         _exiting = true;
         StopAllCoroutines();
-        StartCoroutine(ExitRoutine(outcome));
+        StartCoroutine(ExitRoutine(outcome, outro));
     }
 
     private IEnumerator EnterRoutine(Func<InterrogationDirector, IEnumerator> flow)
@@ -171,7 +189,7 @@ public class InterrogationDirector : MonoBehaviour
         if (!_exiting) Exit(InterrogationOutcome.Cancelled);
     }
 
-    private IEnumerator ExitRoutine(InterrogationOutcome outcome)
+    private IEnumerator ExitRoutine(InterrogationOutcome outcome, Func<InterrogationDirector, IEnumerator> outro)
     {
         StopVoices();
         view.HideOptions();
@@ -185,6 +203,14 @@ public class InterrogationDirector : MonoBehaviour
 
         // El dibujo del mundo vuelve en su estado final (muerto / cojeando)
         if (_target != null) _target.SetWorldVisible(true);
+        _sceneOpen = false;
+
+        if (outro != null)
+        {
+            yield return OutroRoutine(outro);
+            FinishExit(outcome);
+            yield break;
+        }
 
         // Desenfoque fuera y cámara de vuelta a la cabeza, a la vez
         Vector3 fromLocalPos = _camera != null ? _camera.localPosition : Vector3.zero;
@@ -206,12 +232,127 @@ public class InterrogationDirector : MonoBehaviour
         RestoreTime();
         _restorePending = true;       // el control vuelve en LateUpdate: el clic de la decisión no dispara
         while (_restorePending) yield return null;
+        FinishExit(outcome);
+    }
 
+    private void FinishExit(InterrogationOutcome outcome)
+    {
         _running = false;
         _exiting = false;
+        _sceneOpen = false;
         _target = null;
         if (Active == this) Active = null;
         OnExited?.Invoke(outcome);
+    }
+
+    /// <summary>Epílogo: sin desenfoque, tiempo normal, jugador bloqueado; al final la cámara vuelve y el control también.</summary>
+    private IEnumerator OutroRoutine(Func<InterrogationDirector, IEnumerator> outro)
+    {
+        Cursor.lockState = CursorLockMode.Locked; // no hay nada que cliquear
+        Cursor.visible = false;
+
+        float startWeight = _volume != null ? _volume.weight : 0f;
+        yield return Animate(blurSeconds, t => { if (_volume != null) _volume.weight = startWeight * (1f - t); });
+        RestoreTime();
+
+        view.SetThoughtOnly(true);
+        view.SetOpen(true);
+        view.SetAlpha(1f);
+        yield return outro(this);
+        view.SetThought("", 0f);
+        view.SetOpen(false);
+        view.SetThoughtOnly(false);
+
+        yield return ReturnCamera(outroReturnSeconds);
+        _restorePending = true;
+        while (_restorePending) yield return null;
+    }
+
+    // ==================================================================
+    // Epílogo: cámara y pensamiento (tiempo real)
+    // ==================================================================
+
+    /// <summary>Dónde estaban los ojos del jugador al empezar (altura de pie).</summary>
+    public Vector3 PlayerEyePosition => _camera == null ? Vector3.zero
+        : _camera.parent != null ? _camera.parent.TransformPoint(_savedLocalPosition) : _savedLocalPosition;
+
+    public Vector3 CameraPosition => _camera != null ? _camera.position : Vector3.zero;
+    public Quaternion CameraRotation => _camera != null ? _camera.rotation : Quaternion.identity;
+
+    /// <summary>Rotación para mirar desde "from" hacia "to".</summary>
+    public static Quaternion LookFrom(Vector3 from, Vector3 to)
+    {
+        Vector3 dir = to - from;
+        return dir.sqrMagnitude > 0.0001f ? Quaternion.LookRotation(dir, Vector3.up) : Quaternion.identity;
+    }
+
+    /// <summary>Lleva la cámara (suave) a la posición y rotación dadas; se reevalúan cada frame (sirve para seguir a alguien).</summary>
+    public IEnumerator MoveCamera(Func<Vector3> position, Func<Quaternion> rotation, float seconds)
+    {
+        if (_camera == null) yield break;
+        Vector3 fromPos = _camera.position;
+        Quaternion fromRot = _camera.rotation;
+        yield return Animate(seconds, t =>
+        {
+            float e = Mathf.SmoothStep(0f, 1f, t);
+            _camera.SetPositionAndRotation(Vector3.Lerp(fromPos, position(), e), Quaternion.Slerp(fromRot, rotation(), e));
+        });
+    }
+
+    /// <summary>Deja la cámara en su lugar y la gira siguiendo una rotación objetivo durante "seconds".</summary>
+    public IEnumerator TrackCamera(Func<Quaternion> rotation, float seconds, float sharpness = 6f)
+    {
+        if (_camera == null) yield break;
+        float until = Time.unscaledTime + seconds;
+        while (Time.unscaledTime < until)
+        {
+            float k = 1f - Mathf.Exp(-sharpness * Time.unscaledDeltaTime);
+            _camera.rotation = Quaternion.Slerp(_camera.rotation, rotation(), k);
+            yield return null;
+        }
+    }
+
+    /// <summary>Vuelve la cámara a la pose del jugador (relativa a su cabeza).</summary>
+    public IEnumerator ReturnCamera(float seconds)
+    {
+        if (_camera == null) yield break;
+        Vector3 fromLocalPos = _camera.localPosition;
+        Quaternion fromLocalRot = _camera.localRotation;
+        yield return Animate(seconds, t =>
+        {
+            float e = Mathf.SmoothStep(0f, 1f, t);
+            _camera.localPosition = Vector3.Lerp(fromLocalPos, _savedLocalPosition, e);
+            _camera.localRotation = Quaternion.Slerp(fromLocalRot, _savedLocalRotation, e);
+        });
+    }
+
+    /// <summary>
+    /// Pensamiento del epílogo en la banda de arriba: "…" mientras result() devuelve null (quien llama pone su tiempo
+    /// límite), aparece, se queda max(minSeconds, letras × secondsPerCharacter) y se va.
+    /// </summary>
+    public IEnumerator OutroThought(Func<string> result, float minSeconds, float secondsPerCharacter)
+    {
+        string line = null;
+        int dots = 0;
+        float nextDots = 0f;
+        while (line == null)
+        {
+            line = result != null ? result() : "";
+            if (line != null) break;
+            if (Time.unscaledTime >= nextDots)
+            {
+                nextDots = Time.unscaledTime + dotsInterval;
+                dots = dots % 3 + 1;
+                view.SetThought(new string('.', dots), 1f);
+            }
+            yield return null;
+        }
+        if (string.IsNullOrEmpty(line)) yield break;
+        yield return Animate(outroThoughtFadeSeconds, t => view.SetThought(line, t));
+        float hold = Mathf.Max(minSeconds, line.Length * secondsPerCharacter);
+        float until = Time.unscaledTime + hold;
+        while (Time.unscaledTime < until) yield return null;
+        yield return Animate(outroThoughtFadeSeconds, t => view.SetThought(line, 1f - t));
     }
 
     private void LateUpdate()
@@ -237,6 +378,7 @@ public class InterrogationDirector : MonoBehaviour
         RestorePlayer();
         _running = false;
         _exiting = false;
+        _sceneOpen = false;
         if (Active == this) Active = null;
     }
 
@@ -482,11 +624,15 @@ public class InterrogationDirector : MonoBehaviour
         yield return Animate(0.4f, t => view.SetNotice(text, 1f - t));
     }
 
-    /// <summary>Dos botones grandes ("Jalar el gatillo" / "Dejarlo ir"); teclas 1/2 o clic.</summary>
-    public IEnumerator Decide(string first, string second, Action<int> chosen)
+    /// <summary>
+    /// Decisión escrita en el papel ("1. Jalar el gatillo" | "2. Dejarlo ir"), con WILBUR de nombre; teclas 1/2 o clic.
+    /// targetEmotion = par del retrato mientras se decide (ej: "plead").
+    /// </summary>
+    public IEnumerator Decide(string first, string second, Action<int> chosen, string targetEmotion = null)
     {
         int picked = -1;
-        view.ShowDecision(first, second, i => picked = i);
+        if (!string.IsNullOrEmpty(targetEmotion)) view.Portrait.SetEmotion(targetEmotion);
+        view.ShowDecision(playerName, first, second, i => picked = i);
         while (picked < 0)
         {
             yield return null;

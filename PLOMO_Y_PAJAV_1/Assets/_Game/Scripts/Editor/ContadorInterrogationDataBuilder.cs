@@ -138,7 +138,37 @@ public static class ContadorInterrogationDataBuilder
             new InterrogationThought
             {
                 text = "Dijo que lo colgaron de los pies. Guarda bien esas palabras… y compáralas después.",
+                condition = InterrogationThoughtCondition.SaidLine,
                 requiresLineId = "contador_int_1B_m",
+                chance = 0.5f,
+            },
+        };
+
+        // Pensamiento después de la decisión (guion §5, fase 3C.4.1). Los condicionados salen la mitad de las veces.
+        d.afterThoughtTimeoutSeconds = 4f;
+        d.spareThoughts = new[]
+        {
+            T("Se va cojeando con tus secretos en el bolsillo. Ojalá la gratitud le dure más que el miedo."),
+            T("Dejaste ir al único que lleva las cuentas. Algún día alguien te va a cobrar este favor."),
+            T("Un lobo menos en el suelo. ¿Fue piedad, Wilbur… o solo cansancio?"),
+        };
+        d.killThoughts = new[]
+        {
+            T("Las cuentas se saldaron. Lo que nadie te dijo es quién paga los intereses."),
+            T("Ya no tiembla. Tú sí."),
+            T("Un contador menos. Los números de Porky siguen sin cuadrar."),
+            new InterrogationThought
+            {
+                text = "Murió mintiendo… o eso quieres creer, para que pese menos.",
+                condition = InterrogationThoughtCondition.Lied,
+                requiresLineId = "",
+                chance = 0.5f,
+            },
+            new InterrogationThought
+            {
+                text = "Te dijo la verdad y le pagaste con plomo.",
+                condition = InterrogationThoughtCondition.ToldTruth,
+                requiresLineId = "",
                 chance = 0.5f,
             },
         };
@@ -158,7 +188,8 @@ public static class ContadorInterrogationDataBuilder
     private static InterrogationOption O(string playerLineId, params string[] responses)
         => new InterrogationOption { playerLineId = playerLineId, responseLineIds = responses };
 
-    private static InterrogationThought T(string text) => new InterrogationThought { text = text, requiresLineId = "", chance = 1f };
+    private static InterrogationThought T(string text) => new InterrogationThought
+        { text = text, condition = InterrogationThoughtCondition.Always, requiresLineId = "", chance = 1f };
 
     private static void ReportMissingClips(InterrogationData data, StringBuilder report)
     {

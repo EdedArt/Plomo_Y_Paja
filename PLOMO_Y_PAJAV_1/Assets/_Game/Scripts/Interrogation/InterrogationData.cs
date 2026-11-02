@@ -56,11 +56,25 @@ public class InterrogationRound
     public InterrogationOption[] options = new InterrogationOption[0];
 }
 
-/// <summary>Pensamiento de respaldo (sin IA). requiresLineId = solo si el interrogado dijo esa línea, con esa probabilidad.</summary>
+/// <summary>Cuándo vale un pensamiento de respaldo.</summary>
+public enum InterrogationThoughtCondition
+{
+    Always,
+    SaidLine,   // solo si el interrogado dijo requiresLineId
+    Lied,       // solo si mintió
+    ToldTruth   // solo si el resultado fue Helpful y no mintió
+}
+
+/// <summary>
+/// Pensamiento de respaldo (sin IA). Los condicionados que se cumplen salen con su probabilidad (chance);
+/// si no sale ninguno, se elige uno de los generales (Always).
+/// </summary>
 [Serializable]
 public class InterrogationThought
 {
     [TextArea(2, 4)] public string text;
+    public InterrogationThoughtCondition condition;
+    [Tooltip("Para SaidLine")]
     public string requiresLineId;
     [Range(0f, 1f)] public float chance = 1f;
 }
@@ -102,6 +116,12 @@ public class InterrogationData : ScriptableObject
     [TextArea(2, 4)] public string thoughtWho;
     [Min(0.5f)] public float thoughtTimeoutSeconds = 5f;
     public InterrogationThought[] fallbackThoughts = new InterrogationThought[0];
+
+    [Header("Pensamiento después de la decisión (3C.4.1)")]
+    [Tooltip("Se pide a la IA al elegir; espera máxima contada desde ese momento (tiempo real)")]
+    [Min(0.5f)] public float afterThoughtTimeoutSeconds = 4f;
+    public InterrogationThought[] killThoughts = new InterrogationThought[0];
+    public InterrogationThought[] spareThoughts = new InterrogationThought[0];
 
     /// <summary>La línea con ese id, o null.</summary>
     public InterrogationLine GetLine(string id)
@@ -174,15 +194,32 @@ public class InterrogationRun
         return null;
     }
 
-    /// <summary>Pensamiento de respaldo: los condicionados que aplican salen con su probabilidad; si no, uno general.</summary>
-    public string PickFallbackThought()
+    /// <summary>Dijo la verdad: resultado Helpful y ninguna mentira.</summary>
+    public bool ToldTruth => Result == InterrogationLineResult.Helpful && !Lied;
+
+    /// <summary>
+    /// Pensamiento de respaldo de una lista: los condicionados que se cumplen salen con su probabilidad; si no, uno
+    /// general al azar.
+    /// </summary>
+    public string PickFallbackThought(InterrogationThought[] pool)
     {
         var general = new List<string>();
-        foreach (InterrogationThought t in Data.fallbackThoughts)
+        if (pool == null) return "";
+        foreach (InterrogationThought t in pool)
         {
             if (t == null || string.IsNullOrEmpty(t.text)) continue;
-            if (string.IsNullOrEmpty(t.requiresLineId)) general.Add(t.text);
-            else if (HasSaid(t.requiresLineId) && UnityEngine.Random.value < t.chance) return t.text;
+            InterrogationThoughtCondition condition = t.condition;
+            if (condition == InterrogationThoughtCondition.Always && !string.IsNullOrEmpty(t.requiresLineId))
+                condition = InterrogationThoughtCondition.SaidLine; // datos de 3C.4 (antes del campo condition)
+            if (condition == InterrogationThoughtCondition.Always)
+            {
+                general.Add(t.text);
+                continue;
+            }
+            bool applies = condition == InterrogationThoughtCondition.SaidLine ? HasSaid(t.requiresLineId)
+                         : condition == InterrogationThoughtCondition.Lied ? Lied
+                         : ToldTruth;
+            if (applies && UnityEngine.Random.value < t.chance) return t.text;
         }
         return general.Count > 0 ? general[UnityEngine.Random.Range(0, general.Count)] : "";
     }

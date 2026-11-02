@@ -119,6 +119,21 @@ Dos opciones grandes: **"Jalar el gatillo"** / **"Dejarlo ir"**.
 - **Matar:** solo tienes `registro_01` si te lo dio antes.
 - `GameStateTracker` registra `contador = Perdonado / Muerto`, el resultado del interrogatorio (Helpful / Misleading) y si mintió. La IA y Don Lobo lo pueden mencionar más adelante.
 
+### Pensamiento después de la decisión (texto arriba, sin voz)
+*(Agregado en la fase 3C.4.1.)* Al cerrarse la escena, el mundo vuelve a correr, Wilbur no se puede mover y aparece un último pensamiento arriba. Lo genera la API con lo que dijo Centavo, si mintió, si entregó el registro y la decisión. Si no hay conexión (o tarda más de 4 s), se usa una de estas líneas:
+
+**Si lo dejó ir** (la cámara lo sigue cojeando hacia el portón y después mira al cielo):
+- "Se va cojeando con tus secretos en el bolsillo. Ojalá la gratitud le dure más que el miedo."
+- "Dejaste ir al único que lleva las cuentas. Algún día alguien te va a cobrar este favor."
+- "Un lobo menos en el suelo. ¿Fue piedad, Wilbur… o solo cansancio?"
+
+**Si lo mató** (la cámara se queda en el cuerpo y sube despacio):
+- "Las cuentas se saldaron. Lo que nadie te dijo es quién paga los intereses."
+- "Ya no tiembla. Tú sí."
+- "Un contador menos. Los números de Porky siguen sin cuadrar."
+- *(solo si mintió)* "Murió mintiendo… o eso quieres creer, para que pese menos."
+- *(solo si dijo la verdad y no mintió)* "Te dijo la verdad y le pagaste con plomo."
+
 ---
 
 ## 6. Resumen de audios para Cristian (29 archivos)

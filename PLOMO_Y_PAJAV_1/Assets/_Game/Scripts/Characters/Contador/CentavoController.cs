@@ -561,7 +561,7 @@ public class CentavoController : MonoBehaviour, IDamageable, IInterrogationTarge
 
     private void UpdateFleeing()
     {
-        if (_fleeLinePending && !InterrogationDirector.IsActive && Say(LineFlee, true)) _fleeLinePending = false;
+        if (_fleeLinePending && !InterrogationDirector.IsSceneOpen && Say(LineFlee, true)) _fleeLinePending = false;
 
         Transform[] path = shed.ExitPath;
         if (path == null || _pathIndex >= path.Length)
@@ -633,6 +633,12 @@ public class CentavoController : MonoBehaviour, IDamageable, IInterrogationTarge
         StartFleeing();
     }
 
+    /// <summary>Huyendo: desaparece ya (el epílogo lo llama mientras la cámara mira al cielo, 3C.4.1).</summary>
+    public void ForceGone()
+    {
+        if (_state == State.Fleeing) Vanish();
+    }
+
     /// <summary>Oculta/muestra el dibujo del mundo (D6: en la escena se ve el retrato).</summary>
     public void SetWorldVisible(bool visible)
     {
@@ -695,7 +701,7 @@ public class CentavoController : MonoBehaviour, IDamageable, IInterrogationTarge
     private bool Say(string lineId, bool force)
     {
         if (voiceSource == null) return false;
-        if (InterrogationDirector.IsActive) return false; // en la escena solo hablan las voces del director (3C.4, A3)
+        if (InterrogationDirector.IsSceneOpen) return false; // en la escena solo hablan las voces del director (3C.4, A3)
         if (!force && (voiceSource.isPlaying || Time.time < _nextBarkTime)) return false;
 
         AudioClip clip = AudioLibrary.GetVoice(lineId);

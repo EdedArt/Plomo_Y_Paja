@@ -1,3 +1,4 @@
+using System;
 using System.Collections;
 using System.Text;
 using UnityEngine;
@@ -15,6 +16,14 @@ using UnityEngine;
 /// REGLAS (guion §5): confianza 0; 0A −1, 0B +1, 0C 0. Ronda 1: ≥ 0 → _v (Helpful), &lt; 0 → _m (Misleading); 1C siempre
 /// (Helpful, sin cifra). Mintió = eligió 0A o dijo alguna _m. registro_01: en 1A_v o en perdon_02.
 /// GameStateTracker al llegar a la decisión (D10): RegisterInterrogation (una vez) + RegisterContadorInterrogation.
+///
+/// EPÍLOGO (3C.4.1): al elegir se pide a la IA un último pensamiento (en paralelo con las líneas de la decisión; espera
+/// máx. afterThoughtTimeoutSeconds desde ese momento, si no, respaldo del guion "Pensamiento después de la decisión").
+/// Con la escena ya cerrada, el mundo corre y el jugador sigue bloqueado (sin manos, mira ni Escape):
+///   Dejarlo ir: la cámara sube a la altura de los ojos siguiéndolo cojear hacia el portón → mira al cielo → Centavo
+///     desaparece → pensamiento → la cámara vuelve → control.
+///   Jalar el gatillo: la cámara se queda en el cuerpo y sube despacio → pensamiento (reemplaza la línea de la IA de la
+///     baja, D11) → la cámara vuelve → control.
 /// </summary>
 [RequireComponent(typeof(CentavoController))]
 public class CentavoInterrogation : MonoBehaviour
@@ -30,6 +39,32 @@ public class CentavoInterrogation : MonoBehaviour
 
     [Tooltip("Segundos que se ve el aviso de la pista")]
     [SerializeField, Min(0.5f)] private float clueNoticeSeconds = 3f;
+
+    [Tooltip("Par del retrato mientras se decide")]
+    [SerializeField] private string decisionEmotion = "plead";
+
+    [Header("Epílogo: dejarlo ir")]
+    [Tooltip("La cámara sube de agachado a la altura de los ojos, siguiéndolo")]
+    [SerializeField, Min(0.05f)] private float spareRiseSeconds = 0.6f;
+    [Tooltip("Siguiéndolo cojear hacia el portón")]
+    [SerializeField, Min(0f)] private float spareTrackSeconds = 2f;
+    [Tooltip("Inclinarse hacia el cielo")]
+    [SerializeField, Min(0.05f)] private float skyTiltSeconds = 1f;
+    [Tooltip("Grados hacia arriba al mirar el cielo")]
+    [SerializeField, Range(20f, 85f)] private float skyPitch = 65f;
+    [Tooltip("Altura (m) sobre sus pies a la que mira la cámara mientras cojea")]
+    [SerializeField, Min(0f)] private float spareLookHeight = 1f;
+
+    [Header("Epílogo: jalar el gatillo")]
+    [Tooltip("La cámara se queda en el cuerpo y sube despacio a la altura de los ojos")]
+    [SerializeField, Min(0.05f)] private float killRiseSeconds = 1f;
+    [Tooltip("Altura (m) sobre el ancla sentada a la que mira la cámara")]
+    [SerializeField, Min(0f)] private float bodyLookHeight = 0.35f;
+
+    [Header("Epílogo: pensamiento")]
+    [SerializeField, Min(0f)] private float outroThoughtMinSeconds = 3f;
+    [Tooltip("Los textos largos se quedan más: letras × este valor (si pasa del mínimo)")]
+    [SerializeField, Min(0f)] private float outroThoughtSecondsPerCharacter = 0.055f;
 
     private CentavoController _centavo;
     private InterrogationDirector _director;
@@ -112,7 +147,7 @@ public class CentavoInterrogation : MonoBehaviour
         // Pensamiento de la IA: nunca más de thoughtTimeoutSeconds (tiempo real); si no, respaldo del guion
         string aiLine = null;
         bool aiDone = false;
-        string fallback = run.PickFallbackThought();
+        string fallback = run.PickFallbackThought(data.fallbackThoughts);
         if (AICompanion.Instance != null)
             AICompanion.Instance.RequestCustomLine(BuildThoughtRequest(run), line => { aiLine = line; aiDone = true; });
         else aiDone = true;
@@ -120,23 +155,82 @@ public class CentavoInterrogation : MonoBehaviour
 
         // Decisión
         int decision = 1;
-        yield return d.Decide(data.killLabel, data.spareLabel, i => decision = i);
+        yield return d.Decide(data.killLabel, data.spareLabel, i => decision = i, decisionEmotion);
         d.HideThought();
+        bool killed = decision == 0;
 
-        if (decision == 0)
+        // Pensamiento del epílogo: se pide YA, en paralelo con las líneas de la decisión
+        Func<string> afterThought = RequestAfterThought(run, killed);
+
+        if (killed)
         {
             foreach (string id in data.killLineIds) yield return Play(d, run, data.GetLine(id));
             float until = Time.unscaledTime + killHoldSeconds;
             while (Time.unscaledTime < until) yield return null;
             _centavo.ResolveKilled();              // death_01, contador = Dead, sin línea de la IA (D11)
-            d.Exit(InterrogationOutcome.Killed);
+            d.Exit(InterrogationOutcome.Killed, dir => KillOutro(dir, afterThought));
         }
         else
         {
             foreach (string id in data.spareLineIds) yield return Play(d, run, data.GetLine(id));
-            _centavo.ResolvePardoned();            // contador = Pardoned; se va cojeando al cerrar la escena
-            d.Exit(InterrogationOutcome.Pardoned);
+            _centavo.ResolvePardoned();            // contador = Pardoned; cojea (y dice huye_01) al cerrarse la escena
+            d.Exit(InterrogationOutcome.Pardoned, dir => SpareOutro(dir, afterThought));
         }
+    }
+
+    // ==================================================================
+    // Epílogo
+    // ==================================================================
+
+    /// <summary>
+    /// Pide el pensamiento del epílogo y devuelve con qué leerlo: null mientras espera; la línea de la IA; o el
+    /// respaldo si falla o pasan afterThoughtTimeoutSeconds desde ahora (tiempo real).
+    /// </summary>
+    private Func<string> RequestAfterThought(InterrogationRun run, bool killed)
+    {
+        string fallback = run.PickFallbackThought(killed ? data.killThoughts : data.spareThoughts);
+        float start = Time.unscaledTime;
+        string aiLine = null;
+        bool done = false;
+        if (AICompanion.Instance != null)
+            AICompanion.Instance.RequestCustomLine(BuildAfterRequest(run, killed), line => { aiLine = line; done = true; });
+        else done = true;
+
+        return () =>
+        {
+            if (done) return aiLine ?? fallback;
+            return Time.unscaledTime - start >= data.afterThoughtTimeoutSeconds ? fallback : null;
+        };
+    }
+
+    private IEnumerator SpareOutro(InterrogationDirector d, Func<string> thought)
+    {
+        Transform centavo = _centavo.transform;
+        Vector3 eye = d.PlayerEyePosition;
+        Func<Quaternion> lookAtHim = () => InterrogationDirector.LookFrom(eye, centavo.position + Vector3.up * spareLookHeight);
+
+        // De agachado a la altura de los ojos, siguiéndolo; luego lo sigue cojear hacia el portón
+        yield return d.MoveCamera(() => eye, lookAtHim, spareRiseSeconds);
+        yield return d.TrackCamera(lookAtHim, spareTrackSeconds);
+
+        // Al cielo (misma dirección, mirando hacia arriba)
+        Vector3 flat = d.CameraRotation * Vector3.forward;
+        flat.y = 0f;
+        if (flat.sqrMagnitude < 0.001f) flat = Vector3.forward;
+        Quaternion sky = Quaternion.LookRotation(flat.normalized, Vector3.up) * Quaternion.Euler(-skyPitch, 0f, 0f);
+        yield return d.MoveCamera(() => eye, () => sky, skyTiltSeconds);
+
+        // Ya no se lo puede seguir: desaparece mientras se mira el cielo (antes de devolver el control)
+        _centavo.ForceGone();
+        yield return d.OutroThought(thought, outroThoughtMinSeconds, outroThoughtSecondsPerCharacter);
+    }
+
+    private IEnumerator KillOutro(InterrogationDirector d, Func<string> thought)
+    {
+        Vector3 eye = d.PlayerEyePosition;
+        Vector3 body = _centavo.transform.position + Vector3.up * bodyLookHeight;
+        yield return d.MoveCamera(() => eye, () => InterrogationDirector.LookFrom(eye, body), killRiseSeconds);
+        yield return d.OutroThought(thought, outroThoughtMinSeconds, outroThoughtSecondsPerCharacter);
     }
 
     /// <summary>Dice una línea si su condición se cumple, aplica sus efectos y, al terminar, entrega la pista si toca.</summary>
@@ -173,6 +267,23 @@ public class CentavoInterrogation : MonoBehaviour
         tracker.RegisterContadorInterrogation(result, run.Lied);
         string outcome = result == ContadorInterrogation.Misleading ? "mintió o intentó engañar a Wilbur" : "dio información útil";
         tracker.RegisterInterrogation(data.npcName, outcome); // no cuenta dos veces: GameStateTracker lo ignora si ya está
+    }
+
+    private string BuildAfterRequest(InterrogationRun run, bool killed)
+    {
+        var sb = new StringBuilder();
+        sb.Append("Wilbur acaba de terminar con ").Append(data.thoughtWho).Append(' ');
+        sb.Append("Lo había interrogado herido en el piso. Esto fue lo que dijo: ");
+        foreach (string said in run.TargetSaid) sb.Append('«').Append(said).Append("» ");
+        sb.Append(run.Lied ? "Mintió al menos una vez. " : "No se le pilló ninguna mentira. ");
+        bool sheet = killed ? run.ClueGiven : true; // al perdonarlo siempre entrega la hoja (perdon_02)
+        sb.Append(sheet ? "Le entregó una hoja del libro de cuentas de Don Lobo. " : "No le entregó ningún papel. ");
+        sb.Append(killed
+            ? "Wilbur decidió jalar el gatillo: Centavo está muerto contra el banco de trabajo. "
+            : "Wilbur lo dejó ir: Centavo se aleja cojeando por el portón del patio, en la noche. ");
+        sb.Append("Escribe el último pensamiento de Wilbur sobre lo que acaba de hacer: 1 o 2 oraciones, máximo 25 palabras, ");
+        sb.Append("en español, noir y ambiguo. No juzgues la decisión como buena o mala ni digas qué debió hacer");
+        return sb.ToString();
     }
 
     private string BuildThoughtRequest(InterrogationRun run)

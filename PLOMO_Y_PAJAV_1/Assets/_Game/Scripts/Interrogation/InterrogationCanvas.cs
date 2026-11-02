@@ -13,6 +13,9 @@ using UnityEngine.UI;
 /// papel) y el diálogo es una tira baja de papel. TODOS los valores de diseño son campos de este componente y se
 /// aplican al arrancar y, en Play, cada vez que se cambian en el Inspector (OnValidate): David los ajusta en vivo.
 /// En el papel, el texto de la línea y las opciones/decisión comparten el mismo espacio (al elegir, el texto se oculta).
+/// 3C.4.1: la decisión también va escrita en el papel (sin botones de Unity ni cajas): "1. Jalar el gatillo" | "2. Dejarlo ir"
+/// con una raya de tinta entre las dos; opciones y decisión usan el mismo resaltado (tinta roja, subrayado, escala y
+/// temblor a saltos, InterrogationOptionHover). Modo "solo pensamiento" para el epílogo (SetThoughtOnly).
 /// </summary>
 public class InterrogationCanvas : MonoBehaviour
 {
@@ -61,7 +64,7 @@ public class InterrogationCanvas : MonoBehaviour
     [SerializeField] private float nameSize = 44f;
     [SerializeField] private float bodySize = 38f;
     [SerializeField] private float optionSize = 34f;
-    [SerializeField] private float decisionSize = 44f;
+    [SerializeField] private float decisionSize = 52f;
     [SerializeField] private float thoughtSize = 36f;
     [SerializeField] private float noticeSize = 34f;
     [Tooltip("Tamaño mínimo al que se achica el texto largo")]
@@ -70,13 +73,22 @@ public class InterrogationCanvas : MonoBehaviour
     [Header("Diseño: colores")]
     [SerializeField] private Color nameColor = new Color32(0x3B, 0x24, 0x14, 0xFF);
     [SerializeField] private Color bodyColor = new Color32(0x1E, 0x12, 0x09, 0xFF);
-    [SerializeField] private Color optionColor = new Color32(0x3B, 0x24, 0x14, 0xFF);
-    [Tooltip("Opción con el mouse encima: más oscura y subrayada")]
-    [SerializeField] private Color optionHoverColor = new Color32(0x0E, 0x07, 0x03, 0xFF);
     [SerializeField] private Color thoughtColor = new Color32(0xF2, 0xE6, 0xC8, 0xFF);
     [SerializeField] private Color thoughtOutlineColor = new Color32(0x14, 0x0C, 0x08, 0xFF);
     [SerializeField, Range(0f, 1f)] private float thoughtOutlineWidth = 0.22f;
     [SerializeField, Range(0f, 1f)] private float thoughtPanelAlpha = 0f;
+
+    [Header("Diseño: opciones y decisión (la misma tinta)")]
+    [SerializeField] private Color choiceColor = new Color32(0x1E, 0x12, 0x09, 0xFF);
+    [Tooltip("Con el mouse encima: tinta roja + subrayado + escala + temblor a saltos")]
+    [SerializeField] private Color choiceHoverColor = new Color32(0x8B, 0x1A, 0x1A, 0xFF);
+    [SerializeField, Range(1f, 1.3f)] private float choiceHoverScale = 1.06f;
+    [SerializeField, Min(0f)] private float choiceWobblePixels = 1.5f;
+    [SerializeField, Min(1f)] private float choiceWobbleHz = 12f;
+    [Tooltip("Raya de tinta entre las dos decisiones")]
+    [SerializeField] private Color dividerColor = new Color32(0x1E, 0x12, 0x09, 0xB0);
+    [SerializeField, Min(0f)] private float dividerWidth = 3f;
+    [SerializeField, Range(0.1f, 1f)] private float dividerHeight = 0.75f;
 
     [Header("Diseño: pensamiento (arriba)")]
     [SerializeField] private Vector2 thoughtAnchorMin = new Vector2(0.08f, 0.88f);
@@ -88,6 +100,13 @@ public class InterrogationCanvas : MonoBehaviour
 
     public InterrogationPortrait Portrait => portrait;
     public int OptionCount => optionButtons.Length;
+
+    // Estilo del resaltado (lo lee InterrogationOptionHover)
+    public Color ChoiceColor => choiceColor;
+    public Color ChoiceHoverColor => choiceHoverColor;
+    public float ChoiceHoverScale => choiceHoverScale;
+    public float ChoiceWobblePixels => choiceWobblePixels;
+    public float ChoiceWobbleHz => choiceWobbleHz;
 
     private void Awake()
     {
@@ -123,7 +142,11 @@ public class InterrogationCanvas : MonoBehaviour
         for (int i = 0; i < decisionButtons.Length; i++)
         {
             int index = i;
-            if (decisionButtons[i] != null) decisionButtons[i].onClick.AddListener(() => PickDecision(index));
+            if (decisionButtons[i] == null) continue;
+            decisionButtons[i].onClick.AddListener(() => PickDecision(index));
+            if (!decisionButtons[i].TryGetComponent(out InterrogationOptionHover hover))
+                hover = decisionButtons[i].gameObject.AddComponent<InterrogationOptionHover>();
+            hover.Init(i < decisionLabels.Length ? decisionLabels[i] : null, this);
         }
     }
 
@@ -203,28 +226,46 @@ public class InterrogationCanvas : MonoBehaviour
                 element.preferredHeight = optionSize * 1.3f;
                 element.minHeight = optionSize * 1.1f;
             }
-            if (optionButtons[i] != null && optionButtons[i].targetGraphic != null)
-            {
-                // Sin recuadro: el resaltado es la letra más oscura y subrayada (InterrogationOptionHover)
-                ColorBlock colors = optionButtons[i].colors;
-                colors.normalColor = colors.highlightedColor = colors.selectedColor = new Color(1f, 1f, 1f, 0f);
-                colors.pressedColor = new Color(1f, 1f, 1f, 0.15f);
-                optionButtons[i].colors = colors;
-            }
+            if (optionButtons[i] != null) MakeInkChoice(optionButtons[i]);
             if (i < optionLabels.Length && optionLabels[i] != null)
             {
-                Style(optionLabels[i], optionSize, optionColor, FontStyles.Normal);
+                Style(optionLabels[i], optionSize, choiceColor, FontStyles.Normal);
                 optionLabels[i].enableAutoSizing = false;
                 optionLabels[i].enableWordWrapping = false;
                 optionLabels[i].overflowMode = TextOverflowModes.Ellipsis;
                 optionLabels[i].alignment = TextAlignmentOptions.MidlineLeft;
+                ((RectTransform)optionLabels[i].transform).pivot = new Vector2(0f, 0.5f);
             }
         }
+
+        // Decisión: escrita en el papel, cada una centrada en su mitad, raya de tinta en el medio
+        if (decisionRoot != null)
+        {
+            if (decisionRoot.TryGetComponent(out HorizontalLayoutGroup row))
+            {
+                row.spacing = 0f;
+                row.padding = new RectOffset(0, 0, 0, 0);
+                row.childAlignment = TextAnchor.MiddleCenter;
+                row.childControlWidth = row.childControlHeight = true;
+                row.childForceExpandWidth = row.childForceExpandHeight = true;
+            }
+            EnsureDivider((RectTransform)decisionRoot.transform);
+        }
+        foreach (Button b in decisionButtons)
+            if (b != null) MakeInkChoice(b);
         foreach (TMP_Text label in decisionLabels)
         {
             if (label == null) continue;
-            label.fontSize = decisionSize;
+            Style(label, decisionSize, choiceColor, FontStyles.Normal);
             label.enableAutoSizing = false;
+            label.enableWordWrapping = false;
+            label.overflowMode = TextOverflowModes.Overflow;
+            label.alignment = TextAlignmentOptions.Center;
+            var rect = (RectTransform)label.transform;
+            rect.anchorMin = Vector2.zero;
+            rect.anchorMax = Vector2.one;
+            rect.offsetMin = rect.offsetMax = Vector2.zero;
+            rect.pivot = new Vector2(0.5f, 0.5f);
         }
 
         // Pensamiento: crema con contorno oscuro, arriba, sobre el mundo desenfocado
@@ -253,6 +294,45 @@ public class InterrogationCanvas : MonoBehaviour
         if (noticeLabel != null) Style(noticeLabel, noticeSize, thoughtColor, FontStyles.Bold);
     }
 
+    /// <summary>Un Button sin aspecto de botón: sin transición de color, fondo invisible (sigue recibiendo el clic), sin bordes.</summary>
+    private static void MakeInkChoice(Button button)
+    {
+        button.transition = Selectable.Transition.None;
+        var nav = button.navigation;
+        nav.mode = Navigation.Mode.None;
+        button.navigation = nav;
+        if (button.targetGraphic is Image image)
+        {
+            image.color = new Color(1f, 1f, 1f, 0f);
+            image.raycastTarget = true;
+        }
+        foreach (Shadow edge in button.GetComponents<Shadow>()) edge.enabled = false; // Outline hereda de Shadow
+    }
+
+    private void EnsureDivider(RectTransform parent)
+    {
+        Transform existing = parent.Find("Divisor");
+        Image line;
+        if (existing != null) line = existing.GetComponent<Image>();
+        else
+        {
+            var go = new GameObject("Divisor", typeof(RectTransform), typeof(Image), typeof(LayoutElement));
+            go.layer = parent.gameObject.layer;
+            go.transform.SetParent(parent, false);
+            go.GetComponent<LayoutElement>().ignoreLayout = true;
+            line = go.GetComponent<Image>();
+        }
+        if (line == null) return;
+        line.color = dividerColor;
+        line.raycastTarget = false;
+        var rect = (RectTransform)line.transform;
+        rect.anchorMin = new Vector2(0.5f, 0.5f - dividerHeight * 0.5f);
+        rect.anchorMax = new Vector2(0.5f, 0.5f + dividerHeight * 0.5f);
+        rect.pivot = new Vector2(0.5f, 0.5f);
+        rect.anchoredPosition = Vector2.zero;
+        rect.sizeDelta = new Vector2(dividerWidth, 0f);
+    }
+
     private static void Place(RectTransform rect, Vector2 anchorMin, Vector2 anchorMax, Vector2 pivot)
     {
         rect.anchorMin = anchorMin;
@@ -278,12 +358,6 @@ public class InterrogationCanvas : MonoBehaviour
         label.fontStyle = style;
     }
 
-    internal void SetOptionHover(TMP_Text label, bool hovered)
-    {
-        if (label == null) return;
-        label.color = hovered ? optionHoverColor : optionColor;
-        label.fontStyle = hovered ? FontStyles.Underline : FontStyles.Normal;
-    }
 
     // ==================================================================
     // Abrir / cerrar
@@ -337,11 +411,7 @@ public class InterrogationCanvas : MonoBehaviour
         {
             bool used = texts != null && i < texts.Length && !string.IsNullOrEmpty(texts[i]);
             if (optionButtons[i] != null) optionButtons[i].gameObject.SetActive(used);
-            if (i < optionLabels.Length && optionLabels[i] != null)
-            {
-                SetOptionHover(optionLabels[i], false);
-                if (used) optionLabels[i].text = $"{i + 1}. {texts[i]}";
-            }
+            if (used && i < optionLabels.Length && optionLabels[i] != null) optionLabels[i].text = $"{i + 1}. {texts[i]}";
         }
     }
 
@@ -364,13 +434,14 @@ public class InterrogationCanvas : MonoBehaviour
 
     // ============ Decisión ============
 
-    public void ShowDecision(string first, string second, Action<int> chosen)
+    /// <summary>La decisión escrita en el papel: "1. primera" | "2. segunda", con el nombre de quien decide (WILBUR).</summary>
+    public void ShowDecision(string speaker, string first, string second, Action<int> chosen)
     {
         _decisionChosen = chosen;
         if (lineLabel != null) lineLabel.gameObject.SetActive(false);
-        if (speakerLabel != null) speakerLabel.text = "";
-        if (decisionLabels.Length > 0 && decisionLabels[0] != null) decisionLabels[0].text = first;
-        if (decisionLabels.Length > 1 && decisionLabels[1] != null) decisionLabels[1].text = second;
+        if (speakerLabel != null) speakerLabel.text = speaker;
+        if (decisionLabels.Length > 0 && decisionLabels[0] != null) decisionLabels[0].text = "1. " + first;
+        if (decisionLabels.Length > 1 && decisionLabels[1] != null) decisionLabels[1].text = "2. " + second;
         if (decisionRoot != null) decisionRoot.SetActive(true);
     }
 
@@ -394,6 +465,19 @@ public class InterrogationCanvas : MonoBehaviour
     {
         if (thoughtLabel != null) thoughtLabel.text = text;
         if (thoughtGroup != null) thoughtGroup.alpha = alpha;
+    }
+
+    /// <summary>Epílogo: solo la banda del pensamiento (sin papel, retrato ni aviso).</summary>
+    public void SetThoughtOnly(bool thoughtOnly)
+    {
+        GameObject paper = speakerLabel != null && speakerLabel.transform.parent != null ? speakerLabel.transform.parent.gameObject : null;
+        if (paper != null) paper.SetActive(!thoughtOnly);
+        if (thoughtOnly)
+        {
+            SetNotice("", 0f);
+            HideOptions();
+            HideDecision();
+        }
     }
 
     /// <summary>Aviso corto (ej: "Pista: Registro de deudas"). Sin aviso en el prefab no hace nada.</summary>

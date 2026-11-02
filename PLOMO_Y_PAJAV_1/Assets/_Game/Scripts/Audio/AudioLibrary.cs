@@ -150,7 +150,7 @@ public class AudioLibrary : ScriptableObject
     /// </summary>
     public static bool TryPlayEnemyVoice(string lineId, Vector3 position, int priority)
     {
-        if (InterrogationDirector.IsActive) return false; // durante el interrogatorio solo suenan las voces de la escena
+        if (InterrogationDirector.IsSceneOpen) return false; // durante el interrogatorio solo suenan las voces de la escena
         float now = Time.time;
         bool busy = now < _voiceBusyUntil;
         if (priority < PriorityDeath)
@@ -216,7 +216,7 @@ public class AudioLibrary : ScriptableObject
     /// <summary>Reproduce una línea de voz en una posición del mundo. Devuelve false si no hay clip.</summary>
     public static bool PlayVoice(string lineId, Vector3 position)
     {
-        if (InterrogationDirector.IsActive) return false; // la escena usa sus propias fuentes (GetVoice)
+        if (InterrogationDirector.IsSceneOpen) return false; // la escena usa sus propias fuentes (GetVoice)
         AudioClip clip = _active != null ? _active.FindVoice(lineId) : null;
         if (clip == null)
         {
@@ -272,7 +272,7 @@ public class AudioLibrary : ScriptableObject
     /// <summary>Voz sin posición (la del propio Wilbur).</summary>
     public static bool PlayVoice2D(string lineId)
     {
-        if (InterrogationDirector.IsActive) return false;
+        if (InterrogationDirector.IsSceneOpen) return false;
         AudioClip clip = _active != null ? _active.FindVoice(lineId) : null;
         if (clip == null)
         {
