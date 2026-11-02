@@ -55,6 +55,12 @@ public class PlayerHealth : MonoBehaviour
     private bool _isInvincible = false;
     private bool _lowHealthArmed = true;
 
+    // Voces de Wilbur (AudioLibrary; sin clip no suena nada)
+    private static readonly string[] HurtLines = { "wilbur_dano_01", "wilbur_dano_02", "wilbur_dano_03" };
+    private const string LowHealthLine = "wilbur_pocavida_01";
+    private float _nextHurtVoice;
+    private int _lastHurtLine = -1;
+
     private void Start()
     {
         currentHealth = maxHealth;
@@ -80,7 +86,8 @@ public class PlayerHealth : MonoBehaviour
         }
         else
         {
-            CheckLowHealth();
+            // Si este golpe lo deja con poca vida, suena el aviso en lugar del quejido
+            if (!CheckLowHealth()) PlayHurtVoice();
             // Breve invencibilidad para que los ataques no apilen demasiado daño
             StartCoroutine(InvincibilityCoroutine());
         }
@@ -100,7 +107,7 @@ public class PlayerHealth : MonoBehaviour
     /// <summary>
     /// Avisar a la IA al cruzar hacia abajo el umbral de poca vida (una vez por cruce).
     /// </summary>
-    private void CheckLowHealth()
+    private bool CheckLowHealth()
     {
         float percent = HealthPercentage;
 
@@ -112,7 +119,23 @@ public class PlayerHealth : MonoBehaviour
         {
             _lowHealthArmed = false;
             if (AICompanion.Instance != null) AICompanion.Instance.Speak(AITrigger.LowHealth);
+            AudioLibrary.PlayVoice2D(LowHealthLine);
+            _nextHurtVoice = Time.time + AudioLibrary.Mix.hurtVoiceCooldown;
+            return true;
         }
+        return false;
+    }
+
+    /// <summary>Quejido al azar (sin repetir el anterior) con enfriamiento para que los golpes seguidos no se apilen.</summary>
+    private void PlayHurtVoice()
+    {
+        if (Time.time < _nextHurtVoice) return;
+        _nextHurtVoice = Time.time + AudioLibrary.Mix.hurtVoiceCooldown;
+
+        int index = UnityEngine.Random.Range(0, HurtLines.Length);
+        if (index == _lastHurtLine) index = (index + 1) % HurtLines.Length;
+        _lastHurtLine = index;
+        AudioLibrary.PlayVoice2D(HurtLines[index]);
     }
 
     private void NotifyHealthChanged()

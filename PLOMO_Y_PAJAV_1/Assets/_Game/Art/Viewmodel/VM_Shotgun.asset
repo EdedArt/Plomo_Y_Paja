@@ -1,0 +1,92 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 59cdb4034a2a2af4490aa69d9e632fcf, type: 3}
+  m_Name: VM_Shotgun
+  m_EditorClassIdentifier: 
+  weaponId: shotgun
+  timingVersion: 2
+  idle:
+    frames:
+    - {fileID: 21300000, guid: 10a0b0ec5fd3e99409bb2a6aaeb92332, type: 3}
+    fps: 0
+    minDuration: 0
+  fire:
+    frames:
+    - {fileID: 21300000, guid: 552b388b30ddd05408c8f11cc9fd4e25, type: 3}
+    fps: 0
+    minDuration: 0.08
+  cycle:
+    frames:
+    - {fileID: 21300000, guid: 4cebadd441e6fc04980c4aa39c2e1900, type: 3}
+    fps: 0
+    minDuration: 0.35
+  reload:
+    frames: []
+    fps: 0
+    minDuration: 0
+  aimIdle:
+    frames:
+    - {fileID: 21300000, guid: 0834cfef252fc554da3499769413b393, type: 3}
+    fps: 0
+    minDuration: 0
+  aimFire:
+    frames: []
+    fps: 0
+    minDuration: 0.08
+  aimCycle:
+    frames:
+    - {fileID: 21300000, guid: 74967e7ab28633a4d85fa6c171ee5bfe, type: 3}
+    fps: 0
+    minDuration: 0.35
+  defaultFps: 12
+  idleLoopFps: 8
+  flashSprites:
+  - {fileID: 21300000, guid: 8ccc3490a2178154789fda4147359bd6, type: 3}
+  hipMuzzle: {x: 1000, y: 690}
+  aimMuzzle: {x: 960, y: 550}
+  flashSize: 360
+  flashScaleRange: {x: 0.9, y: 1.2}
+  flashDuration: 0.07
+  breathAmplitude: 6
+  breathScale: 0.01
+  breathRate: 0.3
+  bobFrequency: 1.8
+  bobReferenceSpeed: 4
+  walkBobAmplitude: {x: 18, y: 14}
+  runBobAmplitude: {x: 30, y: 24}
+  runLower: 60
+  runTilt: -6
+  bobBlendSpeed: 6
+  swayPerMouseUnit: 12
+  swayMax: 40
+  swaySmoothing: 10
+  swayTiltPerPixel: 0.06
+  kickOffset: {x: 40, y: -60}
+  kickRotation: 8
+  kickSquash: {x: 1.1, y: 0.9}
+  kickSpringFrequency: 32
+  kickSpringDamping: 0.7
+  reloadDip: 500
+  reloadEase: 0.4
+  aimInTime: 0.15
+  aimOutTime: 0.12
+  aimSightPoint: {x: 960.5, y: 575}
+  sightVersion: 1
+  aimOffset: {x: 0, y: 0}
+  aimOffsetNoSprite: {x: -320, y: 140}
+  aimScaleNoSprite: 1.15
+  aimSwapPunch: 1.03
+  aimFovDelta: 15
+  aimBobMultiplier: 0.25
+  aimSwayMultiplier: 0.3
+  aimBreathMultiplier: 0.5
+  aimKickMultiplier: 0.6

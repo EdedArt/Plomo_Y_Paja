@@ -62,3 +62,25 @@ Assets/StreamingAssets/openai_key.txt.meta
 
 # graphify: el grafo se sube al repo, la cache no
 graphify-out/cache/
+graphify-out/.graphify_python
+graphify-out/.graphify_root
+# estado local de graphify (rutas absolutas, costos, etiquetas): se regenera, no se versiona
+graphify-out/manifest.json
+graphify-out/cost.json
+graphify-out/.graphify_labels.json
+# cache de graphify cuando se corre sobre la carpeta de Scripts
+**/graphify-out/cache/
+**/Assets/**/graphify-out/
+**/Assets/**/graphify-out.meta
+
+# audio entrante de Cristian (originales; lo importado vive en Assets/_Game/Audio)
+PLOMO_Y_PAJAV_1/_entrante_audio/
+
+# arte del viewmodel original (fondo verde); lo recortado vive en Assets/_Game/Art/Viewmodel
+PLOMO_Y_PAJAV_1/_entrante_viewmodel/
+
+# bytecode de las herramientas Python
+__pycache__/
+
+# originales de personajes (croma magenta; lo importado vive en Assets/_Game/Art/Characters)
+PLOMO_Y_PAJAV_1/_entrante_personajes/

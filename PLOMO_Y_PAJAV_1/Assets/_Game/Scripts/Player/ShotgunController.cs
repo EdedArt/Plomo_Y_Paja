@@ -18,7 +18,7 @@ using UnityEngine.Events;
 /// Dispara múltiples "pellets" (perdigones) con dispersión aleatoria.
 /// Eso da el efecto scatter característico de la escopeta.
 /// </summary>
-public class ShotgunController : MonoBehaviour
+public class ShotgunController : MonoBehaviour, IWeapon
 {
     [Header("Configuración del arma")]
     [Tooltip("Daño por perdigón — la escopeta dispara varios a la vez")]
@@ -29,6 +29,9 @@ public class ShotgunController : MonoBehaviour
 
     [Tooltip("Ángulo de dispersión en grados (más alto = más imprecisa)")]
     [SerializeField] private float spreadAngle = 5f;
+
+    [Tooltip("Multiplicador de la dispersión mientras se apunta (clic derecho, PlayerAim)")]
+    [SerializeField] private float aimSpreadMultiplier = 0.6f;
 
     [Tooltip("Alcance máximo del disparo en metros")]
     [SerializeField] private float range = 30f;
@@ -77,10 +80,21 @@ public class ShotgunController : MonoBehaviour
     [Tooltip("Se llama cuando el jugador mata a un enemigo")]
     public UnityEvent onEnemyKilled;
 
+    // ============ Eventos de código (viewmodel, efectos, audio) ============
+    // System.Action con nombre completo: "using System" chocaría con UnityEngine.Random
+    public event System.Action OnFired;
+    public event System.Action OnReloadStarted;
+    public event System.Action OnReloadFinished;
+    public event System.Action OnDryFire;
+
+    /// <summary>Segundos tras el disparo en que suena el bombeo de la corredera.</summary>
+    private const float PumpDelay = 0.35f;
+
     // ============ Estado interno ============
     private bool _canFire = true;
     private bool _isReloading = false;
     private Animator _animator;
+    private PlayerAim _aim;
 
     // ============ Hashes del Animator (más eficiente que strings) ============
     private static readonly int FireHash = Animator.StringToHash("Fire");
@@ -92,6 +106,7 @@ public class ShotgunController : MonoBehaviour
         // con el que "?." no funciona
         TryGetComponent(out _animator);
         TryGetComponent(out _audioSource);
+        _aim = GetComponentInParent<PlayerAim>();
 
         // Si no se asignó la cámara en el Inspector, buscarla automáticamente
         if (playerCamera == null)
@@ -115,9 +130,15 @@ public class ShotgunController : MonoBehaviour
         if (Input.GetButtonDown("Fire1") && _canFire && !_isReloading)
         {
             if (currentAmmo > 0)
+            {
                 StartCoroutine(Fire());
+            }
             else
-                PlaySound(emptySound); // Clic de gatillo vacío
+            {
+                // Clic de gatillo vacío
+                OnDryFire?.Invoke();
+                if (!AudioLibrary.PlaySfx2D("escopeta_vacia")) PlaySound(emptySound);
+            }
         }
 
         // Recarga manual: tecla R
@@ -137,8 +158,9 @@ public class ShotgunController : MonoBehaviour
 
         // 1. Efectos inmediatos
         if (muzzleFlash != null) muzzleFlash.Play(); // ?. no sirve con campos de Unity sin asignar
-        PlaySound(fireSound);
+        if (!AudioLibrary.PlaySfx2D("escopeta_disparo")) PlaySound(fireSound);
         if (_animator != null) _animator.SetTrigger(FireHash);
+        StartCoroutine(PlayPumpSound());
 
         // 2. Disparar cada perdigón como un raycast
         for (int i = 0; i < pelletsPerShot; i++)
@@ -149,6 +171,7 @@ public class ShotgunController : MonoBehaviour
         // 3. Restar munición y actualizar UI
         currentAmmo--;
         onAmmoChanged?.Invoke(currentAmmo, reserveAmmo);
+        OnFired?.Invoke();
 
         // 4. Auto-recarga si el cargador quedó vacío y hay reserva
         if (currentAmmo <= 0 && reserveAmmo > 0)
@@ -170,11 +193,11 @@ public class ShotgunController : MonoBehaviour
     {
         // Calcular una dirección con dispersión aleatoria dentro del spreadAngle
         Vector3 shootDirection = playerCamera.transform.forward;
-        shootDirection += new Vector3(
-            Random.Range(-spreadAngle, spreadAngle) * 0.01f,
-            Random.Range(-spreadAngle, spreadAngle) * 0.01f,
-            0f
-        );
+        float spread = spreadAngle * (_aim != null && _aim.IsAiming ? aimSpreadMultiplier : 1f);
+        // La dispersión va en los ejes de la CÁMARA (derecha y arriba), no en los del mundo: el cono queda centrado
+        // en la mira mirando hacia donde sea. Misma magnitud que antes (spread · 0.01 por eje).
+        shootDirection += playerCamera.transform.right * (Random.Range(-spread, spread) * 0.01f)
+                        + playerCamera.transform.up * (Random.Range(-spread, spread) * 0.01f);
         shootDirection.Normalize();
 
         Ray ray = new Ray(playerCamera.transform.position, shootDirection);
@@ -189,12 +212,26 @@ public class ShotgunController : MonoBehaviour
                 if (killed) onEnemyKilled?.Invoke();
             }
 
+            // ¿Otro blanco que no es guardia? (Centavo, fase 3C.2). Solo se mira si no hubo EnemyHealth.
+            else if (TryGetDamageable(hit.collider, out IDamageable target))
+            {
+                if (target.TakeDamage(damagePerPellet)) onEnemyKilled?.Invoke();
+            }
+
             // ¿Impactó en una superficie (pared, suelo)?
             else if (bulletHolePrefab != null)
             {
                 SpawnBulletHole(hit);
             }
         }
+    }
+
+    /// <summary>Busca un IDamageable en el collider o sus padres (comparación de Unity si es un componente).</summary>
+    private static bool TryGetDamageable(Collider collider, out IDamageable target)
+    {
+        target = collider.GetComponentInParent<IDamageable>();
+        if (target is Object unityObject) return unityObject != null;
+        return target != null;
     }
 
     /// <summary>
@@ -217,10 +254,17 @@ public class ShotgunController : MonoBehaviour
     private IEnumerator Reload()
     {
         _isReloading = true;
-        PlaySound(reloadSound);
         if (_animator != null) _animator.SetTrigger(ReloadHash);
+        OnReloadStarted?.Invoke();
 
-        yield return new WaitForSeconds(reloadTime);
+        // Un "clac" por cartucho repartido en el tiempo de recarga
+        int shells = Mathf.Max(1, Mathf.Min(maxAmmoInMag - currentAmmo, reserveAmmo));
+        float interval = reloadTime / shells;
+        for (int i = 0; i < shells; i++)
+        {
+            yield return new WaitForSeconds(interval);
+            if (!AudioLibrary.PlaySfx2D("escopeta_cargar") && i == 0) PlaySound(reloadSound);
+        }
 
         // Calcular cuántas balas se necesitan y si hay suficientes en reserva
         int ammoNeeded = maxAmmoInMag - currentAmmo;
@@ -231,6 +275,13 @@ public class ShotgunController : MonoBehaviour
 
         onAmmoChanged?.Invoke(currentAmmo, reserveAmmo);
         _isReloading = false;
+        OnReloadFinished?.Invoke();
+    }
+
+    private IEnumerator PlayPumpSound()
+    {
+        yield return new WaitForSeconds(PumpDelay);
+        AudioLibrary.PlaySfx2D("escopeta_bombeo");
     }
 
     private void PlaySound(AudioClip clip)
@@ -243,6 +294,10 @@ public class ShotgunController : MonoBehaviour
     public int CurrentAmmo => currentAmmo;
     public int ReserveAmmo => reserveAmmo;
     public bool IsReloading => _isReloading;
+    /// <summary>Dispersión actual (con el multiplicador de apuntar). Solo lectura, para la mira del HUD; ShootPellet no cambió.</summary>
+    public float SpreadAngle => spreadAngle * (_aim != null && _aim.IsAiming ? aimSpreadMultiplier : 1f);
+    /// <summary>Segundos que dura la recarga (el viewmodel sincroniza la bajada de manos con esto).</summary>
+    public float ReloadDuration => reloadTime;
 
     /// <summary>
     /// Añadir balas a la reserva (cuando el jugador recoge munición).

@@ -48,3 +48,7 @@ AUDIT <TASK>
 6. Pasos manuales
 7. Commits (hash - message)
 ```
+
+### Phases
+- The project runs in gated phases defined in `docs/phases/`.
+- Read `docs/phases/README.md` before executing any phase file.

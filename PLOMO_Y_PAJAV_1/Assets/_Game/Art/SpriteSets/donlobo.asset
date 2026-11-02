@@ -1,0 +1,32 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 20882899d7d7462a9035f02c34114ba7, type: 3}
+  m_Name: donlobo
+  m_EditorClassIdentifier: 
+  characterId: donlobo
+  clips:
+  - name: idle
+    frames:
+    - {fileID: 21300000, guid: a234da5065f115e4282a6d858de6d1d9, type: 3}
+    fps: 4
+  - name: shoot
+    frames:
+    - {fileID: 21300000, guid: 4182634f6604c2046bfda0dbed0e500a, type: 3}
+    fps: 10
+  - name: surrender
+    frames:
+    - {fileID: 21300000, guid: 35c1dab5db91c294991849454752df10, type: 3}
+    fps: 4
+  - name: talk
+    frames:
+    - {fileID: 21300000, guid: 0f5c90f3450bd5c44acfd600623a6af9, type: 3}
+    fps: 6

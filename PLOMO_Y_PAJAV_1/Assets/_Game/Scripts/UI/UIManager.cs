@@ -217,6 +217,14 @@ public class UIManager : MonoBehaviour
     /// Mostrar el panel de diálogo con las opciones del jugador.
     /// onOptionSelected: callback que se llama con el índice de la opción elegida.
     /// </summary>
+    /// <summary>Oculta la mira mientras se apunta (PlayerAim.OnAimChanged). Con el diálogo abierto sigue oculta.</summary>
+    public void SetCrosshairHiddenByAim(bool hidden)
+    {
+        if (crosshair == null) return;
+        bool dialogueOpen = dialoguePanel != null && dialoguePanel.activeSelf;
+        crosshair.SetActive(!hidden && !dialogueOpen);
+    }
+
     public void ShowDialogue(string npcName, string dialogueText, List<string> options, Action<int> onOptionSelected)
     {
         if (dialoguePanel != null) dialoguePanel.SetActive(true);
