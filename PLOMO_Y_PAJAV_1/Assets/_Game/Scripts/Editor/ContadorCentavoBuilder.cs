@@ -98,6 +98,7 @@ public static class ContadorCentavoBuilder
             voice.ignoreListenerPause = true;
             LipSyncDriver lipSync = root.AddComponent<LipSyncDriver>();
             CentavoController controller = root.AddComponent<CentavoController>();
+            CentavoInterrogation interrogation = root.AddComponent<CentavoInterrogation>(); // escena (3C.3)
 
             // Dibujo
             Transform visual = new GameObject("Visual").transform;
@@ -178,6 +179,14 @@ public static class ContadorCentavoBuilder
             so.FindProperty("muzzleFlash").objectReferenceValue = flash;
             so.FindProperty("droppedRevolver").objectReferenceValue = revolver;
             so.ApplyModifiedPropertiesWithoutUndo();
+
+            // Canvas del interrogatorio, si ya se creó (si no, lo enlaza "Crear UI de interrogatorio")
+            var canvasPrefab = AssetDatabase.LoadAssetAtPath<InterrogationDirector>(InterrogationUIBuilder.PrefabPath);
+            var interrogationSo = new SerializedObject(interrogation);
+            interrogationSo.FindProperty("canvasPrefab").objectReferenceValue = canvasPrefab;
+            interrogationSo.ApplyModifiedPropertiesWithoutUndo();
+            if (canvasPrefab == null)
+                report.AppendLine("⚠ Falta InterrogationCanvas: correr Plomo y Paja → Contador → Crear UI de interrogatorio.");
 
             GameObject prefab = PrefabUtility.SaveAsPrefabAsset(root, PrefabPath);
             report.AppendLine(prefab != null ? $"✓ Prefab {PrefabPath}" : $"✗ No se pudo guardar {PrefabPath}");

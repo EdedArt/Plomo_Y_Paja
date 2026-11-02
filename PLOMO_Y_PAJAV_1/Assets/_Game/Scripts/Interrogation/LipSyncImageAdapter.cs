@@ -14,6 +14,7 @@ public class LipSyncImageAdapter : MonoBehaviour
     [SerializeField] private Sprite openSprite;
 
     private Image _image;
+    private Sprite _override;
 
     private void Awake()
     {
@@ -33,6 +34,15 @@ public class LipSyncImageAdapter : MonoBehaviour
         Apply();
     }
 
+    /// <summary>Muestra este cuadro en lugar del par mientras no sea null (ej: blink_01 en silencio).</summary>
+    public void SetOverride(Sprite sprite)
+    {
+        _override = sprite;
+        Apply();
+    }
+
+    public bool IsOpen => driver != null && driver.IsOpen;
+
     private void LateUpdate()
     {
         Apply();
@@ -41,6 +51,11 @@ public class LipSyncImageAdapter : MonoBehaviour
     private void Apply()
     {
         if (_image == null) return;
+        if (_override != null)
+        {
+            if (_image.sprite != _override) _image.sprite = _override;
+            return;
+        }
         bool open = driver != null && driver.IsOpen;
         Sprite target = open && openSprite != null ? openSprite : closedSprite;
         if (target != null && _image.sprite != target) _image.sprite = target;

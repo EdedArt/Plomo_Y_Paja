@@ -21,7 +21,7 @@ using UnityEngine;
 /// DAÑO: IDamageable (ShotgunController lo busca solo si no hay EnemyHealth: los guardias no cambian).
 /// TODAS las posiciones salen de ContadorShed (anclas del prefab del cuarto), nunca de coordenadas fijas.
 /// </summary>
-public class CentavoController : MonoBehaviour, IDamageable
+public class CentavoController : MonoBehaviour, IDamageable, IInterrogationTarget
 {
     public enum State { Dormant, Alert, Combat, Hit, Wounded, Interrogation, Dead, Fleeing, Gone }
 
@@ -129,6 +129,11 @@ public class CentavoController : MonoBehaviour, IDamageable
 
     /// <summary>¿Se puede empezar el interrogatorio ahora?</summary>
     public bool CanBeInterrogated => _state == State.Wounded;
+
+    // IInterrogationTarget (fase 3C.3)
+    public string SpeakerName => "CENTAVO";
+    public Transform CameraAnchor => shed != null ? shed.InterrogationCamAnchor : null;
+    public CharacterSpriteSet PortraitSet => billboard != null ? billboard.SpriteSet : null;
 
     // Máscara de vista: todo menos Ignore Raycast (2), UI (5) y Viewmodel (8)
     private const int SightMask = ~((1 << 2) | (1 << 5) | (1 << 8));

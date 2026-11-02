@@ -35,8 +35,8 @@ public class GameManager : MonoBehaviour
 
     private void Update()
     {
-        // Pausa con Escape
-        if (Input.GetKeyDown(KeyCode.Escape) && !gameIsOver)
+        // Pausa con Escape (desactivada durante el interrogatorio: la escena ya congela el tiempo, fase 3C.3)
+        if (Input.GetKeyDown(KeyCode.Escape) && !gameIsOver && !InterrogationDirector.IsActive)
         {
             TogglePause();
         }

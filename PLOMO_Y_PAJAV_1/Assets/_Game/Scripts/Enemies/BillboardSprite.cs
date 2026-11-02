@@ -449,6 +449,9 @@ public class BillboardSprite : MonoBehaviour
         SetAnim(anim, loop);
     }
 
+    /// <summary>Set de sprites en uso (el retrato del interrogatorio usa el mismo, fase 3C.3).</summary>
+    public CharacterSpriteSet SpriteSet => spriteSet;
+
     /// <summary>¿El set tiene esta animación con al menos un cuadro?</summary>
     public bool HasAnim(string anim) => _useSet && spriteSet.TryGet(anim, out _);
 

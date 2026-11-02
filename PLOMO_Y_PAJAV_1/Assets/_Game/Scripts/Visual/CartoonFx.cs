@@ -135,6 +135,15 @@ public class CartoonFx : MonoBehaviour
         Instance.SpawnDeath(headPosition, groundPosition);
     }
 
+    /// <summary>¿Hay un hit-stop en curso? (timeScale está en 0 solo por él).</summary>
+    public static bool IsHitStopActive => Instance != null && Instance._hitStop != null;
+
+    /// <summary>
+    /// true = otro sistema es dueño de Time.timeScale (el interrogatorio, fase 3C.3): no empiezan hit-stops nuevos y
+    /// el que esté en curso, al terminar, no devuelve la escala a 1. Quien lo pone en true la restaura él mismo.
+    /// </summary>
+    public static bool TimeHeld { get; set; }
+
     /// <summary>Congela el juego unos milisegundos (tiempo real). Siempre restaura la escala de tiempo.</summary>
     public static void HitStop(float seconds)
     {
@@ -417,7 +426,7 @@ public class CartoonFx : MonoBehaviour
         if (_hitStop != null) return;
 
         // No congelar si el juego ya está en pausa (o algo más controla el tiempo)
-        if (Time.timeScale < 1f) return;
+        if (Time.timeScale < 1f || TimeHeld) return;
         _hitStop = StartCoroutine(HitStopRoutine());
     }
 
@@ -434,6 +443,6 @@ public class CartoonFx : MonoBehaviour
     {
         // Si durante el hit-stop se pausó el juego, la pausa manda
         bool paused = GameManager.Instance != null && GameManager.Instance.IsGamePaused;
-        if (!paused && Time.timeScale == 0f) Time.timeScale = 1f;
+        if (!paused && !TimeHeld && Time.timeScale == 0f) Time.timeScale = 1f;
     }
 }
