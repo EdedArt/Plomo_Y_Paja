@@ -27,14 +27,23 @@ public class ShotgunController : MonoBehaviour, IWeapon
     [Tooltip("Número de perdigones por disparo (escopeta: entre 6 y 12)")]
     [SerializeField] private int pelletsPerShot = 8;
 
-    [Tooltip("Ángulo de dispersión en grados (más alto = más imprecisa)")]
-    [SerializeField] private float spreadAngle = 5f;
+    [Tooltip("Dispersión (unidades de ShootPellet: cada eje se desvía hasta spread·0.01). 3C.5 (D14): 7.5 = ×1.5 del 5 original")]
+    [SerializeField] private float spreadAngle = 7.5f;
 
     [Tooltip("Multiplicador de la dispersión mientras se apunta (clic derecho, PlayerAim)")]
     [SerializeField] private float aimSpreadMultiplier = 0.6f;
 
     [Tooltip("Alcance máximo del disparo en metros")]
     [SerializeField] private float range = 30f;
+
+    [Header("Caída del daño con la distancia (3C.5, D14: la escopeta es de corta distancia)")]
+    [Tooltip("Hasta esta distancia (m) cada perdigón hace el 100 % del daño")]
+    [SerializeField] private float falloffStart = 6f;
+    [Tooltip("A esta distancia (m) el perdigón hace falloffEndMultiplier del daño (bajada lineal desde falloffStart)")]
+    [SerializeField] private float falloffEnd = 20f;
+    [SerializeField, Range(0f, 1f)] private float falloffEndMultiplier = 0.25f;
+    [Tooltip("Desde falloffEnd el daño sigue bajando en línea hasta 0 a esta distancia (m)")]
+    [SerializeField] private float zeroDamageDistance = 30f;
 
     [Header("Munición")]
     [Tooltip("Balas en el cargador actual")]
@@ -93,6 +102,7 @@ public class ShotgunController : MonoBehaviour, IWeapon
     // ============ Estado interno ============
     private bool _canFire = true;
     private bool _isReloading = false;
+    private Coroutine _reloadRoutine;
     private Animator _animator;
     private PlayerAim _aim;
 
@@ -133,6 +143,11 @@ public class ShotgunController : MonoBehaviour, IWeapon
             {
                 StartCoroutine(Fire());
             }
+            else if (reserveAmmo > 0)
+            {
+                // Vacía con reserva (p. ej. se cambió de arma antes de la recarga automática): recargar
+                StartReload();
+            }
             else
             {
                 // Clic de gatillo vacío
@@ -144,7 +159,7 @@ public class ShotgunController : MonoBehaviour, IWeapon
         // Recarga manual: tecla R
         if (Input.GetKeyDown(KeyCode.R) && !_isReloading && currentAmmo < maxAmmoInMag && reserveAmmo > 0)
         {
-            StartCoroutine(Reload());
+            StartReload();
         }
     }
 
@@ -177,7 +192,8 @@ public class ShotgunController : MonoBehaviour, IWeapon
         if (currentAmmo <= 0 && reserveAmmo > 0)
         {
             yield return new WaitForSeconds(0.3f); // Pequeña pausa antes de recargar
-            StartCoroutine(Reload());
+            // Si mientras tanto se cambió de arma (componente apagado) no recarga a escondidas: lo hace al volver
+            if (isActiveAndEnabled && !_isReloading) StartReload();
         }
 
         // 5. Esperar antes de poder disparar de nuevo (fire rate)
@@ -205,17 +221,18 @@ public class ShotgunController : MonoBehaviour, IWeapon
         if (Physics.Raycast(ray, out RaycastHit hit, range))
         {
             // ¿Impactó a un enemigo?
+            float damage = damagePerPellet * DamageMultiplierAt(hit.distance);
             EnemyHealth enemyHealth = hit.collider.GetComponentInParent<EnemyHealth>();
             if (enemyHealth != null)
             {
-                bool killed = enemyHealth.TakeDamage(damagePerPellet);
+                bool killed = damage > 0f && enemyHealth.TakeDamage(damage);
                 if (killed) onEnemyKilled?.Invoke();
             }
 
             // ¿Otro blanco que no es guardia? (Centavo, fase 3C.2). Solo se mira si no hubo EnemyHealth.
             else if (TryGetDamageable(hit.collider, out IDamageable target))
             {
-                if (target.TakeDamage(damagePerPellet)) onEnemyKilled?.Invoke();
+                if (damage > 0f && target.TakeDamage(damage)) onEnemyKilled?.Invoke();
             }
 
             // ¿Impactó en una superficie (pared, suelo)?
@@ -224,6 +241,19 @@ public class ShotgunController : MonoBehaviour, IWeapon
                 SpawnBulletHole(hit);
             }
         }
+    }
+
+    /// <summary>
+    /// Multiplicador del daño por distancia (3C.5): 1 hasta falloffStart, baja en línea hasta falloffEndMultiplier en falloffEnd
+    /// y de ahí en línea hasta 0 en zeroDamageDistance.
+    /// </summary>
+    public float DamageMultiplierAt(float distance)
+    {
+        if (distance <= falloffStart) return 1f;
+        if (distance <= falloffEnd)
+            return Mathf.Lerp(1f, falloffEndMultiplier, (distance - falloffStart) / Mathf.Max(0.01f, falloffEnd - falloffStart));
+        if (distance >= zeroDamageDistance) return 0f;
+        return Mathf.Lerp(falloffEndMultiplier, 0f, (distance - falloffEnd) / Mathf.Max(0.01f, zeroDamageDistance - falloffEnd));
     }
 
     /// <summary>Busca un IDamageable en el collider o sus padres (comparación de Unity si es un componente).</summary>
@@ -246,6 +276,20 @@ public class ShotgunController : MonoBehaviour, IWeapon
 
         GameObject hole = Instantiate(bulletHolePrefab, position, rotation);
         Destroy(hole, bulletHoleDuration);
+    }
+
+    private void StartReload()
+    {
+        _reloadRoutine = StartCoroutine(Reload());
+    }
+
+    /// <summary>Cambio de arma (WeaponSwitcher): corta la recarga sin cargar cartuchos. No avisa OnReloadFinished.</summary>
+    public void CancelReload()
+    {
+        if (!_isReloading) return;
+        if (_reloadRoutine != null) StopCoroutine(_reloadRoutine);
+        _reloadRoutine = null;
+        _isReloading = false;
     }
 
     /// <summary>
@@ -275,6 +319,7 @@ public class ShotgunController : MonoBehaviour, IWeapon
 
         onAmmoChanged?.Invoke(currentAmmo, reserveAmmo);
         _isReloading = false;
+        _reloadRoutine = null;
         OnReloadFinished?.Invoke();
     }
 
@@ -293,6 +338,9 @@ public class ShotgunController : MonoBehaviour, IWeapon
     // ============ Getters para la UI ============
     public int CurrentAmmo => currentAmmo;
     public int ReserveAmmo => reserveAmmo;
+    public int LoadedRounds => currentAmmo;
+    public int MagazineSize => maxAmmoInMag;
+    public int ReserveRounds => reserveAmmo;
     public bool IsReloading => _isReloading;
     /// <summary>Dispersión actual (con el multiplicador de apuntar). Solo lectura, para la mira del HUD; ShootPellet no cambió.</summary>
     public float SpreadAngle => spreadAngle * (_aim != null && _aim.IsAiming ? aimSpreadMultiplier : 1f);

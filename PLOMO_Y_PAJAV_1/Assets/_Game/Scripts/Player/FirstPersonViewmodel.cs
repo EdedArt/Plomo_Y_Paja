@@ -153,6 +153,13 @@ public class FirstPersonViewmodel : MonoBehaviour
         if (_animator != null) _animator.HandleReloadFinished();
     }
 
+    /// <summary>Cambio de arma (WeaponSwitcher, 3C.5): las manos bajan y suben en `duration` (tiempo real), con la misma
+    /// bajada que la recarga sin cuadros. El perfil nuevo se pone a la mitad con SetProfile.</summary>
+    public void PlaySwitchDip(float duration)
+    {
+        if (_motion != null) _motion.StartReloadDip(duration);
+    }
+
     private void HandleDeath() => _dead = true;
 
     // ============ Canvas ============

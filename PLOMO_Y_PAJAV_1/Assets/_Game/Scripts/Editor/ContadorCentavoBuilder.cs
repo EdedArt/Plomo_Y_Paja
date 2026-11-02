@@ -21,7 +21,7 @@ using UnityEngine.SceneManagement;
 ///   ├── Hitbox (CapsuleCollider, capa Default: la toca la escopeta)
 ///   ├── Sfx (AudioSource 3D del disparo)
 ///   ├── Fogonazo (Point Light apagada)
-///   └── Revolver_Suelto (apagado; cae al recibir el golpe; capa Ignore Raycast)
+///   └── Revolver_Suelto (apagado; cae al recibir el golpe; capa Ignore Raycast; WeaponPickup = se recoge con E, 3C.5)
 /// </summary>
 public static class ContadorCentavoBuilder
 {
@@ -163,6 +163,7 @@ public static class ContadorCentavoBuilder
             Renderer revolverRenderer = revolver.GetComponent<Renderer>();
             revolverRenderer.sharedMaterial = CartoonKit.M("Metal");
             revolverRenderer.shadowCastingMode = UnityEngine.Rendering.ShadowCastingMode.Off;
+            revolver.AddComponent<WeaponPickup>(); // 3C.5 (D13): en el piso se recoge con E y pasa a ser el arma de Wilbur
             revolver.SetActive(false);
 
             var lipSo = new SerializedObject(lipSync);

@@ -1,4 +1,5 @@
 using System.Collections.Generic;
+using TMPro;
 using UnityEngine;
 using UnityEngine.UI;
 
@@ -16,6 +17,11 @@ using UnityEngine.UI;
 ///   stretch" (se alargan y se adelgazan) y vuelven en 0.12 s (tiempo real).
 /// - Se oculta al apuntar (PlayerAim), en diálogo, pausa y muerte.
 /// - Marcador de impacto: las marcas se ponen rojas 0.1 s cuando un enemigo recibe daño (EnemyHealth.OnDamaged).
+/// - Munición (3C.5): debajo de la mira, una fila de puntos chicos = balas del arma activa (llenos = cargadas, tenues =
+///   vacías) y "+N" = reserva. No hay HUD de munición (3B parte 4 pendiente); esto es lo mínimo. Sigue visible al apuntar.
+/// - Avisos (3C.5): ShowNotice(texto) (ej: "Revólver de Centavo") y SetPrompt(texto) (ej: "[E] Recoger el revólver"),
+///   en el mismo canvas porque el aviso de pistas y el prompt de UIManager no existen en las escenas.
+/// - WeaponSwitcher llama SetWeapon al cambiar de arma: las marcas leen la dispersión del arma activa.
 /// Los sprites se generan por código (sin PNG): una distancia con signo por forma, antialias de medio píxel de textura.
 /// CÓMO AJUSTAR EL DIBUJO: las constantes de arriba (radios y largo en px a 1080p) y baseRadius en el inspector.
 /// </summary>
@@ -51,11 +57,30 @@ public class RubberHoseCrosshair : MonoBehaviour
     [Tooltip("Suavizado de la apertura (más alto = sigue más rápido)")]
     [SerializeField] private float smoothing = 18f;
 
+    [Header("Munición y avisos (3C.5)")]
+    [SerializeField] private bool showAmmo = true;
+    [Tooltip("Distancia (px a 1080p) del centro a la fila de balas, hacia abajo")]
+    [SerializeField] private float ammoOffset = 34f;
+    [SerializeField] private float ammoSpacing = 11f;
+    [SerializeField, Range(0f, 1f)] private float emptyRoundAlpha = 0.22f;
+    [SerializeField] private float noticeSeconds = 2.5f;
+
+    /// <summary>La mira del jugador (para avisos de recogibles). Null si no hay.</summary>
+    public static RubberHoseCrosshair Current { get; private set; }
+
     private IWeapon _weapon;
     private PlayerAim _aim;
     private Camera _camera;
     private CharacterController _body;
     private Canvas _canvas;
+    private RectTransform _crosshairRoot;
+    private RectTransform _ammoRoot;
+    private readonly List<Image> _rounds = new List<Image>();
+    private TextMeshProUGUI _reserveText;
+    private TextMeshProUGUI _noticeText;
+    private TextMeshProUGUI _promptText;
+    private float _noticeUntil = -1f;
+    private int _shownLoaded = -1, _shownMagazine = -1, _shownReserve = -1;
     private readonly RectTransform[] _tickRects = new RectTransform[4];
     private readonly Image[] _ticks = new Image[4];
     private float _tickLength;
@@ -82,6 +107,35 @@ public class RubberHoseCrosshair : MonoBehaviour
         if (TryGetComponent(out PlayerHealth health)) health.OnDeath += HandleDeath;
         BuildUi();
         _radius = baseRadius;
+        Current = this;
+    }
+
+    /// <summary>Arma activa (WeaponSwitcher). Mueve la suscripción a OnFired y la fila de munición.</summary>
+    public void SetWeapon(IWeapon weapon)
+    {
+        if (weapon == _weapon) return;
+        if (isActiveAndEnabled && _weapon != null) _weapon.OnFired -= HandleFired;
+        _weapon = weapon;
+        if (isActiveAndEnabled && _weapon != null) _weapon.OnFired += HandleFired;
+        _shownMagazine = -1; // rehacer la fila
+    }
+
+    /// <summary>Aviso corto bajo la mira (tiempo real).</summary>
+    public void ShowNotice(string text)
+    {
+        if (_noticeText == null) return;
+        _noticeText.text = text;
+        _noticeText.enabled = true;
+        _noticeUntil = Time.unscaledTime + noticeSeconds;
+    }
+
+    /// <summary>Texto de interacción bajo la mira; null o vacío lo oculta.</summary>
+    public void SetPrompt(string text)
+    {
+        if (_promptText == null) return;
+        bool on = !string.IsNullOrEmpty(text);
+        if (on && _promptText.text != text) _promptText.text = text;
+        if (_promptText.enabled != on) _promptText.enabled = on;
     }
 
     private void OnEnable()
@@ -96,6 +150,7 @@ public class RubberHoseCrosshair : MonoBehaviour
 
     private void OnDestroy()
     {
+        if (Current == this) Current = null;
         foreach (EnemyHealth enemy in _watched)
             if (enemy != null) enemy.OnDamaged -= HandleEnemyDamaged;
         _watched.Clear();
@@ -129,6 +184,21 @@ public class RubberHoseCrosshair : MonoBehaviour
         var root = (RectTransform)rootGo.transform;
         root.anchorMin = root.anchorMax = root.pivot = new Vector2(0.5f, 0.5f);
         root.anchoredPosition = Vector2.zero;
+        _crosshairRoot = root;
+
+        // Munición y avisos: hermanos de la mira (siguen visibles al apuntar)
+        var ammoGo = new GameObject("Ammo", typeof(RectTransform));
+        ammoGo.transform.SetParent(canvasGo.transform, false);
+        _ammoRoot = (RectTransform)ammoGo.transform;
+        _ammoRoot.anchorMin = _ammoRoot.anchorMax = _ammoRoot.pivot = new Vector2(0.5f, 0.5f);
+        _ammoRoot.anchoredPosition = new Vector2(0f, -ammoOffset);
+        _reserveText = CreateText("Reserve", _ammoRoot, 15f, TextAlignmentOptions.Left);
+        _noticeText = CreateText("Notice", canvasGo.transform, 30f, TextAlignmentOptions.Center);
+        _noticeText.rectTransform.anchoredPosition = new Vector2(0f, -120f);
+        _noticeText.enabled = false;
+        _promptText = CreateText("Prompt", canvasGo.transform, 22f, TextAlignmentOptions.Center);
+        _promptText.rectTransform.anchoredPosition = new Vector2(0f, -78f);
+        _promptText.enabled = false;
 
         // Punto central
         float dotSize = (DotWhiteRadius + OutlineThickness) * 2f + SpriteMargin;
@@ -161,6 +231,60 @@ public class RubberHoseCrosshair : MonoBehaviour
         return image;
     }
 
+    private static TextMeshProUGUI CreateText(string name, Transform parent, float size, TextAlignmentOptions alignment)
+    {
+        var go = new GameObject(name, typeof(RectTransform));
+        go.transform.SetParent(parent, false);
+        TextMeshProUGUI text = go.AddComponent<TextMeshProUGUI>();
+        text.fontSize = size;
+        text.alignment = alignment;
+        text.color = Color.white;
+        text.outlineWidth = 0.25f;
+        text.outlineColor = new Color32(22, 22, 22, 255);
+        text.raycastTarget = false;
+        text.enableWordWrapping = false;
+        bool left = alignment == TextAlignmentOptions.Left;
+        RectTransform rt = text.rectTransform;
+        rt.anchorMin = rt.anchorMax = new Vector2(0.5f, 0.5f);
+        rt.pivot = new Vector2(left ? 0f : 0.5f, 0.5f);
+        rt.sizeDelta = new Vector2(left ? 60f : 900f, size * 1.4f);
+        return text;
+    }
+
+    /// <summary>Fila de balas del arma activa: un punto por bala del cargador, lleno = cargada. "+N" = reserva.</summary>
+    private void UpdateAmmo()
+    {
+        bool show = showAmmo && _weapon != null;
+        if (_ammoRoot.gameObject.activeSelf != show) _ammoRoot.gameObject.SetActive(show);
+        if (!show) return;
+
+        int magazine = Mathf.Clamp(_weapon.MagazineSize, 0, 12);
+        int loaded = _weapon.LoadedRounds;
+        int reserve = _weapon.ReserveRounds;
+        if (magazine == _shownMagazine && loaded == _shownLoaded && reserve == _shownReserve) return;
+
+        if (magazine != _shownMagazine)
+        {
+            float pip = ((DotWhiteRadius + OutlineThickness) * 2f + SpriteMargin) * 0.8f;
+            while (_rounds.Count < magazine)
+                _rounds.Add(CreateImage("Round" + _rounds.Count, _ammoRoot, _dotSprite, new Vector2(pip, pip)));
+            float start = -(magazine - 1) * ammoSpacing * 0.5f;
+            for (int i = 0; i < _rounds.Count; i++)
+            {
+                bool used = i < magazine;
+                _rounds[i].gameObject.SetActive(used);
+                if (used) _rounds[i].rectTransform.anchoredPosition = new Vector2(start + i * ammoSpacing, 0f);
+            }
+            _reserveText.rectTransform.anchoredPosition = new Vector2(-start + ammoSpacing * 0.9f, 0f);
+        }
+        for (int i = 0; i < magazine; i++)
+            _rounds[i].color = new Color(1f, 1f, 1f, i < loaded ? 1f : emptyRoundAlpha);
+        _reserveText.text = "+" + reserve;
+        _shownMagazine = magazine;
+        _shownLoaded = loaded;
+        _shownReserve = reserve;
+    }
+
     /// <summary>radius = distancia del centro a la punta de cada gota; pop 0..1 la alarga y la adelgaza (squash and stretch).</summary>
     private void PlaceTicks(float radius, float pop)
     {
@@ -179,8 +303,19 @@ public class RubberHoseCrosshair : MonoBehaviour
 
     private void Update()
     {
-        bool hidden = _dead || (_aim != null && _aim.IsAiming) || PlayerAim.GameplayBlocked();
-        if (_canvas.enabled == hidden) _canvas.enabled = !hidden;
+        bool blocked = _dead || PlayerAim.GameplayBlocked();
+        if (_canvas.enabled == blocked) _canvas.enabled = !blocked;
+        if (blocked) return;
+
+        UpdateAmmo();
+        if (_noticeUntil > 0f && Time.unscaledTime >= _noticeUntil)
+        {
+            _noticeUntil = -1f;
+            _noticeText.enabled = false;
+        }
+
+        bool hidden = _aim != null && _aim.IsAiming;
+        if (_crosshairRoot.gameObject.activeSelf == hidden) _crosshairRoot.gameObject.SetActive(!hidden);
         if (hidden) return;
 
         float dt = ViewmodelTime.Delta;

@@ -241,7 +241,7 @@ public static class ViewmodelProfileBuilder
     /// </summary>
     public static ViewmodelProfile GetOrCreateRevolverProfile()
     {
-        return BuildProfile("revolver", "Revolver", "VM_Revolver", "fx_fogonazo", p =>
+        ViewmodelProfile profile = BuildProfile("revolver", "Revolver", "VM_Revolver", "fx_fogonazo", p =>
         {
             p.hipMuzzle = new Vector2(1185f, 690f);   // boca del cañón en el cuadro "fire" (estimada)
             p.aimMuzzle = new Vector2(960f, 545f);    // boca del cañón apuntando (estimada)
@@ -249,6 +249,27 @@ public static class ViewmodelProfileBuilder
             p.kickOffset = new Vector2(30f, -45f);
             p.kickRotation = 6f;
         });
+        ApplyRevolverReloadSequence(profile);
+        return profile;
+    }
+
+    /// <summary>Segundos de la recarga completa del revólver (RevolverController.reloadTime por defecto, fase 3C.5).</summary>
+    public const float RevolverReloadSeconds = 2.2f;
+
+    /// <summary>
+    /// Fase 3C.5: la recarga del revólver es completa (no bala por bala). Con los 3 cuadros (abrir, meter, cerrar) se arma la
+    /// secuencia abrir → meter → abrir → meter → abrir → meter → cerrar, repartida en RevolverReloadSeconds: se lee como
+    /// "meter balas" sin las balas visibles de VM2 (el arte tiene 5 huecos y el tambor de Centavo, 6).
+    /// ViewmodelAnimator la pasa una vez (el clip de recarga se repite, pero dura justo lo que la recarga).
+    /// </summary>
+    private static void ApplyRevolverReloadSequence(ViewmodelProfile profile)
+    {
+        Sprite[] r = profile.reload.frames;
+        if (r == null || r.Length != 3) return; // sin los 3 cuadros: queda lo que haya (o la bajada de manos)
+        profile.reload.frames = new[] { r[0], r[1], r[0], r[1], r[0], r[1], r[2] };
+        profile.reload.fps = profile.reload.frames.Length / RevolverReloadSeconds;
+        EditorUtility.SetDirty(profile);
+        AssetDatabase.SaveAssets();
     }
 
     public static ViewmodelProfile BuildProfile(string weaponId, string weaponFolder, string assetName, string flashPrefix,

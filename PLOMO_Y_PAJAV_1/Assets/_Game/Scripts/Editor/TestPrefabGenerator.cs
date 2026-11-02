@@ -254,6 +254,51 @@ public static class TestPrefabGenerator
     }
 
     /// <summary>
+    /// Fase 3C.5 (idempotente): GameObject "Revolver" (RevolverController + AudioSource, componente apagado: sin dueño hasta
+    /// recoger el de Centavo) junto a la escopeta, WeaponSwitcher en el Player con los dos perfiles, y la dispersión de la
+    /// escopeta × 1.5 (D14) solo si sigue en el valor viejo (5): un ajuste a mano en el Inspector no se pisa.
+    /// </summary>
+    private static void EnsureRevolverAndSwitcher(GameObject contents, Camera cam, ShotgunController shotgun)
+    {
+        if (shotgun != null)
+        {
+            var shotgunSo = new SerializedObject(shotgun);
+            SerializedProperty spread = shotgunSo.FindProperty("spreadAngle");
+            if (Mathf.Approximately(spread.floatValue, 5f)) spread.floatValue = 7.5f;
+            shotgunSo.ApplyModifiedPropertiesWithoutUndo();
+        }
+
+        RevolverController revolver = contents.GetComponentInChildren<RevolverController>(true);
+        if (revolver == null)
+        {
+            Transform parent = cam != null ? cam.transform : contents.transform;
+            var revolverGo = new GameObject("Revolver");
+            revolverGo.transform.SetParent(parent, false);
+            revolverGo.transform.localPosition = new Vector3(0.25f, -0.25f, 0.5f);
+            revolver = revolverGo.AddComponent<RevolverController>();
+            AudioSource audio = revolverGo.AddComponent<AudioSource>();
+            audio.playOnAwake = false;
+            audio.spatialBlend = 0f;
+        }
+        revolver.enabled = false; // WeaponSwitcher lo enciende cuando es el arma activa
+        if (cam != null)
+        {
+            var revolverSo = new SerializedObject(revolver);
+            revolverSo.FindProperty("playerCamera").objectReferenceValue = cam;
+            revolverSo.ApplyModifiedPropertiesWithoutUndo();
+        }
+
+        WeaponSwitcher switcher = contents.GetComponent<WeaponSwitcher>();
+        if (switcher == null) switcher = contents.AddComponent<WeaponSwitcher>();
+        var switcherSo = new SerializedObject(switcher);
+        switcherSo.FindProperty("shotgun").objectReferenceValue = shotgun;
+        switcherSo.FindProperty("revolver").objectReferenceValue = revolver;
+        switcherSo.FindProperty("shotgunProfile").objectReferenceValue = ViewmodelProfileBuilder.GetOrCreateShotgunProfile();
+        switcherSo.FindProperty("revolverProfile").objectReferenceValue = ViewmodelProfileBuilder.GetOrCreateRevolverProfile();
+        switcherSo.ApplyModifiedPropertiesWithoutUndo();
+    }
+
+    /// <summary>
     /// SampleScene solo trae movimiento y cámara: se añade lo que falta para poder probar
     /// (vida, escopeta) y se activa el post-procesado de la cámara. No se quita nada.
     /// </summary>
@@ -340,6 +385,9 @@ public static class TestPrefabGenerator
             if (gun != null && gun.GetComponent<ShotgunFeedback>() == null)
                 gun.gameObject.AddComponent<ShotgunFeedback>();
             EnsureCartoonFx(contents);
+
+            // Fase 3C.5: revólver de Centavo (segunda arma) + cambio de armas + balance de la escopeta
+            EnsureRevolverAndSwitcher(contents, cam, gun);
 
             // Lluvia ligera que sigue a la cámara (se apaga bajo techo)
             RainEmitter rain = contents.GetComponent<RainEmitter>();
