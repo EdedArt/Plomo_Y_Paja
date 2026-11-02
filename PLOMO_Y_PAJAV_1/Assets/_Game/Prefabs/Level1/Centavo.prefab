@@ -497,6 +497,7 @@ GameObject:
   - component: {fileID: 1560337288359361581}
   - component: {fileID: 9010541992088576508}
   - component: {fileID: 2221529228079146803}
+  - component: {fileID: 5757256257000925744}
   m_Layer: 0
   m_Name: Centavo
   m_TagString: Untagged
@@ -693,6 +694,20 @@ MonoBehaviour:
   coverHeight: 0.7
   seatedHeight: 1
   debug: 0
+--- !u!114 &5757256257000925744
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 6160877704486513882}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: b039783ed2504f0cb96255ffd5574c0a, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: 
+  canvasPrefab: {fileID: 2309262095403588181, guid: 519887b6c66f9ce40b5a6fff4cb3f596, type: 3}
+  demoThinkSeconds: 1.2
 --- !u!1 &6986781214080463522
 GameObject:
   m_ObjectHideFlags: 0
