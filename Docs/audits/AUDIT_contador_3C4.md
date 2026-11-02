@@ -207,3 +207,20 @@ Modificados:
 - `6686e85`: dia4(david): 3C.4 parte A, arreglos de la prueba de 3C.3 (papel con alpha, diseño Mouse P.I. ajustable, voces del mundo calladas en la escena)
 - `41a8dc0`: dia4(david): 3C.4 interrogatorio completo de Centavo (datos del guion, confianza, registro_01, pensamiento de la IA, decisión)
 - Commit siguiente: esta auditoría.
+
+
+# Esto es escrito por David
+- Aparece esto en consola 
+[Contador] UI de interrogatorio:
+⚠ Special Elite sin estos caracteres: ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789 .,;:¡!¿?…-—–'"«»()[]/*%$#&+=_áéíóúüñÁÉÍÓÚÜÑ
+✓ Papel: ui_papel_dialogo.png
+✓ Prefab Assets/_Game/Prefabs/UI/InterrogationCanvas.prefab
+✓ Centavo.prefab usa este canvas (CentavoInterrogation)
+
+Tambien se debe cambiar
+Mira como aparece las decisiones, se ve horrible y no encaja con el estilo, tambien cuando dejamos ir al contador debe aparecer una escena viendolo cogear mientras se aleja, y puede aparecer un pensamiento, osea 2 segundos viendolo cojear, y luego podemos quiza ver al cielo sin las manos, y algun pensamiento puede aparecer, asi para que el jugador no pueda seguir a centavo, y tambien cuando lo mate puede surgir otro pensamiento al igual que cuando lo salvamos.
+
+![alt text](image.png)
+
+Tambien necesitamos quitar el guardia que se interrogaba, ese ya no sirve si tenemos a centavo, toca quitar esa escena y colocar unos 3 - 4 guardias mas antes de centavo.
+![alt text](image-1.png)
