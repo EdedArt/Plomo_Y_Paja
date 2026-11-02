@@ -1,4 +1,5 @@
 using System;
+using System.Collections;
 using UnityEngine;
 
 /// <summary>
@@ -55,6 +56,8 @@ public class CentavoController : MonoBehaviour, IDamageable, IInterrogationTarge
     [SerializeField] private Light muzzleFlash;
     [Tooltip("Revolver suelto (apagado) que cae al recibir el golpe")]
     [SerializeField] private GameObject droppedRevolver;
+    [Tooltip("Metros a la derecha (del ancla sentado) donde cae el revólver, delante del banco (3C.5.1)")]
+    [SerializeField] private float revolverDropSide = 0.6f;
 
     [Header("Tamaño en el mundo (D12)")]
     [Tooltip("Escala de los cuadros sentados (llenan el lienzo de 2.05 m). 0.52 ≈ 1.06 m de alto, apoyado en el banco de 1 m")]
@@ -458,15 +461,39 @@ public class CentavoController : MonoBehaviour, IDamageable, IInterrogationTarge
         if (hitbox != null) hitbox.enabled = true;
     }
 
+    /// <summary>
+    /// 3C.5.1: el revólver cae DELANTE del banco, al lado de donde Centavo queda sentado, para que Wilbur lo vea y lo recoja
+    /// (D13). Antes salía despedido hacia atrás ("away") y caía detrás del banco, en la franja que los barriles y la caja
+    /// cierran a propósito (3C.1): no se veía ni se podía alcanzar.
+    /// </summary>
     private void DropRevolver(Vector3 away)
     {
         if (droppedRevolver == null) return;
+        Vector3 toPlayer = -away;
+        Vector3 start;
+        Vector3 landing;
+        if (shed != null && shed.SeatedAnchor != null)
+        {
+            Transform seat = shed.SeatedAnchor;
+            landing = seat.position + seat.right * revolverDropSide + seat.forward * 0.15f;
+            float top = shed.BenchCover != null ? shed.BenchCover.bounds.max.y : seat.position.y + 1f;
+            start = new Vector3(landing.x, top + 0.25f, landing.z);
+        }
+        else
+        {
+            landing = transform.position + toPlayer * 1.2f;
+            start = MuzzlePosition();
+        }
+
         droppedRevolver.transform.SetParent(null, true);
-        droppedRevolver.transform.position = MuzzlePosition();
+        droppedRevolver.transform.position = start;
+        if (droppedRevolver.TryGetComponent(out WeaponPickup pickup)) pickup.SetSafeSpot(landing + Vector3.up * 0.06f);
         droppedRevolver.SetActive(true);
         if (!droppedRevolver.TryGetComponent(out Rigidbody body)) body = droppedRevolver.AddComponent<Rigidbody>();
         body.mass = 0.8f;
-        body.velocity = away * 1.2f + Vector3.up * 2.2f;
+        body.collisionDetectionMode = CollisionDetectionMode.ContinuousDynamic; // pieza fina: que no atraviese el piso
+        body.interpolation = RigidbodyInterpolation.Interpolate;
+        body.velocity = toPlayer * 0.4f + Vector3.up * 0.8f;
         body.angularVelocity = UnityEngine.Random.insideUnitSphere * 9f;
     }
 
@@ -523,8 +550,8 @@ public class CentavoController : MonoBehaviour, IDamageable, IInterrogationTarge
 
     // ---------- Muerte y huida ----------
 
-    /// <param name="killHook">true = muerte "normal" (D4): cuenta para el tracker y la IA comenta como cualquier baja.
-    /// false = la escena de interrogatorio ya puso su pensamiento de la IA (D11).</param>
+    /// <param name="killHook">true = rematado antes de la escena (D4): en vez del comentario de baja al azar de la IA sale
+    /// SIEMPRE el pensamiento "lo rematas sin escucharlo" (3C.5.1). false = la escena ya puso su pensamiento (D11).</param>
     private void Die(bool killHook)
     {
         SetState(State.Dead);
@@ -543,7 +570,47 @@ public class CentavoController : MonoBehaviour, IDamageable, IInterrogationTarge
             GameStateTracker.Instance.RegisterContadorState(ContadorState.Dead);
             GameStateTracker.Instance.RegisterEnemyKilled("Centavo");
         }
-        if (killHook && AICompanion.Instance != null) AICompanion.Instance.Speak(AITrigger.EnemyKilled);
+        if (killHook) StartCoroutine(FinishedOffThought());
+    }
+
+    /// <summary>Última red si Interrogation_Contador.asset todavía no tiene las líneas (falta correr el menú de datos).</summary>
+    private const string FinishedOffLastResort = "Ni siquiera lo dejaste hablar. Lo que sabía se quedó en el suelo con él.";
+
+    /// <summary>
+    /// D4 sin escucharlo (3C.5.1): pide a la IA un pensamiento con RequestCustomLine y lo muestra SIEMPRE en los subtítulos
+    /// normales (AICompanion.ShowCustomLine): sin bloquear al jugador ni mover la cámara. Si la IA no contesta en
+    /// finishedOffTimeoutSeconds (tiempo real), sale una línea de respaldo de los datos. Una respuesta tardía se ignora.
+    /// </summary>
+    private IEnumerator FinishedOffThought()
+    {
+        AICompanion ai = AICompanion.Instance;
+        if (ai == null) yield break; // sin AICompanion no hay dónde mostrarlo
+
+        InterrogationData data = TryGetComponent(out CentavoInterrogation scene) ? scene.Data : null;
+        string fallback = PickFinishedOffFallback(data);
+        string situation = data != null && !string.IsNullOrEmpty(data.finishedOffSituation)
+            ? data.finishedOffSituation
+            : "Wilbur acaba de rematar a Centavo, herido y pidiendo que lo escuchara, sin escucharlo. Era el contador de Don Lobo " +
+              "y sabía de la deuda de Porky. Un pensamiento en español, noir y ambiguo, de como mucho 25 palabras.";
+        float timeout = data != null ? data.finishedOffTimeoutSeconds : 4f;
+
+        bool done = false;
+        string aiLine = null;
+        ai.RequestCustomLine(situation, line => { done = true; aiLine = line; });
+        float start = Time.unscaledTime;
+        while (!done && Time.unscaledTime - start < timeout) yield return null;
+
+        bool fromAi = done && !string.IsNullOrEmpty(aiLine);
+        if (ai != null) ai.ShowCustomLine(fromAi ? aiLine : fallback, !fromAi); // la de la IA ya entró al historial
+    }
+
+    private static string PickFinishedOffFallback(InterrogationData data)
+    {
+        var pool = new System.Collections.Generic.List<string>();
+        if (data != null && data.finishedOffThoughts != null)
+            foreach (InterrogationThought t in data.finishedOffThoughts)
+                if (t != null && !string.IsNullOrEmpty(t.text)) pool.Add(t.text);
+        return pool.Count > 0 ? pool[UnityEngine.Random.Range(0, pool.Count)] : FinishedOffLastResort;
     }
 
     private void StartFleeing()

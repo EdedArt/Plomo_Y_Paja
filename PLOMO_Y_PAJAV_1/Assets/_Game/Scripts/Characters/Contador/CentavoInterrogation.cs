@@ -34,6 +34,9 @@ public class CentavoInterrogation : MonoBehaviour
     [Tooltip("Data/Interrogation_Contador.asset (lo asigna el menú Crear datos del interrogatorio)")]
     [SerializeField] private InterrogationData data;
 
+    /// <summary>Datos del interrogatorio (CentavoController los usa para el pensamiento al rematarlo, 3C.5.1).</summary>
+    public InterrogationData Data => data;
+
     [Tooltip("Segundos que se ve a Centavo muerto en el retrato antes de salir")]
     [SerializeField, Min(0f)] private float killHoldSeconds = 0.8f;
 

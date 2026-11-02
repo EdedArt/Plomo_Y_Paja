@@ -18,7 +18,8 @@ public class ViewmodelArtImporter : AssetPostprocessor
     public const string ViewmodelFolder = "Assets/_Game/Art/Viewmodel";
 
     // Subir la versión reimporta todo el arte con los ajustes nuevos
-    public override uint GetVersion() => 2;
+    // 3: también fuerza textureShape = 2D (los PNG del revólver y sus FX venían con Cube: no generaban Sprite, fase 3C.5.1)
+    public override uint GetVersion() => 3;
 
     private static readonly HashSet<string> _triedFix = new HashSet<string>();
 
@@ -37,6 +38,7 @@ public class ViewmodelArtImporter : AssetPostprocessor
     private static void Apply(TextureImporter importer)
     {
         importer.textureType = TextureImporterType.Sprite;
+        importer.textureShape = TextureImporterShape.Texture2D; // con Cube Unity no crea el Sprite
         importer.spriteImportMode = SpriteImportMode.Single;
         importer.textureCompression = TextureImporterCompression.Uncompressed;
         importer.mipmapEnabled = true;
@@ -64,6 +66,7 @@ public class ViewmodelArtImporter : AssetPostprocessor
     private static bool NeedsFix(TextureImporter importer)
     {
         return importer.textureType != TextureImporterType.Sprite
+               || importer.textureShape != TextureImporterShape.Texture2D
                || importer.spriteImportMode != SpriteImportMode.Single
                || importer.textureCompression != TextureImporterCompression.Uncompressed
                || !importer.mipmapEnabled
@@ -94,6 +97,26 @@ public class ViewmodelArtImporter : AssetPostprocessor
         FixImporters(imported);
     }
 
+    /// <summary>
+    /// Arregla YA (sin el límite de una vez por sesión) los PNG de una carpeta del viewmodel con ajustes incorrectos.
+    /// La llama ViewmodelProfileBuilder antes de buscar los Sprites. Devuelve cuántos reimportó.
+    /// </summary>
+    public static int FixFolderNow(string folder)
+    {
+        if (!AssetDatabase.IsValidFolder(folder)) return 0;
+        int count = 0;
+        foreach (string guid in AssetDatabase.FindAssets("t:Texture", new[] { folder }))
+        {
+            string path = AssetDatabase.GUIDToAssetPath(guid);
+            if (!IsViewmodelTexture(path)) continue;
+            var importer = AssetImporter.GetAtPath(path) as TextureImporter;
+            if (importer == null || !NeedsFix(importer)) continue;
+            AssetDatabase.ImportAsset(path, ImportAssetOptions.ForceUpdate | ImportAssetOptions.ForceSynchronousImport);
+            count++;
+        }
+        return count;
+    }
+
     [InitializeOnLoadMethod]
     private static void CheckOnLoad()
     {
@@ -101,7 +124,8 @@ public class ViewmodelArtImporter : AssetPostprocessor
         {
             if (!AssetDatabase.IsValidFolder(ViewmodelFolder)) return;
             var paths = new List<string>();
-            foreach (string guid in AssetDatabase.FindAssets("t:Texture2D", new[] { ViewmodelFolder }))
+            // "t:Texture" (no "t:Texture2D"): también encuentra los PNG importados como Cube, que son los que hay que arreglar
+            foreach (string guid in AssetDatabase.FindAssets("t:Texture", new[] { ViewmodelFolder }))
                 paths.Add(AssetDatabase.GUIDToAssetPath(guid));
             FixImporters(paths);
         };
@@ -289,9 +313,15 @@ public static class ViewmodelProfileBuilder
             AssetDatabase.CreateAsset(profile, assetPath);
         }
 
+        // 3C.5.1: si algún PNG quedó con ajustes malos (p. ej. textureShape Cube = sin Sprite), se reimporta ya
+        string weaponPath = $"{folder}/{weaponFolder}";
+        int reimported = ViewmodelArtImporter.FixFolderNow(weaponPath) + ViewmodelArtImporter.FixFolderNow($"{folder}/FX");
+        if (reimported > 0) Debug.Log($"[Viewmodel] {reimported} PNG reimportados como Sprite 2D antes de armar {assetName}.");
+
         // clip → (número → sprite)
-        Dictionary<string, SortedDictionary<int, Sprite>> clips = LoadNumbered(
-            $"{folder}/{weaponFolder}", new Regex($@"^wilbur_vm_{Regex.Escape(weaponId)}_([a-z]+)_(\d+)$"));
+        var pattern = new Regex($@"^wilbur_vm_{Regex.Escape(weaponId)}_([a-z]+)_(\d+)$");
+        Dictionary<string, SortedDictionary<int, Sprite>> clips = LoadNumbered(weaponPath, pattern);
+        ReportMissing(assetName, weaponPath, pattern, clips);
 
         profile.idle.frames = Frames(clips, "idle");
         profile.fire.frames = Frames(clips, "fire");
@@ -320,6 +350,47 @@ public static class ViewmodelProfileBuilder
     }
 
     private static readonly string[] KnownClips = { "idle", "fire", "cycle", "reload", "aimidle", "aimfire", "aimcycle" };
+
+    /// <summary>
+    /// ✗ claro en la consola: PNG que están en la carpeta con el nombre correcto pero no dieron Sprite (importación mala), o
+    /// carpeta sin ningún PNG válido / sin idle (las manos no se verían).
+    /// </summary>
+    private static void ReportMissing(string assetName, string weaponPath, Regex pattern,
+                                      Dictionary<string, SortedDictionary<int, Sprite>> clips)
+    {
+        var problems = new List<string>();
+        string diskFolder = Path.Combine(Path.GetDirectoryName(Application.dataPath), weaponPath);
+        if (!Directory.Exists(diskFolder))
+        {
+            Debug.LogError($"[Viewmodel] ✗ {assetName}: no existe la carpeta {weaponPath}.");
+            return;
+        }
+        int matching = 0;
+        foreach (string file in Directory.GetFiles(diskFolder, "*.png"))
+        {
+            string name = Path.GetFileNameWithoutExtension(file).ToLowerInvariant();
+            Match m = pattern.Match(name);
+            if (!m.Success)
+            {
+                problems.Add($"{Path.GetFileName(file)} (nombre fuera del patrón wilbur_vm_<arma>_<clip>_<nn>.png)");
+                continue;
+            }
+            matching++;
+            bool loaded = clips.TryGetValue(m.Groups[1].Value, out var frames) && frames.ContainsKey(int.Parse(m.Groups[2].Value));
+            if (!loaded)
+            {
+                var importer = AssetImporter.GetAtPath($"{weaponPath}/{Path.GetFileName(file)}") as TextureImporter;
+                string why = importer == null ? "Unity no lo importó"
+                    : $"tipo {importer.textureType}, forma {importer.textureShape}, modo {importer.spriteImportMode}";
+                problems.Add($"{Path.GetFileName(file)} sin Sprite ({why})");
+            }
+        }
+        if (matching == 0) problems.Add($"ningún PNG con el patrón en {weaponPath}");
+        if (!clips.ContainsKey("idle")) problems.Add("falta el clip idle (sin él no se ven las manos)");
+
+        if (problems.Count > 0)
+            Debug.LogError($"[Viewmodel] ✗ {assetName}: faltan cuadros:\n  - " + string.Join("\n  - ", problems));
+    }
 
     private static Dictionary<string, SortedDictionary<int, Sprite>> LoadNumbered(string folder, Regex pattern)
     {

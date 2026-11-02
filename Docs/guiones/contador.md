@@ -134,6 +134,12 @@ Dos opciones grandes: **"Jalar el gatillo"** / **"Dejarlo ir"**.
 - *(solo si mintió)* "Murió mintiendo… o eso quieres creer, para que pese menos."
 - *(solo si dijo la verdad y no mintió)* "Te dijo la verdad y le pagaste con plomo."
 
+### Pensamiento si lo rematas sin escucharlo
+*(Agregado en la fase 3C.5.1.)* Si Wilbur le dispara a Centavo herido **antes** de la escena (D4), no hay interrogatorio. En vez del comentario de la IA que sale a veces al matar a un guardia, aparece **siempre** un pensamiento en los subtítulos normales del juego (sin bloquear al jugador ni mover la cámara). Lo genera la API ("remataste a Centavo, herido y pidiendo que lo escucharas, sin escucharlo; era el contador de Don Lobo y sabía de la deuda de Porky"). Si no hay conexión (o tarda más de 4 s), se usa una de estas líneas:
+- "Ni siquiera lo dejaste hablar. Lo que sabía se quedó en el suelo con él."
+- "Pedía que lo escucharas. Ahora ya no va a decir nada… ni a favor ni en contra de Porky."
+- "Un tiro rápido ahorra preguntas. También respuestas."
+
 ---
 
 ## 6. Resumen de audios para Cristian (29 archivos)
