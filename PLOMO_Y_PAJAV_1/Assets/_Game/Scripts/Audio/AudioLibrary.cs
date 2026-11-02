@@ -294,6 +294,23 @@ public class AudioLibrary : ScriptableObject
     /// <summary>Volumen general de efectos (para multiplicar en fuentes propias).</summary>
     public static float SfxVolume => _active != null ? _active.sfxVolume : 0.9f;
 
+    /// <summary>
+    /// Clip de una línea de voz para un AudioSource propio (ej: Centavo, que necesita su fuente para el lip-sync).
+    /// Devuelve null (y avisa una vez) si no hay clip.
+    /// </summary>
+    public static AudioClip GetVoice(string lineId)
+    {
+        AudioClip clip = _active != null ? _active.FindVoice(lineId) : null;
+        if (clip == null) LogMissingOnce("voz", lineId);
+        return clip;
+    }
+
+    /// <summary>¿Hay clip para esta línea? (sin avisar si falta).</summary>
+    public static bool HasVoice(string lineId) => _active != null && _active.FindVoice(lineId) != null;
+
+    /// <summary>Volumen general de voces (para multiplicar en fuentes propias).</summary>
+    public static float VoiceVolume => _active != null ? _active.voiceVolume : 1f;
+
     // ============ Búsqueda ============
 
     private AudioClip FindVoice(string lineId)

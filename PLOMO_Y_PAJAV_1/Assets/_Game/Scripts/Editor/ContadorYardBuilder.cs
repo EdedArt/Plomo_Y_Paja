@@ -135,7 +135,8 @@ public static class ContadorYardBuilder
     }
 
     /// <summary>
-    /// Crea/actualiza el prefab, lo coloca y arma la cerca, el portón y la luz. Lo usa el menú y "Generar Nivel Porky".
+    /// Crea/actualiza el prefab, lo coloca y arma la cerca, el portón y la luz; después coloca a Centavo
+    /// (ContadorCentavoBuilder, fase 3C.2). Lo usa el menú y "Generar Nivel Porky".
     /// No llama a CartoonKit.BeginSession (lo hace quien llama).
     /// </summary>
     public static void BuildInto(Transform environment, Transform lighting)
@@ -143,6 +144,11 @@ public static class ContadorYardBuilder
         GameObject prefab = BuildShedPrefab();
         PlaceShed(prefab, environment);
         BuildYard(environment, lighting);
+
+        // Fase 3C.2: Centavo en su ancla (idempotente; así "Generar Nivel Porky" no lo pierde)
+        var centavo = new StringBuilder();
+        if (ContadorCentavoBuilder.BuildAndPlace(centavo)) Debug.Log("[Contador] Centavo:\n" + centavo);
+        else Debug.LogWarning("[Contador] Centavo:\n" + centavo);
     }
 
     // ==================================================================

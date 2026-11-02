@@ -32,6 +32,11 @@ public class GameStateTracker : MonoBehaviour
     [SerializeField] private bool wolfKilled = false;
     [SerializeField] private bool wolfSpared = false;
 
+    // ===== Centavo, el contador de Don Lobo (fase 3C) =====
+    [SerializeField] private ContadorState contadorState = ContadorState.None;
+    [SerializeField] private ContadorInterrogation contadorInterrogation = ContadorInterrogation.None;
+    [SerializeField] private bool contadorLied = false;
+
     // ===== IA companion - para que recuerde el contexto =====
     [SerializeField] private List<string> aiContextLog = new List<string>(); // Últimas 5 acciones
 
@@ -41,6 +46,15 @@ public class GameStateTracker : MonoBehaviour
     public bool WolfKilled => wolfKilled;
     public bool WolfSpared => wolfSpared;
     public string AIContext => string.Join(". ", aiContextLog);
+    public ContadorState Contador => contadorState;
+    public ContadorInterrogation ContadorInterrogationResult => contadorInterrogation;
+    public bool ContadorLied => contadorLied;
+
+    /// <summary>Cambió qué pasó con Centavo (perdonado / muerto).</summary>
+    public event System.Action<ContadorState> OnContadorStateChanged;
+
+    /// <summary>Cambió el resultado del interrogatorio de Centavo (resultado, ¿mintió?).</summary>
+    public event System.Action<ContadorInterrogation, bool> OnContadorInterrogationChanged;
 
     private void Awake()
     {
@@ -52,6 +66,16 @@ public class GameStateTracker : MonoBehaviour
         }
         Instance = this;
         DontDestroyOnLoad(gameObject); // Sobrevive al cambio de escenas
+
+        // Contexto para la IA (AICompanion lo lee en cada pedido; no se modifica AICompanion)
+        AICompanion.ContextProvider = GetStatusSummary;
+    }
+
+    private void OnDestroy()
+    {
+        if (Instance != this) return;
+        Instance = null;
+        AICompanion.ContextProvider = null;
     }
 
     // ============ Registro de acciones ============
@@ -107,6 +131,30 @@ public class GameStateTracker : MonoBehaviour
     }
 
     /// <summary>
+    /// Qué pasó con Centavo (fase 3C). Muerto por un disparo antes del interrogatorio (D4), muerto al final de la
+    /// escena o perdonado. No cuenta interrogatorios: eso lo hace RegisterInterrogation (3C.4, D10).
+    /// </summary>
+    public void RegisterContadorState(ContadorState state)
+    {
+        if (contadorState == state) return;
+        contadorState = state;
+        if (state == ContadorState.Dead) LogAction("Mató a Centavo, el contador de Don Lobo");
+        else if (state == ContadorState.Pardoned) LogAction("Dejó ir a Centavo, el contador de Don Lobo");
+        Debug.Log($"[GameState] Centavo: {state}");
+        OnContadorStateChanged?.Invoke(state);
+    }
+
+    /// <summary>Resultado del interrogatorio de Centavo y si mintió (fase 3C.4).</summary>
+    public void RegisterContadorInterrogation(ContadorInterrogation result, bool lied)
+    {
+        if (contadorInterrogation == result && contadorLied == lied) return;
+        contadorInterrogation = result;
+        contadorLied = lied;
+        Debug.Log($"[GameState] Interrogatorio de Centavo: {result}, mintió: {lied}");
+        OnContadorInterrogationChanged?.Invoke(result, lied);
+    }
+
+    /// <summary>
     /// Determinar qué final corresponde según el estado actual.
     /// Llamar desde GameManager cuando se llega a la escena final.
     /// </summary>
@@ -145,6 +193,9 @@ public class GameStateTracker : MonoBehaviour
         enemiesKilled = 0;
         wolfKilled = false;
         wolfSpared = false;
+        contadorState = ContadorState.None;
+        contadorInterrogation = ContadorInterrogation.None;
+        contadorLied = false;
     }
 
     /// <summary>
@@ -153,8 +204,37 @@ public class GameStateTracker : MonoBehaviour
     public string GetStatusSummary()
     {
         return $"Pistas: {cluesCollected.Count}. Interrogados: {npcsInterrogated.Count}. " +
-               $"Enemigos eliminados: {enemiesKilled}. Acciones recientes: {AIContext}";
+               $"Enemigos eliminados: {enemiesKilled}. {ContadorSummary()}Acciones recientes: {AIContext}";
     }
+
+    /// <summary>Centavo en el contexto de la IA; vacío si Wilbur todavía no lo encontró.</summary>
+    private string ContadorSummary()
+    {
+        if (contadorState == ContadorState.None && contadorInterrogation == ContadorInterrogation.None) return "";
+        string fate = contadorState == ContadorState.Dead ? "muerto"
+                    : contadorState == ContadorState.Pardoned ? "perdonado" : "todavía en el patio";
+        string talk = contadorInterrogation == ContadorInterrogation.Helpful ? "dijo la verdad"
+                    : contadorInterrogation == ContadorInterrogation.Misleading ? "dio datos falsos"
+                    : "no fue interrogado";
+        string lied = contadorLied ? ", mintió al menos una vez" : "";
+        return $"Centavo, el contador de Don Lobo: {fate}; {talk}{lied}. ";
+    }
+}
+
+/// <summary>Qué pasó con Centavo, el contador (fase 3C).</summary>
+public enum ContadorState
+{
+    None,       // no se ha resuelto
+    Pardoned,   // lo dejó ir
+    Dead        // lo mató (antes o al final del interrogatorio)
+}
+
+/// <summary>Resultado del interrogatorio de Centavo (fase 3C).</summary>
+public enum ContadorInterrogation
+{
+    None,
+    Helpful,
+    Misleading
 }
 
 /// <summary>

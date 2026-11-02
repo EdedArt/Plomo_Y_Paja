@@ -114,6 +114,7 @@ public class BillboardSprite : MonoBehaviour
     private float _hitUntil = -1f;
     private Sprite[] _legacyResume;  // modo antiguo: pose a la que volver tras "hit"
     private bool _isDead;            // muerto: dibujo fijo, no se aceptan más poses
+    private bool _manualFrame;       // ShowFrame: el cuadro lo elige el código (lip-sync, cojera), no avanza solo
     private Sprite _anchoredSprite;  // último sprite para el que se recolocaron los pies (anchorFeet)
 
     /// <summary>¿Se están mostrando sprites (set o modo antiguo)? Si no, se ve el placeholder.</summary>
@@ -377,7 +378,7 @@ public class BillboardSprite : MonoBehaviour
             SetAnim(_resumeAnim ?? "idle", true);
         }
 
-        if (_setClip == null) return;
+        if (_setClip == null || _manualFrame) return;
 
         _animTimer += Time.deltaTime * Mathf.Max(0.1f, _setClip.fps);
         if (_animTimer >= 1f)
@@ -407,8 +408,9 @@ public class BillboardSprite : MonoBehaviour
     private void SetAnim(string anim, bool loop)
     {
         if (!_useSet) return;
-        if (_setAnim == anim && _setClip != null) return;
+        if (_setAnim == anim && _setClip != null && !_manualFrame) return;
 
+        _manualFrame = false;
         _setAnim = anim;
         _setLoop = loop;
         _setClip = ResolveClip(anim);
@@ -445,6 +447,45 @@ public class BillboardSprite : MonoBehaviour
             return;
         }
         SetAnim(anim, loop);
+    }
+
+    /// <summary>¿El set tiene esta animación con al menos un cuadro?</summary>
+    public bool HasAnim(string anim) => _useSet && spriteSet.TryGet(anim, out _);
+
+    /// <summary>
+    /// Muestra un cuadro concreto de una animación y lo deja quieto (no avanza solo) hasta la próxima pose.
+    /// Para pares de boca _01 cerrada / _02 abierta (frame 0 / 1, lip-sync D8) y ciclos que lleva el código
+    /// (cojera de Centavo). Fuera de rango = el último cuadro. Sin efecto en modo antiguo o tras la muerte.
+    /// Los guardias no lo usan.
+    /// </summary>
+    public void ShowFrame(string anim, int frame)
+    {
+        if (_isDead || !_useSet) return;
+        _hitUntil = -1f;
+
+        bool changed = _setAnim != anim || _setClip == null || !_manualFrame;
+        if (changed)
+        {
+            _setAnim = anim;
+            _setClip = ResolveClip(anim);
+            _setLoop = false;
+            _animTimer = 0f;
+        }
+        _manualFrame = true;
+        if (_setClip == null) return;
+
+        int index = Mathf.Clamp(frame, 0, _setClip.frames.Length - 1);
+        if (!changed && index == _currentFrame) return;
+        _currentFrame = index;
+        ApplySetFrame();
+    }
+
+    /// <summary>Muestra u oculta el dibujo (y su accesorio). Para escenas que lo reemplazan por un retrato (D6).</summary>
+    public void SetVisible(bool visible)
+    {
+        if (_spriteRenderer != null) _spriteRenderer.enabled = visible && HasSprites;
+        if (_accessoryRenderer != null && !visible) _accessoryRenderer.enabled = false;
+        if (visible && _setClip != null) ApplySetFrame();
     }
 
     // ============ Métodos para cambiar animaciones desde EnemyAI / DialogueNPC / EnemyCombatFx ============

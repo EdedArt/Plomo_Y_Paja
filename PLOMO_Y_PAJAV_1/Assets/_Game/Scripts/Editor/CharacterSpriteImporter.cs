@@ -10,6 +10,7 @@ using UnityEngine;
 /// Excepciones: wilbur_hands → pivote abajo a la derecha; intro → pivote al centro y 100 px por metro;
 /// Pivote: el X va al centro del lienzo y el Y a la fila más baja con alpha > 0.1 (los pies), como pivote
 /// personalizado, para que cualquier frame quede pegado al suelo aunque el dibujo tenga margen debajo.
+/// contador → 500 px por metro y pivote Bottom Center (lienzo 1024, fase 3C.2).
 /// guardia → 236 px por metro (el primer dibujo mide 449 px de alto en un lienzo de 512: 449 / 236 ≈ 1.9 m).
 /// La muerte (dibujo tumbado) usa la misma regla: su fila más baja es el cuerpo en el piso, sin pivote al centro.
 /// </summary>
@@ -19,7 +20,8 @@ public class CharacterSpriteImporter : AssetPostprocessor
 
     // Subir la versión obliga a Unity a reimportar los PNG con los ajustes nuevos.
     // 4: los .meta que llegan con PPU/pivote puestos a mano (p. ej. los del guardia de Edgar) se pisan aquí.
-    public override uint GetVersion() => 5;
+    // 6: contador a 500 px por metro (fase 3C.2, D12).
+    public override uint GetVersion() => 6;
 
     /// <summary>Alpha mínimo (0..255) para considerar que un píxel es parte del personaje.</summary>
     private const byte FeetAlpha = 26; // 0.1
@@ -57,10 +59,12 @@ public class CharacterSpriteImporter : AssetPostprocessor
                 settings.spritePixelsPerUnit = 100f;
                 break;
             case "contador":
-                // lienzo 1024x1024 con los pies pegados al borde inferior: pivote Bottom Center, mipmaps activos
+                // lienzo 1024x1024 con los pies pegados al borde inferior: pivote Bottom Center, mipmaps activos.
+                // 500 px por metro (D12): el lienzo mide 2.05 m, igual que el lienzo de 512 del guardia a 250.
+                // Los cuadros sentados llenan el lienzo: CentavoController los achica con seatedScale.
                 importer.mipmapEnabled = true;
                 settings.spriteAlignment = (int)SpriteAlignment.BottomCenter;
-                settings.spritePixelsPerUnit = 250f;
+                settings.spritePixelsPerUnit = 500f;
                 break;
             case "guardia":
                 SetFeetPivot(settings, path);
@@ -121,12 +125,12 @@ public static class CharacterSpriteSetBuilder
     public const string SetsFolder = "Assets/_Game/Art/SpriteSets";
 
     public static readonly string[] CharacterIds =
-        { "guardia", "informante", "donlobo", "porky", "max", "wilbur_hands", "fx", "intro" };
+        { "guardia", "informante", "donlobo", "porky", "max", "contador", "wilbur_hands", "fx", "intro" };
 
     private static readonly Dictionary<string, float> DefaultFps = new Dictionary<string, float>
     {
         { "idle", 4f }, { "walk", 8f }, { "shoot", 10f }, { "hit", 1f }, { "surrender", 4f },
-        { "death", 8f }, { "talk", 6f }, { "fire", 12f }, { "reload", 8f },
+        { "death", 8f }, { "talk", 6f }, { "fire", 12f }, { "reload", 8f }, { "limp", 4f },
     };
 
     private static readonly Regex FrameName = new Regex(@"^([a-z]+)_(\d+)$");

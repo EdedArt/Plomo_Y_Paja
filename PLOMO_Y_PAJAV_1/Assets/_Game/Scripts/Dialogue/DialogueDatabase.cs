@@ -183,8 +183,9 @@ public static class DialogueDatabase
             Line("libros", "Los libros nunca mienten, señor. Cada billete que entra y sale queda anotado con mi mejor letra.",
                 Opt("¿Falta dinero?", "fin_ayuda"),
                 Opt("¿Aparece mi hermano en ellos?", "fin_ayuda")),
-            // Sigue siendo útil (cuenta como interrogatorio), pero sin pista: registro_01 solo lo da Centavo (D1)
-            End("fin_ayuda", "Faltan 4.300 billetes, justo la semana en que Porky desapareció. Una sola inicial al margen: P.",
+            // Sigue siendo útil (cuenta como interrogatorio), pero sin pista: registro_01 solo lo da Centavo (D1).
+            // La cifra es la de Centavo (guion contador §5, 1A_v): 3.200 pesos más los intereses de la semana.
+            End("fin_ayuda", "Faltan 3.200 pesos, más los intereses de la semana en que Porky desapareció. Una sola inicial al margen: P.",
                 InterrogationResult.Helpful),
 
             Line("donde", "¿El muchacho? Lo trasladaron al almacén del puerto, creo. O al sótano del club. No me pagan por saber.",

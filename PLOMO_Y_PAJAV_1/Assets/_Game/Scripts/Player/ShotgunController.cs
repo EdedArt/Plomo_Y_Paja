@@ -212,12 +212,26 @@ public class ShotgunController : MonoBehaviour, IWeapon
                 if (killed) onEnemyKilled?.Invoke();
             }
 
+            // ¿Otro blanco que no es guardia? (Centavo, fase 3C.2). Solo se mira si no hubo EnemyHealth.
+            else if (TryGetDamageable(hit.collider, out IDamageable target))
+            {
+                if (target.TakeDamage(damagePerPellet)) onEnemyKilled?.Invoke();
+            }
+
             // ¿Impactó en una superficie (pared, suelo)?
             else if (bulletHolePrefab != null)
             {
                 SpawnBulletHole(hit);
             }
         }
+    }
+
+    /// <summary>Busca un IDamageable en el collider o sus padres (comparación de Unity si es un componente).</summary>
+    private static bool TryGetDamageable(Collider collider, out IDamageable target)
+    {
+        target = collider.GetComponentInParent<IDamageable>();
+        if (target is Object unityObject) return unityObject != null;
+        return target != null;
     }
 
     /// <summary>

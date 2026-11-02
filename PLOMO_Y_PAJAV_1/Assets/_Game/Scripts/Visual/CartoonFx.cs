@@ -121,6 +121,13 @@ public class CartoonFx : MonoBehaviour
         Instance.SpawnBlood(position, direction, count < 0 ? Random.Range(20, 31) : count);
     }
 
+    /// <summary>Una gota chica que cae casi recta (herida que sangra, Centavo 3C.2). A veces mancha el piso.</summary>
+    public static void BloodDrip(Vector3 position)
+    {
+        if (Instance == null) return;
+        Instance.SpawnDrip(position);
+    }
+
     /// <summary>Humo, 3 estrellitas girando sobre la cabeza, 2–4 dientes y un charco.</summary>
     public static void DeathBurst(Vector3 headPosition, Vector3 groundPosition)
     {
@@ -174,6 +181,19 @@ public class CartoonFx : MonoBehaviour
             p.decalOnLand = i % 4 == 0; // una de cada cuatro deja mancha
             p.rotation = Quaternion.identity;
         }
+    }
+
+    private void SpawnDrip(Vector3 position)
+    {
+        ref Particle p = ref NextParticle();
+        p.kind = Kind.Blood;
+        p.position = position;
+        p.velocity = Random.insideUnitSphere * 0.15f;
+        p.size = Random.Range(0.04f, 0.07f);
+        p.life = 2f;
+        p.groundY = FindGround(position, position.y - 1.2f);
+        p.decalOnLand = Random.value < 0.2f;
+        p.rotation = Quaternion.identity;
     }
 
     private void SpawnDeath(Vector3 head, Vector3 groundPos)
