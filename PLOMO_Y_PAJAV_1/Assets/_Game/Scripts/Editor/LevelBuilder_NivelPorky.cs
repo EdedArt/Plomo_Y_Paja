@@ -598,8 +598,8 @@ public static class LevelBuilder_NivelPorky
             so.ApplyModifiedPropertiesWithoutUndo();
         }
 
-        // Centinela: quieto mirando hacia donde apunta el marcador
-        LevelMarker sentinel = markers.Find(m => m.Type == MarkerType.SentinelPoint);
+        // Centinela del patio: quieto mirando hacia donde apunta el marcador (los de la casa los pone PlaceExtraGuards)
+        LevelMarker sentinel = markers.Find(m => m.Type == MarkerType.SentinelPoint && m.name == YardSentinelMarker);
         if (guardPrefab != null && sentinel != null)
         {
             GameObject guard = SpawnAt(guardPrefab, "Guard_Centinela", sentinel.transform, actors);
@@ -618,7 +618,124 @@ public static class LevelBuilder_NivelPorky
             so.ApplyModifiedPropertiesWithoutUndo();
         }
 
+        // Fase 3C.4.2: guardias normales en la calle y la casa, antes del cuarto de Centavo
+        Transform markersRoot = GameObject.Find("--- MARKERS ---") != null ? GameObject.Find("--- MARKERS ---").transform : null;
+        Debug.Log("[LevelBuilder] Guardias extra:\n" + PlaceExtraGuards(markersRoot, actors));
+
         RemoveStrayCameras();
+    }
+
+    // ============ Guardias normales antes del cuarto de Centavo (fase 3C.4.2) ============
+    // Pelean hasta morir (Enemy_Guard: canSurrender = false, sin DialogueNPC). Ninguna ruta toca la del patrullero del
+    // patio (Patrol_A: anillo exterior de la casa en x = ±9 y z = -8, más el rincón del contador). Orden de encuentro:
+    // calle (B) → sala (centinela) → dormitorio (C, lado) → cocina (centinela + Colmillo) → patio (A + centinela) → Centavo.
+
+    /// <summary>Nombre del marcador del centinela del patio (el de Centavo, D2).</summary>
+    public const string YardSentinelMarker = "Sentinel_PatioTrasero";
+
+    public class ExtraGuard
+    {
+        public string guardName;
+        public EnemyAI.EnemyType type;
+        public string id;              // Patrullero: Patrol_<id>_<n>. Centinela: Sentinel_<id>
+        public Vector3[] points;       // ruta (patrullero) o puesto (centinela, un punto)
+        public float yaw;              // centinela: hacia dónde mira
+    }
+
+    public static readonly ExtraGuard[] ExtraGuards =
+    {
+        // Calle, a la derecha del spawn (x 6.5–14): el primer encuentro. A 4.5 m de la ruta A (z = -8)
+        new ExtraGuard { guardName = "Guard_Patrulla_B", type = EnemyAI.EnemyType.Patrullero, id = "B", points = new[]
+            { new Vector3(14f, 0f, -12.5f), new Vector3(6.5f, 0f, -12.5f), new Vector3(6.5f, 0f, -16.5f), new Vector3(14f, 0f, -16.5f) } },
+        // Sala: junto a la puerta a la cocina, mirando a la puerta delantera (-5, -6)
+        new ExtraGuard { guardName = "Guard_Centinela_Sala", type = EnemyAI.EnemyType.Centinela, id = "Sala",
+            points = new[] { new Vector3(-0.6f, 0f, 0.4f) }, yaw = -145f },
+        // Dormitorio (x 2–8, z -6–2): ronda entre el boquete de la fachada y la puerta a la sala, lejos del colchón
+        new ExtraGuard { guardName = "Guard_Patrulla_C", type = EnemyAI.EnemyType.Patrullero, id = "C", points = new[]
+            { new Vector3(6.2f, 0f, -4.3f), new Vector3(6.2f, 0f, -1.6f), new Vector3(3.6f, 0f, -1.6f), new Vector3(3.6f, 0f, -4.3f) } },
+        // Cocina, cerca de la puerta trasera (-4, 6), mirando a la puerta de la sala (-3, 2). Colmillo sigue en (5.5, 4.3)
+        new ExtraGuard { guardName = "Guard_Centinela_Cocina", type = EnemyAI.EnemyType.Centinela, id = "Cocina",
+            points = new[] { new Vector3(-1f, 0f, 5.1f) }, yaw = -147f },
+    };
+
+    /// <summary>
+    /// Crea o reubica los marcadores y los guardias de ExtraGuards (idempotente). Lo llaman "Generar Nivel Porky" y
+    /// "Contador → Construir patio y cuarto". Devuelve un reporte corto.
+    /// </summary>
+    public static string PlaceExtraGuards(Transform markersRoot, Transform actorsRoot)
+    {
+        var report = new System.Text.StringBuilder();
+        GameObject guardPrefab = AssetDatabase.LoadAssetAtPath<GameObject>(TestPrefabGenerator.GuardPath);
+        if (guardPrefab == null) return "✗ Falta Enemy_Guard.prefab (Crear Prefabs de Prueba)";
+        if (markersRoot == null) markersRoot = CreateGroup("--- MARKERS ---");
+        if (actorsRoot == null)
+            actorsRoot = GameObject.Find("--- ACTORS ---") != null ? GameObject.Find("--- ACTORS ---").transform : CreateGroup("--- ACTORS ---");
+
+        var allMarkers = new List<LevelMarker>(Object.FindObjectsOfType<LevelMarker>(true));
+        foreach (ExtraGuard g in ExtraGuards)
+        {
+            bool patrol = g.type == EnemyAI.EnemyType.Patrullero;
+            var points = new List<Transform>();
+            for (int i = 0; i < g.points.Length; i++)
+            {
+                string markerName = patrol ? $"Patrol_{g.id}_{i}" : $"Sentinel_{g.id}";
+                LevelMarker marker = allMarkers.Find(m => m != null && m.name == markerName);
+                if (marker == null)
+                    marker = CreateMarker(markerName, patrol ? MarkerType.PatrolWaypoint : MarkerType.SentinelPoint, g.id,
+                        g.points[i], g.yaw, markersRoot);
+                marker.transform.SetPositionAndRotation(g.points[i], Quaternion.Euler(0f, patrol ? 0f : g.yaw, 0f));
+                points.Add(marker.transform);
+            }
+            if (patrol)
+                foreach (LevelMarker extra in allMarkers.FindAll(m => m != null && m.Type == MarkerType.PatrolWaypoint &&
+                                                                     m.Id == g.id && !points.Contains(m.transform)))
+                    Object.DestroyImmediate(extra.gameObject);
+
+            GameObject guard = GameObject.Find("/--- ACTORS ---/" + g.guardName);
+            if (guard == null) guard = SpawnAt(guardPrefab, g.guardName, points[0], actorsRoot);
+            else guard.transform.SetPositionAndRotation(points[0].position, points[0].rotation);
+
+            var so = new SerializedObject(guard.GetComponent<EnemyAI>());
+            so.FindProperty("enemyType").enumValueIndex = (int)g.type;
+            SerializedProperty route = so.FindProperty("patrolPoints");
+            route.arraySize = patrol ? points.Count : 0;
+            for (int i = 0; patrol && i < points.Count; i++) route.GetArrayElementAtIndex(i).objectReferenceValue = points[i];
+            so.ApplyModifiedPropertiesWithoutUndo();
+            report.AppendLine($"✓ {g.guardName} ({g.type}) en {g.points[0]}");
+        }
+        return report.ToString().TrimEnd();
+    }
+
+    /// <summary>Con el NavMesh actual: cada guardia extra sobre el NavMesh y cada tramo de su ronda transitable.</summary>
+    public static bool ValidateExtraGuards(System.Text.StringBuilder sb)
+    {
+        bool ok = true;
+        foreach (ExtraGuard g in ExtraGuards)
+        {
+            bool guardOk = true;
+            foreach (Vector3 p in g.points)
+                if (!UnityEngine.AI.NavMesh.SamplePosition(p, out UnityEngine.AI.NavMeshHit _, 0.6f, UnityEngine.AI.NavMesh.AllAreas))
+                {
+                    guardOk = false;
+                    sb.AppendLine($"✗ {g.guardName}: el punto {p} queda fuera del NavMesh.");
+                }
+            for (int i = 0; guardOk && g.points.Length > 1 && i < g.points.Length; i++)
+            {
+                Vector3 a = g.points[i], b = g.points[(i + 1) % g.points.Length];
+                var path = new UnityEngine.AI.NavMeshPath();
+                if (!UnityEngine.AI.NavMesh.SamplePosition(a, out UnityEngine.AI.NavMeshHit ha, 0.6f, UnityEngine.AI.NavMesh.AllAreas) ||
+                    !UnityEngine.AI.NavMesh.SamplePosition(b, out UnityEngine.AI.NavMeshHit hb, 0.6f, UnityEngine.AI.NavMesh.AllAreas) ||
+                    !UnityEngine.AI.NavMesh.CalculatePath(ha.position, hb.position, UnityEngine.AI.NavMesh.AllAreas, path) ||
+                    path.status != UnityEngine.AI.NavMeshPathStatus.PathComplete)
+                {
+                    guardOk = false;
+                    sb.AppendLine($"✗ {g.guardName}: el tramo {i} → {(i + 1) % g.points.Length} no es transitable.");
+                }
+            }
+            if (guardOk) sb.AppendLine($"✓ {g.guardName}: sobre el NavMesh" + (g.points.Length > 1 ? " y su ronda es transitable." : "."));
+            ok &= guardOk;
+        }
+        return ok;
     }
 
     private static GameObject SpawnAt(GameObject prefab, string name, Transform marker, Transform parent)

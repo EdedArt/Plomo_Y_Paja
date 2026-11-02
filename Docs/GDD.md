@@ -114,7 +114,12 @@ Wilbur lo entiende todo. El Lobo y Wilbur confrontan a Porky juntos. Max (el her
 ### Nivel 1: Casa de Porky ("La Escena del Crimen")
 - Interior + exterior de una casa destruida
 - Ambiente: noche, lluvia, luz de farola rota
-- Contiene: 2 pistas + 1 enemigo patrullero + 1 centinela
+- Contiene (fase 3C.4.2):
+  - Pistas: 2 físicas (nota_porky_01, contrato_01) + registro_01 (lo da Centavo) + el testimonio de Colmillo.
+  - Enemigos que pelean hasta morir: 6. Calle: 1 patrullero. Sala: 1 centinela. Dormitorio: 1 patrullero.
+    Cocina: 1 centinela. Patio: 1 patrullero que cruza el portón y 1 centinela que lo custodia.
+  - Interrogables: Colmillo (cocina, se rinde) y Centavo, el contador (cuarto de herramientas del patio, fase 3C).
+  - Munición: la de la escopeta (6 + 18), sin recogibles (alcanza: ver AUDIT_contador_3C4_2).
 - Salida: puerta trasera que lleva al campamento
 - Duración estimada: 8-12 min
 

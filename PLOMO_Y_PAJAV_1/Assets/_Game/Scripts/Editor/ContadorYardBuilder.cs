@@ -123,11 +123,13 @@ public static class ContadorYardBuilder
         BuildInto(environment, lighting);
         ApplyGuardRoute(markers);
         MoveYardProps();
+        string extraGuards = LevelBuilder_NivelPorky.PlaceExtraGuards(markers, null); // fase 3C.4.2
 
         bool ok = BakeAndValidate(out string report);
         EditorSceneManager.MarkSceneDirty(scene);
         AssetDatabase.SaveAssets();
 
+        report = extraGuards + "\n" + report;
         Debug.Log("[Contador] Patio y cuarto construidos.\n" + report);
         EditorUtility.DisplayDialog("Construir patio y cuarto",
             (ok ? "Listo. " : "Listo, pero revisa la consola: hay comprobaciones que fallaron.\n\n") + report +
@@ -664,9 +666,12 @@ public static class ContadorYardBuilder
         foreach (LevelMarker extra in markers.FindAll(m => m.Type == MarkerType.PatrolWaypoint && m.Id == "A" && !waypoints.Contains(m.transform)))
             Object.DestroyImmediate(extra.gameObject);
 
-        LevelMarker sentinel = markers.Find(m => m != null && m.Type == MarkerType.SentinelPoint);
+        // Solo el centinela del patio (3C.4.2: en la casa hay otros centinelas, Sentinel_Sala / Sentinel_Cocina)
+        LevelMarker sentinel = markers.Find(m => m != null && m.Type == MarkerType.SentinelPoint &&
+                                                 m.name == LevelBuilder_NivelPorky.YardSentinelMarker);
         if (sentinel == null)
-            sentinel = CreateMarker("Sentinel_PatioTrasero", MarkerType.SentinelPoint, "", SentinelPosition, SentinelYaw, markersRoot);
+            sentinel = CreateMarker(LevelBuilder_NivelPorky.YardSentinelMarker, MarkerType.SentinelPoint, "", SentinelPosition,
+                SentinelYaw, markersRoot);
         sentinel.transform.SetPositionAndRotation(SentinelPosition, Quaternion.Euler(0f, SentinelYaw, 0f));
 
         bool patrolSet = false, sentinelSet = false;
@@ -691,8 +696,8 @@ public static class ContadorYardBuilder
                 continue;
             }
 
-            bool isSentinel = ai.name == "Guard_Centinela" ||
-                              (type != null && type.enumValueIndex == (int)EnemyAI.EnemyType.Centinela && ai.GetComponent<DialogueNPC>() == null);
+            // Por nombre: los centinelas de la casa (3C.4.2) no se tocan
+            bool isSentinel = ai.name == "Guard_Centinela";
             if (isSentinel)
             {
                 ai.transform.SetPositionAndRotation(sentinel.transform.position, sentinel.transform.rotation);
@@ -806,6 +811,9 @@ public static class ContadorYardBuilder
             ok = false;
             sb.AppendLine("✗ El centinela queda fuera del NavMesh.");
         }
+
+        // Fase 3C.4.2: guardias de la calle y la casa
+        ok &= LevelBuilder_NivelPorky.ValidateExtraGuards(sb);
         return ok;
     }
 
