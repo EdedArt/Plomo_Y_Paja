@@ -285,21 +285,63 @@ MonoBehaviour:
   fallbackThoughts:
   - text: "Un contador vivo lleva la cuenta de qui\xE9n lo dej\xF3 ir. Uno muerto
       no le cuenta nada a nadie."
+    condition: 0
     requiresLineId: 
     chance: 1
   - text: "Tiembla como hoja. \xBFMiente por miedo\u2026 o el miedo es lo \xFAnico
       que no est\xE1 fingiendo?"
+    condition: 0
     requiresLineId: 
     chance: 1
   - text: "Porky nunca supo sumar. \xBFY si este es el \xFAnico que tiene las cuentas
       claras?"
+    condition: 0
     requiresLineId: 
     chance: 1
   - text: "Ya est\xE1 en el suelo, Wilbur. Lo dif\xEDcil no es disparar\u2026 es
       saber a qui\xE9n le est\xE1s apretando el gatillo."
+    condition: 0
     requiresLineId: 
     chance: 1
   - text: "Dijo que lo colgaron de los pies. Guarda bien esas palabras\u2026 y comp\xE1ralas
       despu\xE9s."
+    condition: 1
     requiresLineId: contador_int_1B_m
     chance: 0.5
+  afterThoughtTimeoutSeconds: 4
+  killThoughts:
+  - text: "Las cuentas se saldaron. Lo que nadie te dijo es qui\xE9n paga los intereses."
+    condition: 0
+    requiresLineId: 
+    chance: 1
+  - text: "Ya no tiembla. T\xFA s\xED."
+    condition: 0
+    requiresLineId: 
+    chance: 1
+  - text: "Un contador menos. Los n\xFAmeros de Porky siguen sin cuadrar."
+    condition: 0
+    requiresLineId: 
+    chance: 1
+  - text: "Muri\xF3 mintiendo\u2026 o eso quieres creer, para que pese menos."
+    condition: 2
+    requiresLineId: 
+    chance: 0.5
+  - text: Te dijo la verdad y le pagaste con plomo.
+    condition: 3
+    requiresLineId: 
+    chance: 0.5
+  spareThoughts:
+  - text: "Se va cojeando con tus secretos en el bolsillo. Ojal\xE1 la gratitud le
+      dure m\xE1s que el miedo."
+    condition: 0
+    requiresLineId: 
+    chance: 1
+  - text: "Dejaste ir al \xFAnico que lleva las cuentas. Alg\xFAn d\xEDa alguien
+      te va a cobrar este favor."
+    condition: 0
+    requiresLineId: 
+    chance: 1
+  - text: "Un lobo menos en el suelo. \xBFFue piedad, Wilbur\u2026 o solo cansancio?"
+    condition: 0
+    requiresLineId: 
+    chance: 1

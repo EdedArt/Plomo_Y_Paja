@@ -710,6 +710,16 @@ MonoBehaviour:
   data: {fileID: 11400000, guid: 35092acf6c8ff974ea69c6a93877182d, type: 2}
   killHoldSeconds: 0.8
   clueNoticeSeconds: 3
+  decisionEmotion: plead
+  spareRiseSeconds: 0.6
+  spareTrackSeconds: 2
+  skyTiltSeconds: 1
+  skyPitch: 65
+  spareLookHeight: 1
+  killRiseSeconds: 1
+  bodyLookHeight: 0.35
+  outroThoughtMinSeconds: 3
+  outroThoughtSecondsPerCharacter: 0.055
 --- !u!1 &6986781214080463522
 GameObject:
   m_ObjectHideFlags: 0
