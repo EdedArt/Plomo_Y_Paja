@@ -308,6 +308,9 @@ public class AudioLibrary : ScriptableObject
         return clip;
     }
 
+    /// <summary>¿Este asset tiene clip para la línea? (para validar desde el Editor, sin librería activa)</summary>
+    public bool ContainsVoice(string lineId) => FindVoice(lineId) != null;
+
     /// <summary>¿Hay clip para esta línea? (sin avisar si falta).</summary>
     public static bool HasVoice(string lineId) => _active != null && _active.FindVoice(lineId) != null;
 

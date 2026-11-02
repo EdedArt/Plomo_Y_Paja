@@ -99,17 +99,9 @@ public class CluePickup : MonoBehaviour
         if (_collected) return;
         _collected = true;
 
-        AudioLibrary.PlaySfx2D("pista_papel");
-
-        // 1. Registrar en el tracker de estado del juego
-        if (GameStateTracker.Instance != null) GameStateTracker.Instance.RegisterClueCollected(clueId, shortDescription);
-
-        // 2. Mostrar el texto de la pista en pantalla
-        if (UIManager.Instance != null) UIManager.Instance.ShowClueUI(displayName, fullText, displayDuration);
+        // 1-3. Sonido, tracker, texto en pantalla y comentario de la IA (la misma API que usa Centavo)
+        Award(clueId, displayName, shortDescription, fullText, displayDuration, true, this);
         if (UIManager.Instance != null) UIManager.Instance.HideInteractPrompt();
-
-        // 3. Notificar a la IA para que comente (con delay para no solaparse con la UI)
-        StartCoroutine(NotifyAIWithDelay(2f));
 
         // 4. Eventos externos
         onClueCollected?.Invoke();
@@ -124,7 +116,21 @@ public class CluePickup : MonoBehaviour
         // GetComponent<Renderer>()?.enabled = false;
     }
 
-    private IEnumerator NotifyAIWithDelay(float delay)
+    /// <summary>
+    /// Entrega una pista: sonido de papel, GameStateTracker (cuenta para los finales), texto en pantalla (si hay UIManager)
+    /// y, si aiComment, el comentario de la IA a los 2 s. Lo usan CluePickup y las pistas que se dan en un diálogo
+    /// (registro_01 de Centavo, fase 3C.4, con aiComment = false por D11). runner = quien corre la espera de la IA.
+    /// </summary>
+    public static void Award(string clueId, string displayName, string shortDescription, string fullText,
+        float displayDuration, bool aiComment, MonoBehaviour runner)
+    {
+        AudioLibrary.PlaySfx2D("pista_papel");
+        if (GameStateTracker.Instance != null) GameStateTracker.Instance.RegisterClueCollected(clueId, shortDescription);
+        if (UIManager.Instance != null) UIManager.Instance.ShowClueUI(displayName, fullText, displayDuration);
+        if (aiComment && runner != null) runner.StartCoroutine(NotifyAIWithDelay(2f, displayName, shortDescription));
+    }
+
+    private static IEnumerator NotifyAIWithDelay(float delay, string displayName, string shortDescription)
     {
         yield return new WaitForSeconds(delay);
         if (AICompanion.Instance != null) AICompanion.Instance.Speak(AITrigger.ClueFound, $"{displayName}: {shortDescription}");

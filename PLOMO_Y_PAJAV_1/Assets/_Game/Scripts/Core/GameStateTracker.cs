@@ -42,6 +42,8 @@ public class GameStateTracker : MonoBehaviour
 
     // ============ Getters públicos ============
     public int CluesFound => cluesCollected.Count;
+    /// <summary>¿Ya tiene esta pista? (ej: registro_01 antes de que Centavo la entregue, fase 3C.4)</summary>
+    public bool HasClue(string clueId) => cluesCollected.Contains(clueId);
     public int InterrogationsCompleted => npcsInterrogated.Count;
     public bool WolfKilled => wolfKilled;
     public bool WolfSpared => wolfSpared;

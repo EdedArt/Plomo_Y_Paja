@@ -177,6 +177,66 @@ public class AICompanion : MonoBehaviour
         StartCoroutine(RequestLine(trigger, detail));
     }
 
+    /// <summary>
+    /// Pide una línea para una situación propia y la devuelve por callback SIN mostrarla en los subtítulos: la muestra
+    /// quien llama (ej. la banda de pensamiento del interrogatorio de Centavo, fase 3C.4). Se agregan el contexto del
+    /// juego (ContextProvider) y las últimas líneas, como en Speak. onDone(null) si no hay key, hay error o la respuesta
+    /// viene vacía: quien llama usa sus propias líneas de respaldo. No usa el enfriamiento de Speak.
+    /// </summary>
+    public void RequestCustomLine(string situation, Action<string> onDone)
+    {
+        if (string.IsNullOrEmpty(apiKey))
+        {
+            onDone?.Invoke(null);
+            return;
+        }
+        StartCoroutine(RequestCustom(situation, onDone));
+    }
+
+    private IEnumerator RequestCustom(string situation, Action<string> onDone)
+    {
+        var sb = new StringBuilder(situation);
+        sb.Append('\n');
+        string context = ContextProvider?.Invoke();
+        if (!string.IsNullOrEmpty(context)) sb.Append("Estado actual de la investigación: ").Append(context).Append('\n');
+        if (recentLines.Count > 0)
+        {
+            sb.Append("No repitas ideas ni frases de lo que ya dijiste antes:\n");
+            foreach (var l in recentLines) sb.Append("- ").Append(l).Append('\n');
+        }
+        sb.Append("Responde ahora con tu línea.");
+
+        string line = null;
+        using (var req = new UnityWebRequest(Endpoint, "POST"))
+        {
+            req.uploadHandler = new UploadHandlerRaw(Encoding.UTF8.GetBytes(BuildRequestJson(sb.ToString())));
+            req.downloadHandler = new DownloadHandlerBuffer();
+            req.SetRequestHeader("Content-Type", "application/json");
+            req.SetRequestHeader("Authorization", "Bearer " + apiKey);
+            req.timeout = Mathf.CeilToInt(requestTimeoutSeconds);
+
+            float t0 = Time.realtimeSinceStartup;
+            yield return req.SendWebRequest();
+            if (req.result == UnityWebRequest.Result.Success)
+            {
+                line = ParseContent(req.downloadHandler.text);
+                if (logRequests) Debug.Log($"[AICompanion] línea propia ({Time.realtimeSinceStartup - t0:0.0}s): {line}");
+            }
+            else
+            {
+                Debug.LogWarning($"[AICompanion] Error {req.responseCode}: {req.error}");
+            }
+        }
+
+        if (string.IsNullOrWhiteSpace(line)) line = null;
+        else
+        {
+            recentLines.Enqueue(line);
+            while (recentLines.Count > historySize) recentLines.Dequeue();
+        }
+        onDone?.Invoke(line);
+    }
+
     // ==================================================================
     // Llamada a OpenAI
     // ==================================================================

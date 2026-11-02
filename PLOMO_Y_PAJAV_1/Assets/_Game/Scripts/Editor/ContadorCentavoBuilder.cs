@@ -184,6 +184,10 @@ public static class ContadorCentavoBuilder
             var canvasPrefab = AssetDatabase.LoadAssetAtPath<InterrogationDirector>(InterrogationUIBuilder.PrefabPath);
             var interrogationSo = new SerializedObject(interrogation);
             interrogationSo.FindProperty("canvasPrefab").objectReferenceValue = canvasPrefab;
+            var interrogationData = AssetDatabase.LoadAssetAtPath<InterrogationData>(ContadorInterrogationDataBuilder.DataPath);
+            interrogationSo.FindProperty("data").objectReferenceValue = interrogationData;
+            if (interrogationData == null)
+                report.AppendLine("⚠ Faltan los datos del interrogatorio: correr Plomo y Paja → Contador → Crear datos del interrogatorio.");
             interrogationSo.ApplyModifiedPropertiesWithoutUndo();
             if (canvasPrefab == null)
                 report.AppendLine("⚠ Falta InterrogationCanvas: correr Plomo y Paja → Contador → Crear UI de interrogatorio.");

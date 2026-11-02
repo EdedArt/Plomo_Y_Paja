@@ -1,16 +1,20 @@
 using System.Collections;
+using System.Text;
 using UnityEngine;
 
 /// <summary>
-/// Conecta a Centavo herido con la escena de interrogatorio (fase 3C.3).
-/// DÓNDE VA: raíz del prefab Centavo, junto a CentavoController. El menú "Crear UI de interrogatorio" le asigna
-/// el prefab del canvas; se instancia la primera vez que hace falta.
+/// Interrogatorio de Centavo (fases 3C.3 + 3C.4). Contenido en InterrogationData (Interrogation_Contador.asset,
+/// textos exactos del guion §5); presentación en InterrogationDirector.
+/// DÓNDE VA: raíz del prefab Centavo, junto a CentavoController. Los menús "Crear UI de interrogatorio" y
+/// "Crear datos del interrogatorio" le asignan el canvas y los datos.
 ///
-/// 3C.3 = DEMO de presentación, solo la Ronda 0 con los clips reales (guion §5):
-///   contador_int_00 → opciones 0A/0B/0C → wilbur_int_0X → contador_int_0X → pensamiento (línea de respaldo del guion)
-///   → decisión "Jalar el gatillo" / "Dejarlo ir" → Exit → Centavo muerto (death_01) o cojeando por el portón.
-/// La demo NO cuenta el interrogatorio, no da registro_01 ni usa la confianza: todo eso es la 3C.4, que reemplaza
-/// DemoFlow por el contenido completo (InterrogationData).
+/// FLUJO: contador_int_00 → ronda 0 (opción → wilbur_int_0X → respuesta) → ronda 1 (opción → wilbur_int_1X → respuesta
+/// según la confianza) → contador_int_2 → pensamiento de la IA (≤ 5 s, si no, respaldo del guion) → decisión →
+///   Jalar el gatillo: wilbur_dec_matar → contador_muerte_01 cortado por el escopetazo → Exit → muerto (D11: sin línea de la IA)
+///   Dejarlo ir: wilbur_dec_perdonar → contador_perdon_01 → contador_perdon_02 (solo si no dio registro_01) → Exit → huye
+/// REGLAS (guion §5): confianza 0; 0A −1, 0B +1, 0C 0. Ronda 1: ≥ 0 → _v (Helpful), &lt; 0 → _m (Misleading); 1C siempre
+/// (Helpful, sin cifra). Mintió = eligió 0A o dijo alguna _m. registro_01: en 1A_v o en perdon_02.
+/// GameStateTracker al llegar a la decisión (D10): RegisterInterrogation (una vez) + RegisterContadorInterrogation.
 /// </summary>
 [RequireComponent(typeof(CentavoController))]
 public class CentavoInterrogation : MonoBehaviour
@@ -18,38 +22,14 @@ public class CentavoInterrogation : MonoBehaviour
     [Tooltip("Prefab Prefabs/UI/InterrogationCanvas (lo asigna el menú Crear UI de interrogatorio)")]
     [SerializeField] private InterrogationDirector canvasPrefab;
 
-    [Tooltip("Segundos que se ven los puntos suspensivos antes del pensamiento de respaldo (demo)")]
-    [SerializeField, Min(0f)] private float demoThinkSeconds = 1.2f;
+    [Tooltip("Data/Interrogation_Contador.asset (lo asigna el menú Crear datos del interrogatorio)")]
+    [SerializeField] private InterrogationData data;
 
-    // Textos exactos del guion (Docs/guiones/contador.md §5, Ronda 0)
-    private const string Line00 = "¡No me remate, señor! ¡Yo no soy de los que pegan! Soy el contador. Números, solo números.";
-    private static readonly string[] Round0Options =
-    {
-        "Habla rápido o la próxima no va al costado.",
-        "Tranquilo. Si cooperas, sales de aquí con vida.",
-        "¿Qué hace el contador de Don Lobo escondido en el patio de mi hermano?",
-    };
-    private static readonly string[] Round0PlayerClips = { "wilbur_int_0A", "wilbur_int_0B", "wilbur_int_0C" };
-    private static readonly string[] Round0Responses =
-    {
-        "¡S-sí, señor! ¡Lo secuestraron! ¡Se lo llevaron a la fuerza, pataleando y todo!",
-        "G-gracias… ay… El jefe me mandó a revisar la casa. A ver si quedaba algo de valor para cobrarse.",
-        "Vine por las cuentas, señor. Su hermano tiene una cuenta abierta con el jefe. Muy, muy abierta.",
-    };
-    private static readonly string[] Round0ResponseClips = { "contador_int_0A", "contador_int_0B", "contador_int_0C" };
-    private static readonly string[] Round0ResponseEmotions = { "scared", "nervous", "talk" };
+    [Tooltip("Segundos que se ve a Centavo muerto en el retrato antes de salir")]
+    [SerializeField, Min(0f)] private float killHoldSeconds = 0.8f;
 
-    // Líneas de respaldo del pensamiento (guion §5, sin la condicional "solo si mintió")
-    private static readonly string[] FallbackThoughts =
-    {
-        "Un contador vivo lleva la cuenta de quién lo dejó ir. Uno muerto no le cuenta nada a nadie.",
-        "Tiembla como hoja. ¿Miente por miedo… o el miedo es lo único que no está fingiendo?",
-        "Porky nunca supo sumar. ¿Y si este es el único que tiene las cuentas claras?",
-        "Ya está en el suelo, Wilbur. Lo difícil no es disparar… es saber a quién le estás apretando el gatillo.",
-    };
-
-    private const string DecisionKill = "Jalar el gatillo";
-    private const string DecisionSpare = "Dejarlo ir";
+    [Tooltip("Segundos que se ve el aviso de la pista")]
+    [SerializeField, Min(0.5f)] private float clueNoticeSeconds = 3f;
 
     private CentavoController _centavo;
     private InterrogationDirector _director;
@@ -72,10 +52,15 @@ public class CentavoInterrogation : MonoBehaviour
     private void HandleRequested()
     {
         if (InterrogationDirector.IsActive || !_centavo.CanBeInterrogated) return;
+        if (data == null)
+        {
+            Debug.LogWarning("[Centavo] Sin datos del interrogatorio: correr Plomo y Paja → Contador → Crear datos del interrogatorio.");
+            return;
+        }
         InterrogationDirector director = GetDirector();
         if (director == null) return;
         if (!_centavo.BeginInterrogation()) return;
-        if (!director.Enter(_centavo, DemoFlow, "scared")) _centavo.ResolvePardoned(); // no debería pasar: no dejarlo colgado
+        if (!director.Enter(_centavo, Flow, data.initialEmotion)) _centavo.ResolvePardoned(); // no debería pasar: no dejarlo colgado
     }
 
     private InterrogationDirector GetDirector()
@@ -91,31 +76,118 @@ public class CentavoInterrogation : MonoBehaviour
         return _director;
     }
 
-    private IEnumerator DemoFlow(InterrogationDirector d)
+    // ==================================================================
+    // Flujo
+    // ==================================================================
+
+    private IEnumerator Flow(InterrogationDirector d)
     {
-        yield return d.Say(InterrogationDirector.Speaker.Target, Line00, "contador_int_00", "scared");
+        GameStateTracker tracker = GameStateTracker.Instance;
+        var run = new InterrogationRun(data, tracker != null && tracker.HasClue(data.clueId));
 
-        int choice = 0;
-        yield return d.Choose(Round0Options, i => choice = i);
-        yield return d.Say(InterrogationDirector.Speaker.Player, Round0Options[choice], Round0PlayerClips[choice]);
-        yield return d.Say(InterrogationDirector.Speaker.Target, Round0Responses[choice], Round0ResponseClips[choice],
-            Round0ResponseEmotions[choice]);
+        // Rondas
+        foreach (InterrogationRound round in data.rounds)
+        {
+            if (round == null || round.options == null || round.options.Length == 0) continue;
+            if (!string.IsNullOrEmpty(round.openingLineId)) yield return Play(d, run, data.GetLine(round.openingLineId));
 
-        yield return d.Think(null, demoThinkSeconds, () => FallbackThoughts[Random.Range(0, FallbackThoughts.Length)]);
+            var texts = new string[round.options.Length];
+            for (int i = 0; i < texts.Length; i++)
+            {
+                InterrogationLine playerLine = data.GetLine(round.options[i].playerLineId);
+                texts[i] = playerLine != null ? playerLine.text : round.options[i].playerLineId;
+            }
+            int choice = 0;
+            yield return d.Choose(texts, i => choice = i);
 
+            InterrogationOption option = round.options[choice];
+            yield return Play(d, run, data.GetLine(option.playerLineId));
+            yield return Play(d, run, run.FirstAllowed(option.responseLineIds));
+        }
+
+        // Súplica: llegó a la decisión → cuenta como interrogatorio (D10)
+        yield return Play(d, run, data.GetLine(data.pleaLineId));
+        RegisterCompleted(run);
+
+        // Pensamiento de la IA: nunca más de thoughtTimeoutSeconds (tiempo real); si no, respaldo del guion
+        string aiLine = null;
+        bool aiDone = false;
+        string fallback = run.PickFallbackThought();
+        if (AICompanion.Instance != null)
+            AICompanion.Instance.RequestCustomLine(BuildThoughtRequest(run), line => { aiLine = line; aiDone = true; });
+        else aiDone = true;
+        yield return d.Think(() => aiDone ? (aiLine ?? fallback) : null, data.thoughtTimeoutSeconds, () => fallback);
+
+        // Decisión
         int decision = 1;
-        yield return d.Decide(DecisionKill, DecisionSpare, i => decision = i);
+        yield return d.Decide(data.killLabel, data.spareLabel, i => decision = i);
         d.HideThought();
 
         if (decision == 0)
         {
-            _centavo.ResolveKilled();
+            foreach (string id in data.killLineIds) yield return Play(d, run, data.GetLine(id));
+            float until = Time.unscaledTime + killHoldSeconds;
+            while (Time.unscaledTime < until) yield return null;
+            _centavo.ResolveKilled();              // death_01, contador = Dead, sin línea de la IA (D11)
             d.Exit(InterrogationOutcome.Killed);
         }
         else
         {
-            _centavo.ResolvePardoned();
+            foreach (string id in data.spareLineIds) yield return Play(d, run, data.GetLine(id));
+            _centavo.ResolvePardoned();            // contador = Pardoned; se va cojeando al cerrar la escena
             d.Exit(InterrogationOutcome.Pardoned);
         }
+    }
+
+    /// <summary>Dice una línea si su condición se cumple, aplica sus efectos y, al terminar, entrega la pista si toca.</summary>
+    private IEnumerator Play(InterrogationDirector d, InterrogationRun run, InterrogationLine line)
+    {
+        if (line == null || !run.Allowed(line)) yield break;
+        run.Apply(line);
+
+        var speaker = line.speaker == InterrogationLineSpeaker.Player
+            ? InterrogationDirector.Speaker.Player
+            : InterrogationDirector.Speaker.Target;
+        if (line.cutByShot)
+            yield return d.SayCut(speaker, line.text, line.id, line.emotion, new InterrogationDirector.LineCut());
+        else
+            yield return d.Say(speaker, line.text, line.id, line.emotion);
+
+        if (line.givesClue && run.MarkClueGiven()) GiveClue(d);
+    }
+
+    /// <summary>registro_01 con la misma API que CluePickup (cuenta y avisa), sin el comentario de la IA (D11).</summary>
+    private void GiveClue(InterrogationDirector d)
+    {
+        CluePickup.Award(data.clueId, data.clueName, data.clueDescription, data.clueFullText, 5f, false, this);
+        d.ShowNotice("Pista: " + data.clueName, clueNoticeSeconds);
+    }
+
+    private void RegisterCompleted(InterrogationRun run)
+    {
+        GameStateTracker tracker = GameStateTracker.Instance;
+        if (tracker == null) return;
+        ContadorInterrogation result = run.Result == InterrogationLineResult.Misleading
+            ? ContadorInterrogation.Misleading
+            : run.Result == InterrogationLineResult.Helpful ? ContadorInterrogation.Helpful : ContadorInterrogation.None;
+        tracker.RegisterContadorInterrogation(result, run.Lied);
+        string outcome = result == ContadorInterrogation.Misleading ? "mintió o intentó engañar a Wilbur" : "dio información útil";
+        tracker.RegisterInterrogation(data.npcName, outcome); // no cuenta dos veces: GameStateTracker lo ignora si ya está
+    }
+
+    private string BuildThoughtRequest(InterrogationRun run)
+    {
+        var sb = new StringBuilder();
+        sb.Append("Wilbur acaba de interrogar a ").Append(data.thoughtWho).Append(' ');
+        sb.Append("Está herido de un disparo en el costado, tirado en el piso, y ahora suplica por su vida. ");
+        sb.Append("Esto fue lo que dijo: ");
+        foreach (string said in run.TargetSaid) sb.Append('«').Append(said).Append("» ");
+        sb.Append(run.Lied ? "Mintió al menos una vez. " : "No se le pilló ninguna mentira. ");
+        sb.Append("Confianza que le tiene a Wilbur: ").Append(run.Trust)
+          .Append(run.Trust > 0 ? " (se calmó). " : run.Trust < 0 ? " (está aterrado). " : " (desconfía). ");
+        sb.Append(run.ClueGiven ? "Le entregó una hoja del libro de cuentas de Don Lobo. " : "No le entregó ningún papel. ");
+        sb.Append("Escribe el pensamiento de Wilbur antes de decidir si lo mata o lo deja ir: 1 o 2 oraciones, ");
+        sb.Append("máximo 25 palabras, en español, noir y ambiguo. NUNCA le digas qué elegir ni insinúes cuál opción es mejor");
+        return sb.ToString();
     }
 }
