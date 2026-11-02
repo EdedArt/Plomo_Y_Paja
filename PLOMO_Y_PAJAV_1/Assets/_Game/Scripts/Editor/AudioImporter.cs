@@ -33,6 +33,9 @@ public class GameAudioImporter : AssetPostprocessor
         bool isLong = inMusic || file.StartsWith("lluvia_") || file.StartsWith("musica_");
 
         importer.forceToMono = !isLong;
+        var s = importer.defaultSampleSettings;
+        s.preloadAudioData = true;
+        importer.defaultSampleSettings = s;
 
         AudioImporterSampleSettings settings = importer.defaultSampleSettings;
         settings.compressionFormat = AudioCompressionFormat.Vorbis;

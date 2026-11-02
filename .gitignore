@@ -81,3 +81,6 @@ PLOMO_Y_PAJAV_1/_entrante_viewmodel/
 
 # bytecode de las herramientas Python
 __pycache__/
+
+# originales de personajes (croma magenta; lo importado vive en Assets/_Game/Art/Characters)
+PLOMO_Y_PAJAV_1/_entrante_personajes/

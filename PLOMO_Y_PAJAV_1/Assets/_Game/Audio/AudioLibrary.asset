@@ -13,6 +13,48 @@ MonoBehaviour:
   m_Name: AudioLibrary
   m_EditorClassIdentifier: 
   voices:
+  - lineId: contador_cae_01
+    clip: {fileID: 8300000, guid: 04b170eb2902bab4e84b911118d9d183, type: 3}
+  - lineId: contador_cubre_01
+    clip: {fileID: 8300000, guid: 589a9ead9eedfd24d9e5cfc0553861e3, type: 3}
+  - lineId: contador_herido_01
+    clip: {fileID: 8300000, guid: e3e3d6d955b19604a9468fc133fbc371, type: 3}
+  - lineId: contador_herido_02
+    clip: {fileID: 8300000, guid: 5c43814ed4ea2434fb1d2b5cbdb44d1a, type: 3}
+  - lineId: contador_huye_01
+    clip: {fileID: 8300000, guid: ab8f4c3d550ac204fa1804d4cfaaaf28, type: 3}
+  - lineId: contador_int_00
+    clip: {fileID: 8300000, guid: acf937226cfe7e04ba78f70c52d7d1f1, type: 3}
+  - lineId: contador_int_0A
+    clip: {fileID: 8300000, guid: c525407730508e04cbcce7df6b9a6490, type: 3}
+  - lineId: contador_int_0B
+    clip: {fileID: 8300000, guid: f1bf2f095dcb0024a97d2c738981521d, type: 3}
+  - lineId: contador_int_0C
+    clip: {fileID: 8300000, guid: 2927fba2ba461f94689f99760b53bfd8, type: 3}
+  - lineId: contador_int_1A_m
+    clip: {fileID: 8300000, guid: 52b2726d33b84e846a0b1aebca6e15dc, type: 3}
+  - lineId: contador_int_1A_v
+    clip: {fileID: 8300000, guid: 0e47e062f2dd325498434951e009a6ab, type: 3}
+  - lineId: contador_int_1B_m
+    clip: {fileID: 8300000, guid: 695e8519fcf933f4dafafbfb5d208ef3, type: 3}
+  - lineId: contador_int_1B_v
+    clip: {fileID: 8300000, guid: f59b3167007650141898760fdfdc1c2f, type: 3}
+  - lineId: contador_int_1C
+    clip: {fileID: 8300000, guid: 9d65f56e6b4265b43b9eb85e102fc882, type: 3}
+  - lineId: contador_int_2
+    clip: {fileID: 8300000, guid: d33f2ad1720c9774cbeae0e4c5276a92, type: 3}
+  - lineId: contador_muerte_01
+    clip: {fileID: 8300000, guid: c8b82f84271b18b4582e428d635251e4, type: 3}
+  - lineId: contador_perdon_01
+    clip: {fileID: 8300000, guid: b6f6d2dce1802994e841587a2d43bdcc, type: 3}
+  - lineId: contador_perdon_02
+    clip: {fileID: 8300000, guid: ce0eb968b6c1f2d459763e19bc9d6594, type: 3}
+  - lineId: contador_ver_01
+    clip: {fileID: 8300000, guid: e2e06357d99a4114994935dc399ee027, type: 3}
+  - lineId: contador_ver_02
+    clip: {fileID: 8300000, guid: d5547b574e561204c8f398c3d34daf43, type: 3}
+  - lineId: contador_ver_03
+    clip: {fileID: 8300000, guid: ee64b9b1f8fc70d4c9413cfae2c7d9e6, type: 3}
   - lineId: donlobo_combate_01
     clip: {fileID: 8300000, guid: 6059b1f35b5044dcba9d28f42a67bd11, type: 3}
   - lineId: donlobo_combate_02
@@ -107,6 +149,22 @@ MonoBehaviour:
     clip: {fileID: 8300000, guid: 066690e1a7ff4e3f953ab769479f78c2, type: 3}
   - lineId: wilbur_dano_03
     clip: {fileID: 8300000, guid: ce53018a38fe4008bc0465aaf0ed4c48, type: 3}
+  - lineId: wilbur_dec_matar
+    clip: {fileID: 8300000, guid: 45d4691f5ccb12340b7a9024aad91fb0, type: 3}
+  - lineId: wilbur_dec_perdonar
+    clip: {fileID: 8300000, guid: 14aa64e560cf7bb4682acce2a96e019e, type: 3}
+  - lineId: wilbur_int_0A
+    clip: {fileID: 8300000, guid: e1356244e6f5fda4ea73526f6eb9c79b, type: 3}
+  - lineId: wilbur_int_0B
+    clip: {fileID: 8300000, guid: 9586c41f2c224bb48b5c20691aeeeaec, type: 3}
+  - lineId: wilbur_int_0C
+    clip: {fileID: 8300000, guid: 5f46eca59867d494494991eced460f17, type: 3}
+  - lineId: wilbur_int_1A
+    clip: {fileID: 8300000, guid: d157cf0613489d549b4adf7b652371c2, type: 3}
+  - lineId: wilbur_int_1B
+    clip: {fileID: 8300000, guid: 68993ef0ef8e4b4478fa6f873f6f1c4f, type: 3}
+  - lineId: wilbur_int_1C
+    clip: {fileID: 8300000, guid: 22e6cb3effef5964bb3efe77b40e7cd8, type: 3}
   - lineId: wilbur_pocavida_01
     clip: {fileID: 8300000, guid: 76747a774c5d49c78da4105d35255f08, type: 3}
   sfx:
@@ -183,3 +241,13 @@ MonoBehaviour:
     thunderMinInterval: 25
     thunderMaxInterval: 60
     hurtVoiceCooldown: 0.6
+    enemyPhraseCooldown: 4
+    sfxDedupeSeconds: 0.08
+    deathPhraseChance: 0.25
+    deathPhraseCooldown: 20
+    surrenderPhraseChance: 1
+    hurtPhraseChance: 0.4
+    hurtPhraseCooldown: 1.5
+    spottedPhraseChance: 0.5
+    patrolPhraseChance: 0.3
+    patrolQuietSeconds: 15

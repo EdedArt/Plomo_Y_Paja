@@ -1,0 +1,80 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 20882899d7d7462a9035f02c34114ba7, type: 3}
+  m_Name: contador
+  m_EditorClassIdentifier: 
+  characterId: contador
+  clips:
+  - name: blink
+    frames:
+    - {fileID: 21300000, guid: 4367cdd7c84342c4193b114aa60c5fc8, type: 3}
+    fps: 8
+  - name: cover
+    frames:
+    - {fileID: 21300000, guid: 9ea2914f2de596a42b6606c69359b360, type: 3}
+    fps: 8
+  - name: death
+    frames:
+    - {fileID: 21300000, guid: 98ad9be5c34af164ca104a6952b412a1, type: 3}
+    fps: 8
+  - name: herido
+    frames:
+    - {fileID: 21300000, guid: 09589a4a84eb1684a934fe159a16bdc0, type: 3}
+    - {fileID: 21300000, guid: f2e3e09546b109e4ab7f0a5bb790bede, type: 3}
+    fps: 8
+  - name: hit
+    frames:
+    - {fileID: 21300000, guid: 7d842a07715439a4f911d23d19224fd3, type: 3}
+    fps: 1
+  - name: idle
+    frames:
+    - {fileID: 21300000, guid: 06fd09cbf611a7c40ae3387609759187, type: 3}
+    - {fileID: 21300000, guid: 602c7dc4df5599b43ac45409b48b76f2, type: 3}
+    fps: 4
+  - name: limp
+    frames:
+    - {fileID: 21300000, guid: f7d8f3a6eeaa9954ba73f4abe302db95, type: 3}
+    - {fileID: 21300000, guid: a60d03e0af6b0d34186283a0438c914c, type: 3}
+    fps: 8
+  - name: nervous
+    frames:
+    - {fileID: 21300000, guid: e0d8906be27297d4884406b1256e90fd, type: 3}
+    - {fileID: 21300000, guid: 5b6dd4a9b1d6cbe47b393257528d75d1, type: 3}
+    fps: 8
+  - name: peek
+    frames:
+    - {fileID: 21300000, guid: f0802e4ea2b04474598b630ede466ff4, type: 3}
+    fps: 8
+  - name: plead
+    frames:
+    - {fileID: 21300000, guid: 4ef48ae55394c1948820b15b995d9077, type: 3}
+    - {fileID: 21300000, guid: 563e536ce8ef860498f198bfa980c60e, type: 3}
+    fps: 8
+  - name: relief
+    frames:
+    - {fileID: 21300000, guid: c5a292d8036cda342abe01b2bdd4907d, type: 3}
+    - {fileID: 21300000, guid: 471bcf20d41efd640a5dc5a115c17837, type: 3}
+    fps: 8
+  - name: scared
+    frames:
+    - {fileID: 21300000, guid: f3973188762b5464ca68db380acfe3e6, type: 3}
+    - {fileID: 21300000, guid: e8d88f1557c177f4baa77af3e6d042a0, type: 3}
+    fps: 8
+  - name: shoot
+    frames:
+    - {fileID: 21300000, guid: 2a5b25bdf50c23f4287ead0f86947757, type: 3}
+    fps: 10
+  - name: talk
+    frames:
+    - {fileID: 21300000, guid: 7895715ae7e92a54faaa6b5a7f6ff42e, type: 3}
+    - {fileID: 21300000, guid: 4141e3b1b963e6a4e8dfb03c3ee12c3e, type: 3}
+    fps: 6

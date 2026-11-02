@@ -19,7 +19,7 @@ public class CharacterSpriteImporter : AssetPostprocessor
 
     // Subir la versión obliga a Unity a reimportar los PNG con los ajustes nuevos.
     // 4: los .meta que llegan con PPU/pivote puestos a mano (p. ej. los del guardia de Edgar) se pisan aquí.
-    public override uint GetVersion() => 4;
+    public override uint GetVersion() => 5;
 
     /// <summary>Alpha mínimo (0..255) para considerar que un píxel es parte del personaje.</summary>
     private const byte FeetAlpha = 26; // 0.1
@@ -55,6 +55,12 @@ public class CharacterSpriteImporter : AssetPostprocessor
             case "intro":
                 settings.spriteAlignment = (int)SpriteAlignment.Center;
                 settings.spritePixelsPerUnit = 100f;
+                break;
+            case "contador":
+                // lienzo 1024x1024 con los pies pegados al borde inferior: pivote Bottom Center, mipmaps activos
+                importer.mipmapEnabled = true;
+                settings.spriteAlignment = (int)SpriteAlignment.BottomCenter;
+                settings.spritePixelsPerUnit = 250f;
                 break;
             case "guardia":
                 SetFeetPivot(settings, path);
