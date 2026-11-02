@@ -15,7 +15,7 @@ using UnityEngine.Events;
 /// 1. "nota_porky_01"   - Una nota de Porky con lenguaje cómplice con Don Lobo
 /// 2. "contrato_01"     - Un contrato firmado entre Porky y Don Lobo (antes del "secuestro")
 /// 3. "foto_reunion_01" - Foto de Porky y Don Lobo reuniéndose en secreto
-/// 4. "registro_01"     - Registro de deudas: Porky debe dinero a Don Lobo y no pagó
+/// 4. "registro_01"     - Registro de deudas: NO es un CluePickup. Solo lo entrega Centavo (Nivel 1, fase 3C, D1)
 /// 5. "carta_lobo_01"   - Carta de Don Lobo explicando que no quiso hacerle daño a nadie
 /// </summary>
 public class CluePickup : MonoBehaviour

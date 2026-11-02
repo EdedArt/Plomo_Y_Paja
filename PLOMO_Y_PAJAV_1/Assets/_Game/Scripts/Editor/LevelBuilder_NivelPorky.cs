@@ -28,7 +28,7 @@ using static LevelBuilderUtils;
 /// </summary>
 public static class LevelBuilder_NivelPorky
 {
-    private const string ScenePath = "Assets/Scenes/NivelPorky.unity";
+    public const string ScenePath = "Assets/Scenes/NivelPorky.unity";
     private const string SampleScenePath = "Assets/Scenes/SampleScene.unity";
 
     private const float WallHeight = 3.5f;
@@ -86,9 +86,15 @@ public static class LevelBuilder_NivelPorky
         MarkStaticRecursive(environment.gameObject);
         CartoonKit.ExcludeFromNavMesh(story); // cartas, manchas y huellas no cuentan para el NavMesh
 
+        // Fase 3C.1: cuarto de herramientas de Centavo, cerca y portón del rincón (traen sus propios flags estáticos)
+        ContadorYardBuilder.BuildInto(environment, lighting);
+
         // Guardar antes de hornear: el NavMesh se guarda junto a la escena
         EditorSceneManager.SaveScene(scene, ScenePath);
         BakeNavMesh();
+        var yardReport = new System.Text.StringBuilder();
+        if (!ContadorYardBuilder.ValidatePaths(yardReport))
+            Debug.LogWarning("[LevelBuilder] Patio del contador:\n" + yardReport);
         EditorSceneManager.SaveScene(scene, ScenePath);
 
         AddToBuildSettings();
@@ -412,7 +418,7 @@ public static class LevelBuilder_NivelPorky
             (new Vector3(-7.3f, FloorTop, -5.3f), 0.4f, 15f),   // esquina de la sala
             (new Vector3(6f, 0f, 12f), 0.5f, 35f),              // patio trasero
             (new Vector3(7f, 0f, 13f), 0.3f, 70f),
-            (new Vector3(-8f, 0f, 18f), 0.4f, 5f),
+            (ContadorYardBuilder.Escombro09Position, 0.4f, 5f), // al lado del cuarto del contador (antes quedaba dentro)
         };
         for (int i = 0; i < chunks.Length; i++)
         {
@@ -449,7 +455,7 @@ public static class LevelBuilder_NivelPorky
         CartoonKit.Barrel("Barril_Patio_A", new Vector3(7.4f, 0f, 18.2f), 0f, props, 1);
         CartoonKit.Barrel("Barril_Patio_B", new Vector3(6.6f, 0f, 18.9f), 40f, props, 2);
         CartoonKit.Crate("Caja_Patio", new Vector3(7.5f, 0f, 19.6f), 20f, props, 0.8f);
-        CartoonKit.StrawBale("Fardo_Patio", new Vector3(-6.5f, 0f, 19.6f), 85f, props);
+        CartoonKit.StrawBale("Fardo_Patio", ContadorYardBuilder.FardoPatioPosition, ContadorYardBuilder.FardoPatioYaw, props); // junto al cuarto del contador
 
         CartoonKit.Barrel("Barril_Callejon_A", new Vector3(1.45f, 0f, 25f), 0f, props, 3);
         CartoonKit.Barrel("Barril_Callejon_B", new Vector3(1.5f, 0f, 29.6f), 25f, props, 0);
@@ -532,16 +538,15 @@ public static class LevelBuilder_NivelPorky
         CreateMarker("Clue_nota_porky_01", MarkerType.Clue, "nota_porky_01", new Vector3(2.5f, 1.1f, 0.8f), 90f, markers);
         CreateMarker("Clue_contrato_01", MarkerType.Clue, "contrato_01", new Vector3(-6.5f, 0.3f, -2.5f), 0f, markers);
 
-        // Patrulla alrededor del exterior de la casa (pasillos laterales de 1.8 m)
-        Vector3[] patrol =
-        {
-            new Vector3(-9f, 0f, -8f), new Vector3(9f, 0f, -8f), new Vector3(9f, 0f, 9f), new Vector3(-9f, 0f, 9f)
-        };
+        // Patrulla alrededor del exterior de la casa (pasillos laterales de 1.8 m); en el patio trasero cruza el
+        // portón del rincón del contador (fase 3C.1, la ruta vive en ContadorYardBuilder)
+        Vector3[] patrol = ContadorYardBuilder.PatrolRoute;
         for (int i = 0; i < patrol.Length; i++)
             CreateMarker($"Patrol_A_{i}", MarkerType.PatrolWaypoint, "A", patrol[i], 0f, markers);
 
-        // Centinela en el patio trasero mirando a la puerta trasera (x -4, z 6)
-        CreateMarker("Sentinel_PatioTrasero", MarkerType.SentinelPoint, "", new Vector3(-4f, 0f, 13f), 180f, markers);
+        // Centinela custodiando el portón del rincón, mirando a la puerta trasera (x -4, z 6)
+        CreateMarker("Sentinel_PatioTrasero", MarkerType.SentinelPoint, "", ContadorYardBuilder.SentinelPosition,
+            ContadorYardBuilder.SentinelYaw, markers);
 
         CreateMarker("Guard_guardia_porky", MarkerType.InterrogableGuard, "guardia_porky", new Vector3(5.5f, 0f, 4.3f), -90f, markers);
 

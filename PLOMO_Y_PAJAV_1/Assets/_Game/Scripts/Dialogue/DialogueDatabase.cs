@@ -72,7 +72,7 @@ public static class DialogueDatabase
     private static void Add(DialogueTree tree) => Trees[tree.npcId] = tree;
 
     // ============ Pistas de interrogatorio (id + texto para GameStateTracker) ============
-    // registro_01 (Contable) va escrita directamente en su nodo, como en el GDD.
+    // registro_01 ya NO sale de aquí: solo lo entrega Centavo en el Nivel 1 (fase 3C, decisión D1).
     private const string ColmilloClueId = "testimonio_puerta_01";
     private const string ColmilloClueText = "Testimonio de Colmillo: nadie se llevó a Porky a rastras; salió por su propio pie";
     private const string TuertoClueId = "testimonio_socios_01";
@@ -183,9 +183,9 @@ public static class DialogueDatabase
             Line("libros", "Los libros nunca mienten, señor. Cada billete que entra y sale queda anotado con mi mejor letra.",
                 Opt("¿Falta dinero?", "fin_ayuda"),
                 Opt("¿Aparece mi hermano en ellos?", "fin_ayuda")),
-            End("fin_ayuda", "Faltan 4.300 billetes, justo la semana en que Porky desapareció. Una sola inicial al margen: P. Llévese la hoja.",
-                InterrogationResult.Helpful, "registro_01",
-                "Registro de deudas: faltan 4.300 billetes la semana en que Porky desapareció, con la inicial P al margen"),
+            // Sigue siendo útil (cuenta como interrogatorio), pero sin pista: registro_01 solo lo da Centavo (D1)
+            End("fin_ayuda", "Faltan 4.300 billetes, justo la semana en que Porky desapareció. Una sola inicial al margen: P.",
+                InterrogationResult.Helpful),
 
             Line("donde", "¿El muchacho? Lo trasladaron al almacén del puerto, creo. O al sótano del club. No me pagan por saber.",
                 Opt("¿Cuál de los dos?", "fin_engano"),

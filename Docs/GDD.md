@@ -66,7 +66,7 @@ Secuaces de Don Lobo. Algunos son agresivos, algunos se rinden y pueden ser inte
 | nota_porky_01 | Nota de Porky | Casa de Porky, cajón | Lenguaje cómplice con el Lobo |
 | contrato_01 | Contrato de deuda | Casa de Porky, debajo del sofá | Porky le debía dinero al Lobo |
 | foto_reunion_01 | Foto de reunión | Campamento del lobo, barracón | Porky y el Lobo reuniéndose antes |
-| registro_01 | Registro de deudas | Guardia rendido (pista de interrogatorio) | El monto exacto que Porky robó |
+| registro_01 | Registro de deudas | Casa de Porky, cuarto de herramientas: solo lo da Centavo (interrogatorio o al perdonarlo) | El monto exacto que Porky robó |
 | carta_lobo_01 | Carta de Don Lobo | Guarida final | El Lobo explica su versión |
 
 ### 3.4 Interrogaciones

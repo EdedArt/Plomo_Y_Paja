@@ -16,8 +16,9 @@ Read the "Deuda técnica" sections of the 3A and 3B audits. Reuse `Editor/LevelB
 and copy the structure of `Editor/LevelBuilder_NivelPorky.cs`. Relevant code:
 `Core/FinaleTrigger.cs` (`OnWolfKilled`), `Core/GameStateTracker.cs` (from 3B),
 `Core/GameManager.cs`, `Enemies/*`, `Clues/*`, `Dialogue/DialogueDatabase.cs`
-(already has `guardia_barracon` and `guardia_registro` trees; `guardia_registro` awards
-`registro_01`), `AI/AICompanion.cs` (**do not modify**).
+(already has `guardia_barracon` and `guardia_registro` trees; since 3C.1 `guardia_registro` gives
+**no** clue — `registro_01` comes only from Centavo in Level 1, decision D1 of PHASE-3C),
+`AI/AICompanion.cs` (**do not modify**).
 
 ## Out of scope
 Ending scene content, intro, menus (Phase 5). Final art and audio (Phase 6).
@@ -35,8 +36,8 @@ Layout (~80 × 60 m), from entrance to boss:
 1. **Entrance alley** (PlayerSpawn), narrow, crates and barrels as cover.
 2. **Courtyard** with two **barracks** (small buildings). Barrack 1 holds clue
    `foto_reunion_01` and informant `guardia_barracon`.
-3. **Contaduría**: a small office shack with informant `guardia_registro` (gives `registro_01`
-   only through interrogation; no physical pickup).
+3. **Contaduría**: a small office shack with informant `guardia_registro` (interrogation only;
+   it does **not** give `registro_01` — D1 of PHASE-3C: that clue comes only from Centavo).
 4. **La Guarida** (main building), three spaces:
    - Foyer with two guards.
    - **Office** (side room) with clue `carta_lobo_01` on a desk — reachable before the boss hall.
@@ -120,7 +121,7 @@ Commit: `dia4(david): decision final y paso al final`
 1. Menús en orden; consola limpia.
 2. Pasar del Nivel Porky al Campamento: las pistas del nivel 1 se conservan (ver contador).
 3. Recorrer el Campamento: 10 enemigos, 2 informantes reconocibles, foto y carta encontrables.
-4. Interrogar al Contable con la opción correcta: obtienes la pista del registro.
+4. Interrogar al Contable con la opción correcta: resultado útil, sin pista (el registro lo da Centavo en el nivel 1).
 5. Jefe: diálogo de entrada, combate, refuerzos una sola vez, se rinde al 25%.
 6. Elegir **Disparar** en una partida y **Bajar el arma** en otra: ambos llegan al final.
 7. Anotar qué final (A/B/C) mostró cada partida y con cuántas pistas/interrogatorios.
