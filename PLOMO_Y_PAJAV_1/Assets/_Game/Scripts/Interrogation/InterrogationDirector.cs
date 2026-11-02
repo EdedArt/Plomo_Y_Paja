@@ -125,9 +125,10 @@ public class InterrogationDirector : MonoBehaviour
 
     private IEnumerator EnterRoutine(Func<InterrogationDirector, IEnumerator> flow)
     {
-        // 1. Jugador
+        // 1. Jugador. Ninguna voz del mundo sigue sonando (A3, 3C.4): se corta el canal de voz de los guardias
         LockPlayer();
         DialogueUI.EnsureEventSystem();
+        AudioLibrary.CutEnemyVoiceBelow(int.MaxValue);
 
         // 2. Cámara al ancla
         Camera cam = Camera.main;
@@ -179,6 +180,7 @@ public class InterrogationDirector : MonoBehaviour
         yield return Animate(uiFadeSeconds, t => view.SetAlpha(startAlpha * (1f - t)));
         view.Portrait.Hide();
         view.SetThought("", 0f);
+        view.SetNotice("", 0f);
         view.SetOpen(false);
 
         // El dibujo del mundo vuelve en su estado final (muerto / cojeando)
@@ -329,8 +331,31 @@ public class InterrogationDirector : MonoBehaviour
     /// <summary>
     /// Una línea con voz: nombre + máquina de escribir (≈ 0.9 × duración del clip). Clic/Espacio completa el texto;
     /// otro clic corta el clip. emotion = par del retrato a mostrar (null = sin cambio). Sin clip: solo texto.
+    /// Las voces nunca se pisan: cada Say corta la anterior (las dos fuentes).
     /// </summary>
     public IEnumerator Say(Speaker speaker, string text, string clipId, string emotion = null)
+    {
+        yield return Say(speaker, text, clipId, emotion, null);
+    }
+
+    /// <summary>
+    /// Como Say, pero el clip se corta "cut.seconds" antes de terminar: suena cut.sfx (2D) y el retrato pasa a
+    /// cut.emotion (ej: contador_muerte_01 cortado por el escopetazo, guion §5). Sin clip: el corte llega al final del texto.
+    /// </summary>
+    public IEnumerator SayCut(Speaker speaker, string text, string clipId, string emotion, LineCut cut)
+    {
+        yield return Say(speaker, text, clipId, emotion, cut);
+    }
+
+    /// <summary>Corte de una línea por un efecto (disparo).</summary>
+    public class LineCut
+    {
+        public float seconds = 0.2f;
+        public string sfx = "escopeta_disparo";
+        public string emotion = "death";
+    }
+
+    private IEnumerator Say(Speaker speaker, string text, string clipId, string emotion, LineCut cut)
     {
         yield return null; // el clic que eligió la opción anterior no cuenta aquí
         bool fromTarget = speaker == Speaker.Target;
@@ -354,7 +379,23 @@ public class InterrogationDirector : MonoBehaviour
 
         while (true)
         {
+            if (cut != null)
+            {
+                bool due = clip != null && source != null
+                    ? !source.isPlaying || source.time >= clip.length - cut.seconds
+                    : textDone;
+                if (due)
+                {
+                    if (source != null) source.Stop();
+                    view.SetVisibleCharacters(total);
+                    AudioLibrary.PlaySfx2D(cut.sfx);
+                    if (!string.IsNullOrEmpty(cut.emotion)) view.Portrait.SetEmotion(cut.emotion);
+                    break;
+                }
+            }
+
             bool advance = AdvancePressed();
+            if (cut != null) advance = false; // la línea del disparo no se salta: el corte es el remate
             if (!textDone)
             {
                 float t = typeSeconds > 0f ? (Time.unscaledTime - start) / typeSeconds : 1f;
@@ -389,7 +430,7 @@ public class InterrogationDirector : MonoBehaviour
     public IEnumerator Choose(string[] options, Action<int> chosen)
     {
         int picked = -1;
-        view.ShowOptions(options, i => picked = i);
+        view.ShowOptions(playerName, options, i => picked = i);
         while (picked < 0)
         {
             yield return null;
@@ -426,6 +467,20 @@ public class InterrogationDirector : MonoBehaviour
     }
 
     public void HideThought() => view.SetThought("", 0f);
+
+    /// <summary>Aviso corto que aparece y se va solo (ej: la pista registro_01). No bloquea el flujo.</summary>
+    public void ShowNotice(string text, float seconds = 3f)
+    {
+        StartCoroutine(NoticeRoutine(text, seconds));
+    }
+
+    private IEnumerator NoticeRoutine(string text, float seconds)
+    {
+        yield return Animate(0.2f, t => view.SetNotice(text, t));
+        float until = Time.unscaledTime + seconds;
+        while (Time.unscaledTime < until) yield return null;
+        yield return Animate(0.4f, t => view.SetNotice(text, 1f - t));
+    }
 
     /// <summary>Dos botones grandes ("Jalar el gatillo" / "Dejarlo ir"); teclas 1/2 o clic.</summary>
     public IEnumerator Decide(string first, string second, Action<int> chosen)

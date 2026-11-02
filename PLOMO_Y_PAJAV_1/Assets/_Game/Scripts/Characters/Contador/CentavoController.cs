@@ -168,6 +168,7 @@ public class CentavoController : MonoBehaviour, IDamageable, IInterrogationTarge
     private bool _interrogationArmed = true;
 
     // Huida
+    private bool _fleeLinePending;
     private int _pathIndex;
     private float _limpTimer;
     private int _limpFrame;
@@ -554,12 +555,14 @@ public class CentavoController : MonoBehaviour, IDamageable, IInterrogationTarge
         _limpTimer = 0f;
         _limpFrame = 0;
         if (billboard != null) billboard.ShowFrame("limp", 0);
-        Say(LineFlee, true);
+        _fleeLinePending = true; // contador_huye_01 suena al cerrarse la escena, no encima de ella
         if (GameStateTracker.Instance != null) GameStateTracker.Instance.RegisterContadorState(ContadorState.Pardoned);
     }
 
     private void UpdateFleeing()
     {
+        if (_fleeLinePending && !InterrogationDirector.IsActive && Say(LineFlee, true)) _fleeLinePending = false;
+
         Transform[] path = shed.ExitPath;
         if (path == null || _pathIndex >= path.Length)
         {
@@ -692,6 +695,7 @@ public class CentavoController : MonoBehaviour, IDamageable, IInterrogationTarge
     private bool Say(string lineId, bool force)
     {
         if (voiceSource == null) return false;
+        if (InterrogationDirector.IsActive) return false; // en la escena solo hablan las voces del director (3C.4, A3)
         if (!force && (voiceSource.isPlaying || Time.time < _nextBarkTime)) return false;
 
         AudioClip clip = AudioLibrary.GetVoice(lineId);

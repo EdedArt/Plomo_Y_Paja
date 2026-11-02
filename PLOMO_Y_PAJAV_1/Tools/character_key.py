@@ -6,9 +6,14 @@ Reusa smoothstep/dilate/resize/to_image de viewmodel_key.py (no se modifica; el 
 USO (desde PLOMO_Y_PAJAV_1/):
     python Tools/character_key.py                    # procesa Contador
     python Tools/character_key.py --lo 20 --hi 90 --dilate 4
+    python Tools/character_key.py --single ENTRADA.png --out SALIDA.png [--crop 4]   # un solo archivo (UI)
 
 ENTRADA : _entrante_personajes/Contador/*.png   (si no existe, usa _entrante_viewmodel/_entrante_personajes_/contador/)
 SALIDA  : Assets/_Game/Art/Characters/contador/<nombre>.png  (1024x1024 RGBA)
+
+MODO --single (fase 3C.4, ej. el papel del diálogo Art/UI/ui_papel_dialogo.png): mismo recorte magenta + despill de borde
++ dilate, sin escalar ni alinear. --crop N recorta a lo opaco dejando N px de margen (sin --crop conserva el tamaño).
+--out puede ser el mismo archivo de entrada (Unity conserva el GUID del .meta).
 
 PASOS:
   1. Magenta m = min(R, B) - G. alpha = 1 - smoothstep(lo, hi, m).
@@ -87,6 +92,22 @@ def bbox(alpha):
     return ys.min(), ys.max() + 1, xs.min(), xs.max() + 1
 
 
+def key_single(args):
+    rgb, alpha = key_magenta(args.single, args.lo, args.hi)
+    rgb = dilate(rgb, alpha, args.dilate)
+    h, w = alpha.shape
+    if args.crop >= 0:
+        y0, y1, x0, x1 = bbox(alpha)
+        y0, x0 = max(0, y0 - args.crop), max(0, x0 - args.crop)
+        y1, x1 = min(h, y1 + args.crop), min(w, x1 + args.crop)
+        rgb, alpha = rgb[y0:y1, x0:x1], alpha[y0:y1, x0:x1]
+    out = args.out or args.single
+    to_image(rgb, alpha).save(out, optimize=True)
+    clear = float((alpha < 0.05).mean()) * 100
+    print("OK %s -> %s  %dx%d  transparente %.1f %%" % (args.single, out, alpha.shape[1], alpha.shape[0], clear))
+    return 0
+
+
 def main():
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     ap.add_argument("--lo", type=float, default=20.0)
@@ -94,7 +115,12 @@ def main():
     ap.add_argument("--dilate", type=int, default=4)
     ap.add_argument("--src", default=None)
     ap.add_argument("--dst", default=DST)
+    ap.add_argument("--single", default=None, help="un solo PNG (sin escalar ni alinear)")
+    ap.add_argument("--out", default=None, help="salida de --single (por defecto, sobrescribe la entrada)")
+    ap.add_argument("--crop", type=int, default=-1, help="--single: recortar a lo opaco con este margen en px")
     args = ap.parse_args()
+    if args.single:
+        return key_single(args)
 
     src = args.src or (SRC if os.path.isdir(SRC) else SRC_FALLBACK)
     print("Entrada:", src)

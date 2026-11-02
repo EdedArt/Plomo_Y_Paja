@@ -28,6 +28,8 @@ public static class InterrogationUIBuilder
         "Assets/TextMesh Pro/Fonts/SpecialElite-Regular.ttf",
     };
     private const string PaperPath = "Assets/_Game/Art/UI/ui_papel_dialogo.png";
+    /// <summary>Bordes del 9-slice del papel en px del PNG (izq, abajo, der, arriba): las orillas rotas no se estiran.</summary>
+    private static readonly Vector4 PaperBorder = new Vector4(150f, 110f, 150f, 110f);
 
     private const string SpanishCharacters =
         "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789 .,;:¡!¿?…-—–'\"«»()[]/*%$#&+=_" +
@@ -127,14 +129,18 @@ public static class InterrogationUIBuilder
             return null;
         }
 
+        // 3C.4: el PNG ya tiene alpha real (Tools/character_key.py --single) y se dibuja en 9-slice
         var importer = AssetImporter.GetAtPath(PaperPath) as TextureImporter;
         if (importer != null && (importer.textureType != TextureImporterType.Sprite ||
-                                 importer.spriteImportMode != SpriteImportMode.Single || importer.mipmapEnabled))
+                                 importer.spriteImportMode != SpriteImportMode.Single || importer.mipmapEnabled ||
+                                 !importer.alphaIsTransparency || importer.spriteBorder != PaperBorder))
         {
             importer.textureType = TextureImporterType.Sprite;
             importer.spriteImportMode = SpriteImportMode.Single;
             importer.mipmapEnabled = false;
-            importer.alphaIsTransparency = false; // el PNG no tiene alpha
+            importer.alphaSource = TextureImporterAlphaSource.FromInput;
+            importer.alphaIsTransparency = true;
+            importer.spriteBorder = PaperBorder;
             importer.wrapMode = TextureWrapMode.Clamp;
             importer.maxTextureSize = 2048;
             importer.SaveAndReimport();
@@ -172,7 +178,7 @@ public static class InterrogationUIBuilder
             LipSyncDriver lipSync = targetVoice.gameObject.AddComponent<LipSyncDriver>();
             Set(lipSync, "voiceSource", targetVoice);
 
-            // Retrato: abajo al centro, 78 % del alto de la pantalla, cuadrado
+            // Retrato: abajo al centro, cuadrado; alto y posición finales en InterrogationCanvas.ApplyLayout (≈ 95 %)
             RectTransform portraitRect = Rect("Retrato", root.transform, new Vector2(0.5f, 0f), new Vector2(0.5f, 0.78f),
                 new Vector2(0.5f, 0f));
             Image portraitImage = portraitRect.gameObject.AddComponent<Image>();
@@ -189,23 +195,19 @@ public static class InterrogationUIBuilder
             Set(portrait, "mouth", mouth);
             Set(portrait, "group", portraitGroup);
 
-            // Papel del diálogo: abajo, sobre la parte baja del retrato
+            // Papel del diálogo: tira baja delante del retrato (anclas finales en ApplyLayout)
             RectTransform paperRect = Rect("Papel", root.transform, new Vector2(0.21f, 0.015f), new Vector2(0.79f, 0.015f),
                 new Vector2(0.5f, 0f));
             Image paperImage = paperRect.gameObject.AddComponent<Image>();
             paperImage.raycastTarget = false;
-            AspectRatioFitter paperFit = paperRect.gameObject.AddComponent<AspectRatioFitter>();
-            paperFit.aspectMode = AspectRatioFitter.AspectMode.WidthControlsHeight;
             if (paper != null)
             {
                 paperImage.sprite = paper;
-                paperImage.type = Image.Type.Simple;
-                paperFit.aspectRatio = paper.rect.width / Mathf.Max(1f, paper.rect.height);
+                paperImage.type = Image.Type.Sliced; // tamaño, márgenes y escala de bordes: InterrogationCanvas.ApplyLayout
             }
             else
             {
                 paperImage.color = Cream;
-                paperFit.aspectRatio = 2.55f;
                 Outline border = paperRect.gameObject.AddComponent<Outline>();
                 border.effectColor = DarkBorder;
                 border.effectDistance = new Vector2(6f, -6f);
@@ -263,6 +265,18 @@ public static class InterrogationUIBuilder
             thought.fontSizeMin = 20f;
             thought.fontSizeMax = 32f;
 
+            // Aviso de pista (registro_01): sobre el papel, aparece y se va
+            RectTransform notice = Rect("Aviso_Pista", root.transform, new Vector2(0.25f, 0.31f), new Vector2(0.75f, 0.38f),
+                new Vector2(0.5f, 0.5f));
+            CanvasGroup noticeGroup = notice.gameObject.AddComponent<CanvasGroup>();
+            noticeGroup.blocksRaycasts = false;
+            noticeGroup.alpha = 0f;
+            Image noticeImage = notice.gameObject.AddComponent<Image>();
+            noticeImage.color = new Color(DarkBorder.r, DarkBorder.g, DarkBorder.b, 0.85f);
+            noticeImage.raycastTarget = false;
+            TMP_Text noticeText = Label("Texto", notice, new Vector2(0.03f, 0.05f), new Vector2(0.97f, 0.95f), font, 34f, Cream,
+                FontStyles.Bold, TextAlignmentOptions.Center);
+
             // Referencias
             var so = new SerializedObject(view);
             so.FindProperty("canvas").objectReferenceValue = canvas;
@@ -277,7 +291,10 @@ public static class InterrogationUIBuilder
             SetArray(so.FindProperty("decisionLabels"), decisionLabels);
             so.FindProperty("thoughtGroup").objectReferenceValue = bandGroup;
             so.FindProperty("thoughtLabel").objectReferenceValue = thought;
+            so.FindProperty("noticeGroup").objectReferenceValue = noticeGroup;
+            so.FindProperty("noticeLabel").objectReferenceValue = noticeText;
             so.ApplyModifiedPropertiesWithoutUndo();
+            view.ApplyLayout(); // los valores de diseño de InterrogationCanvas quedan también en el prefab
 
             Set(director, "view", view);
             Set(director, "targetVoice", targetVoice);
