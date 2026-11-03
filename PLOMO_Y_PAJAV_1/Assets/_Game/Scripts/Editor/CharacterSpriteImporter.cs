@@ -24,7 +24,11 @@ public class CharacterSpriteImporter : AssetPostprocessor
     // 7: también Art/Pickups/ (fase 3C.5.2: el revólver en el piso).
     // 8: también Art/UI/HUD/ (fase HUD.1: caras e íconos del HUD).
     // 9: también Art/FX/ (fase HUD.2: polvo de impacto y agujero de bala).
-    public override uint GetVersion() => 9;
+    // 10: Art/Intro/ (fase INTRO.0: texturas del libro, no son sprites de personaje).
+    public override uint GetVersion() => 10;
+
+    /// <summary>Texturas del libro de la intro (fase INTRO): Art/Intro/ilus_intro_NN, libro_portada, libro_guardas, libro_papel.</summary>
+    public const string IntroFolder = "Assets/_Game/Art/Intro";
 
     /// <summary>Efectos de disparo (fase HUD.2): Art/FX/fx_impacto_01/02, fx_agujero_bala (character_key.py --center FX --dst ...).</summary>
     public const string FxFolder = "Assets/_Game/Art/FX";
@@ -54,6 +58,11 @@ public class CharacterSpriteImporter : AssetPostprocessor
         if (path.StartsWith(HudFolder + "/"))
         {
             ApplyHud((TextureImporter)assetImporter);
+            return;
+        }
+        if (path.StartsWith(IntroFolder + "/"))
+        {
+            ApplyBook((TextureImporter)assetImporter);
             return;
         }
         if (!path.StartsWith(CharactersFolder + "/")) return;
@@ -127,6 +136,27 @@ public class CharacterSpriteImporter : AssetPostprocessor
         settings.spriteAlignment = (int)SpriteAlignment.Center;
         settings.spritePixelsPerUnit = 1000f;
         importer.SetTextureSettings(settings);
+    }
+
+    /// <summary>
+    /// Libro de la intro (INTRO.0): textura normal (van en el material de un quad, no son Sprite), sRGB, mipmaps,
+    /// Trilinear, máximo 2048, sin compresión (se ven de cerca, a ~85 % del cuadro).
+    /// </summary>
+    private static void ApplyBook(TextureImporter importer)
+    {
+        importer.textureType = TextureImporterType.Default;
+        importer.textureShape = TextureImporterShape.Texture2D;
+        importer.sRGBTexture = true;
+        importer.alphaSource = TextureImporterAlphaSource.None;
+        importer.alphaIsTransparency = false;
+        importer.mipmapEnabled = true;
+        importer.filterMode = FilterMode.Trilinear;
+        importer.anisoLevel = 4;
+        importer.wrapMode = TextureWrapMode.Clamp;
+        importer.npotScale = TextureImporterNPOTScale.None;
+        importer.isReadable = false;
+        importer.textureCompression = TextureImporterCompression.Uncompressed;
+        importer.maxTextureSize = 2048;
     }
 
     /// <summary>HUD (HUD.1, paso 0): Sprite con alpha real, sin compresión, SIN mipmaps, Bilinear, pivote al centro.</summary>
