@@ -172,6 +172,19 @@ public static class ContadorInterrogationDataBuilder
                 chance = 0.5f,
             },
         };
+
+        // Rematado antes de la escena sin escucharlo (D4, guion §5 "Pensamiento si lo rematas sin escucharlo", fase 3C.5.1)
+        d.finishedOffSituation = "Wilbur acaba de rematar a Centavo, herido en el piso y pidiendo que lo escuchara, sin escucharlo. " +
+                                 "Centavo era el contador de Don Lobo y sabía de la deuda de Porky. Dale a Wilbur un pensamiento " +
+                                 "en español, noir y ambiguo, de una o dos frases y como mucho 25 palabras, sin decirle qué debería " +
+                                 "haber hecho.";
+        d.finishedOffTimeoutSeconds = 4f;
+        d.finishedOffThoughts = new[]
+        {
+            T("Ni siquiera lo dejaste hablar. Lo que sabía se quedó en el suelo con él."),
+            T("Pedía que lo escucharas. Ahora ya no va a decir nada… ni a favor ni en contra de Porky."),
+            T("Un tiro rápido ahorra preguntas. También respuestas."),
+        };
     }
 
     private static InterrogationLine L(string id, InterrogationLineSpeaker speaker, string text, string emotion,

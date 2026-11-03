@@ -345,3 +345,24 @@ MonoBehaviour:
     condition: 0
     requiresLineId: 
     chance: 1
+  finishedOffSituation: "Wilbur acaba de rematar a Centavo, herido en el piso y pidiendo
+    que lo escuchara, sin escucharlo. Centavo era el contador de Don Lobo y sab\xEDa
+    de la deuda de Porky. Dale a Wilbur un pensamiento en espa\xF1ol, noir y ambiguo,
+    de una o dos frases y como mucho 25 palabras, sin decirle qu\xE9 deber\xEDa haber
+    hecho."
+  finishedOffTimeoutSeconds: 4
+  finishedOffThoughts:
+  - text: "Ni siquiera lo dejaste hablar. Lo que sab\xEDa se qued\xF3 en el suelo
+      con \xE9l."
+    condition: 0
+    requiresLineId: 
+    chance: 1
+  - text: "Ped\xEDa que lo escucharas. Ahora ya no va a decir nada\u2026 ni a favor
+      ni en contra de Porky."
+    condition: 0
+    requiresLineId: 
+    chance: 1
+  - text: "Un tiro r\xE1pido ahorra preguntas. Tambi\xE9n respuestas."
+    condition: 0
+    requiresLineId: 
+    chance: 1

@@ -1,4 +1,5 @@
 using System.Collections.Generic;
+using TMPro;
 using UnityEngine;
 using UnityEngine.UI;
 
@@ -15,7 +16,14 @@ using UnityEngine.UI;
 ///   (adorno, la dispersión real no cambia al caminar). Al disparar rebotan hacia afuera un 40 % con un poco de "squash and
 ///   stretch" (se alargan y se adelgazan) y vuelven en 0.12 s (tiempo real).
 /// - Se oculta al apuntar (PlayerAim), en diálogo, pausa y muerte.
+/// - MODO PUNTO (INTRO.2.1): solo un punto blanco chico (~5 px, contorno oscuro fino) en lugar de la mira completa:
+///   en la cinemática del taxi mientras se puede mirar con el mouse (CinematicState.CenterDot) y con el arma enfundada
+///   (INTRO.3). Al volver a la mira completa, las gotas aparecen con un fundido corto (fullFadeInSeconds).
 /// - Marcador de impacto: las marcas se ponen rojas 0.1 s cuando un enemigo recibe daño (EnemyHealth.OnDamaged).
+/// - Munición: la muestra el HUD de Wilbur (HUD.1, HudWilbur). La fila provisional de la 3C.5 se quitó: un solo lugar (H4).
+/// - Avisos (3C.5): ShowNotice(texto) (ej: "Revólver de Centavo") y SetPrompt(texto) (ej: "[E] Recoger el revólver"),
+///   en el mismo canvas porque el aviso de pistas y el prompt de UIManager no existen en las escenas.
+/// - WeaponSwitcher llama SetWeapon al cambiar de arma: las marcas leen la dispersión del arma activa.
 /// Los sprites se generan por código (sin PNG): una distancia con signo por forma, antialias de medio píxel de textura.
 /// CÓMO AJUSTAR EL DIBUJO: las constantes de arriba (radios y largo en px a 1080p) y baseRadius en el inspector.
 /// </summary>
@@ -32,6 +40,11 @@ public class RubberHoseCrosshair : MonoBehaviour
     private const byte OutlineLevel = 22;           // gris del contorno (casi negro, sin ser negro puro)
     private const float PopStretch = 0.16f;         // al rebotar: la gota se alarga un 16 %...
     private const float PopSquash = 0.12f;          // ...y se adelgaza un 12 %
+    private const float SmallDotWhiteRadius = 2.5f; // modo punto (INTRO.2.1): 5 px de blanco...
+    private const float SmallDotOutline = 1.0f;     // ...con 1 px de contorno oscuro (se lee sobre fondos claros)
+
+    /// <summary>Qué se dibuja: nada, el punto chico o la mira completa.</summary>
+    public enum Mode { Hidden, Dot, Full }
 
     [SerializeField] private int sortingOrder = 5;
     [SerializeField] private Color fillColor = Color.white;
@@ -51,11 +64,27 @@ public class RubberHoseCrosshair : MonoBehaviour
     [Tooltip("Suavizado de la apertura (más alto = sigue más rápido)")]
     [SerializeField] private float smoothing = 18f;
 
+    [Tooltip("Segundos del fundido de la mira completa al salir del modo punto (ej: al terminar de sacar el arma)")]
+    [SerializeField] private float fullFadeInSeconds = 0.15f;
+
+    [Header("Avisos (3C.5)")]
+    [SerializeField] private float noticeSeconds = 2.5f;
+
+    /// <summary>La mira del jugador (para avisos de recogibles). Null si no hay.</summary>
+    public static RubberHoseCrosshair Current { get; private set; }
+
     private IWeapon _weapon;
     private PlayerAim _aim;
     private Camera _camera;
     private CharacterController _body;
     private Canvas _canvas;
+    private GameObject _fullRoot;        // punto grande + gotas
+    private CanvasGroup _fullGroup;
+    private Image _smallDot;             // modo punto
+    private Mode _mode = Mode.Full;
+    private TextMeshProUGUI _noticeText;
+    private TextMeshProUGUI _promptText;
+    private float _noticeUntil = -1f;
     private readonly RectTransform[] _tickRects = new RectTransform[4];
     private readonly Image[] _ticks = new Image[4];
     private float _tickLength;
@@ -70,6 +99,10 @@ public class RubberHoseCrosshair : MonoBehaviour
 
     private static Sprite _dotSprite;
     private static Sprite _tickSprite;
+    private static Sprite _smallDotSprite;
+
+    /// <summary>Lo que se dibuja en este frame.</summary>
+    public Mode CurrentMode => _mode;
 
     private void Awake()
     {
@@ -82,6 +115,34 @@ public class RubberHoseCrosshair : MonoBehaviour
         if (TryGetComponent(out PlayerHealth health)) health.OnDeath += HandleDeath;
         BuildUi();
         _radius = baseRadius;
+        Current = this;
+    }
+
+    /// <summary>Arma activa (WeaponSwitcher). Mueve la suscripción a OnFired y la fila de munición.</summary>
+    public void SetWeapon(IWeapon weapon)
+    {
+        if (weapon == _weapon) return;
+        if (isActiveAndEnabled && _weapon != null) _weapon.OnFired -= HandleFired;
+        _weapon = weapon;
+        if (isActiveAndEnabled && _weapon != null) _weapon.OnFired += HandleFired;
+    }
+
+    /// <summary>Aviso corto bajo la mira (tiempo real).</summary>
+    public void ShowNotice(string text)
+    {
+        if (_noticeText == null) return;
+        _noticeText.text = text;
+        _noticeText.enabled = true;
+        _noticeUntil = Time.unscaledTime + noticeSeconds;
+    }
+
+    /// <summary>Texto de interacción bajo la mira; null o vacío lo oculta.</summary>
+    public void SetPrompt(string text)
+    {
+        if (_promptText == null) return;
+        bool on = !string.IsNullOrEmpty(text);
+        if (on && _promptText.text != text) _promptText.text = text;
+        if (_promptText.enabled != on) _promptText.enabled = on;
     }
 
     private void OnEnable()
@@ -96,6 +157,7 @@ public class RubberHoseCrosshair : MonoBehaviour
 
     private void OnDestroy()
     {
+        if (Current == this) Current = null;
         foreach (EnemyHealth enemy in _watched)
             if (enemy != null) enemy.OnDamaged -= HandleEnemyDamaged;
         _watched.Clear();
@@ -130,9 +192,33 @@ public class RubberHoseCrosshair : MonoBehaviour
         root.anchorMin = root.anchorMax = root.pivot = new Vector2(0.5f, 0.5f);
         root.anchoredPosition = Vector2.zero;
 
+        // Avisos: hermanos de la mira (siguen visibles al apuntar)
+        _noticeText = CreateText("Notice", canvasGo.transform, 30f, TextAlignmentOptions.Center);
+        _noticeText.rectTransform.anchoredPosition = new Vector2(0f, -120f);
+        _noticeText.enabled = false;
+        _promptText = CreateText("Prompt", canvasGo.transform, 22f, TextAlignmentOptions.Center);
+        _promptText.rectTransform.anchoredPosition = new Vector2(0f, -78f);
+        _promptText.enabled = false;
+
+        // Mira completa (punto + gotas) en su propio grupo: se funde al salir del modo punto
+        var fullGo = new GameObject("Full", typeof(RectTransform));
+        fullGo.transform.SetParent(root, false);
+        var full = (RectTransform)fullGo.transform;
+        full.anchorMin = full.anchorMax = full.pivot = new Vector2(0.5f, 0.5f);
+        full.anchoredPosition = Vector2.zero;
+        _fullGroup = fullGo.AddComponent<CanvasGroup>();
+        _fullGroup.interactable = false;
+        _fullGroup.blocksRaycasts = false;
+        _fullRoot = fullGo;
+
         // Punto central
         float dotSize = (DotWhiteRadius + OutlineThickness) * 2f + SpriteMargin;
-        CreateImage("Dot", root, _dotSprite, new Vector2(dotSize, dotSize));
+        CreateImage("Dot", full, _dotSprite, new Vector2(dotSize, dotSize));
+
+        // Modo punto (INTRO.2.1): un punto chico solo
+        float smallSize = (SmallDotWhiteRadius + SmallDotOutline) * 2f + SpriteMargin;
+        _smallDot = CreateImage("SmallDot", root, _smallDotSprite, new Vector2(smallSize, smallSize));
+        _smallDot.enabled = false;
 
         // Gotas: arriba, derecha, abajo, izquierda (el sprite apunta hacia arriba y se gira 0/-90/180/90 grados)
         float tickWidth = (TickFatRadius + OutlineThickness) * 2f + SpriteMargin;
@@ -140,7 +226,7 @@ public class RubberHoseCrosshair : MonoBehaviour
         float[] angles = { 0f, -90f, 180f, 90f };
         for (int i = 0; i < 4; i++)
         {
-            Image tick = CreateImage("Tick" + i, root, _tickSprite, new Vector2(tickWidth, _tickLength + SpriteMargin));
+            Image tick = CreateImage("Tick" + i, full, _tickSprite, new Vector2(tickWidth, _tickLength + SpriteMargin));
             tick.rectTransform.localRotation = Quaternion.Euler(0f, 0f, angles[i]);
             _ticks[i] = tick;
             _tickRects[i] = tick.rectTransform;
@@ -161,6 +247,26 @@ public class RubberHoseCrosshair : MonoBehaviour
         return image;
     }
 
+    private static TextMeshProUGUI CreateText(string name, Transform parent, float size, TextAlignmentOptions alignment)
+    {
+        var go = new GameObject(name, typeof(RectTransform));
+        go.transform.SetParent(parent, false);
+        TextMeshProUGUI text = go.AddComponent<TextMeshProUGUI>();
+        text.fontSize = size;
+        text.alignment = alignment;
+        text.color = Color.white;
+        text.outlineWidth = 0.25f;
+        text.outlineColor = new Color32(22, 22, 22, 255);
+        text.raycastTarget = false;
+        text.enableWordWrapping = false;
+        bool left = alignment == TextAlignmentOptions.Left;
+        RectTransform rt = text.rectTransform;
+        rt.anchorMin = rt.anchorMax = new Vector2(0.5f, 0.5f);
+        rt.pivot = new Vector2(left ? 0f : 0.5f, 0.5f);
+        rt.sizeDelta = new Vector2(left ? 60f : 900f, size * 1.4f);
+        return text;
+    }
+
     /// <summary>radius = distancia del centro a la punta de cada gota; pop 0..1 la alarga y la adelgaza (squash and stretch).</summary>
     private void PlaceTicks(float radius, float pop)
     {
@@ -177,10 +283,51 @@ public class RubberHoseCrosshair : MonoBehaviour
 
     // ============ Cada frame ============
 
+    /// <summary>
+    /// Qué mostrar (INTRO.2.1). Las razones se combinan en cada frame, nadie apaga la mira de otro:
+    /// muerto → nada; cinemática → punto solo donde el director lo pide (CinematicState.CenterDot), si no nada;
+    /// pausa / diálogo / interrogatorio → nada; arma enfundada o sacándose → punto; si no → mira completa.
+    /// </summary>
+    private Mode ComputeMode()
+    {
+        if (_dead) return Mode.Hidden;
+        if (CinematicState.IsPlaying) return CinematicState.CenterDot ? Mode.Dot : Mode.Hidden;
+        if (PlayerAim.GameplayBlocked()) return Mode.Hidden;
+        if (PlayerWeaponHolster.BlocksWeapons) return Mode.Dot; // INTRO.3: enfundada o sacándose; la completa entra en Ready
+        return Mode.Full;
+    }
+
     private void Update()
     {
-        bool hidden = _dead || (_aim != null && _aim.IsAiming) || PlayerAim.GameplayBlocked();
-        if (_canvas.enabled == hidden) _canvas.enabled = !hidden;
+        Mode mode = ComputeMode();
+        Mode previous = _mode;
+        _mode = mode;
+        bool blocked = mode == Mode.Hidden;
+        if (_canvas.enabled == blocked) _canvas.enabled = !blocked;
+        if (blocked) return;
+
+        if (_noticeUntil > 0f && Time.unscaledTime >= _noticeUntil)
+        {
+            _noticeUntil = -1f;
+            _noticeText.enabled = false;
+        }
+
+        bool dot = mode == Mode.Dot;
+        if (_smallDot.enabled != dot) _smallDot.enabled = dot;
+        if (dot)
+        {
+            if (_fullRoot.activeSelf) _fullRoot.SetActive(false);
+            return;
+        }
+
+        // Mira completa: con fundido corto si viene del modo punto (sacar el arma); de golpe si venía oculta (pausa)
+        if (previous == Mode.Dot) _fullGroup.alpha = 0f;
+        else if (previous == Mode.Hidden) _fullGroup.alpha = 1f;
+        if (_fullGroup.alpha < 1f)
+            _fullGroup.alpha = Mathf.MoveTowards(_fullGroup.alpha, 1f, ViewmodelTime.Delta / Mathf.Max(0.01f, fullFadeInSeconds));
+
+        bool hidden = _aim != null && _aim.IsAiming;
+        if (_fullRoot.activeSelf == hidden) _fullRoot.SetActive(!hidden);
         if (hidden) return;
 
         float dt = ViewmodelTime.Delta;
@@ -232,10 +379,13 @@ public class RubberHoseCrosshair : MonoBehaviour
 
     private static void EnsureSprites()
     {
-        if (_dotSprite != null && _tickSprite != null) return;
+        if (_dotSprite != null && _tickSprite != null && _smallDotSprite != null) return;
 
         float dotUnits = (DotWhiteRadius + OutlineThickness) * 2f + SpriteMargin;
         _dotSprite = BuildSprite("CrosshairDot", dotUnits, dotUnits, p => p.magnitude - DotWhiteRadius);
+
+        float smallUnits = (SmallDotWhiteRadius + SmallDotOutline) * 2f + SpriteMargin;
+        _smallDotSprite = BuildSprite("CrosshairSmallDot", smallUnits, smallUnits, p => p.magnitude - SmallDotWhiteRadius, SmallDotOutline);
 
         float tickW = (TickFatRadius + OutlineThickness) * 2f + SpriteMargin;
         float tickH = TickWhiteLength + OutlineThickness * 2f + SpriteMargin;
@@ -261,7 +411,8 @@ public class RubberHoseCrosshair : MonoBehaviour
     /// Textura RGBA a partir de una distancia con signo (en px de pantalla; negativa = dentro): relleno blanco donde d ≤ 0 y
     /// contorno oscuro hasta d = OutlineThickness, con antialias de medio píxel de textura. 1 px de margen transparente por lado.
     /// </summary>
-    private static Sprite BuildSprite(string name, float unitsW, float unitsH, System.Func<Vector2, float> signedDistance)
+    private static Sprite BuildSprite(string name, float unitsW, float unitsH, System.Func<Vector2, float> signedDistance,
+                                      float outline = OutlineThickness)
     {
         int w = Mathf.CeilToInt(unitsW * TexDensity), h = Mathf.CeilToInt(unitsH * TexDensity);
         var tex = new Texture2D(w, h, TextureFormat.RGBA32, false) { name = name, wrapMode = TextureWrapMode.Clamp, filterMode = FilterMode.Bilinear };
@@ -274,7 +425,7 @@ public class RubberHoseCrosshair : MonoBehaviour
                 var p = new Vector2((x + 0.5f) / TexDensity - w * 0.5f / TexDensity, (y + 0.5f) / TexDensity - h * 0.5f / TexDensity);
                 float d = signedDistance(p);
                 float fill = 1f - Mathf.SmoothStep(0f, 1f, Mathf.InverseLerp(-aa, aa, d));
-                float alpha = 1f - Mathf.SmoothStep(0f, 1f, Mathf.InverseLerp(OutlineThickness - aa, OutlineThickness + aa, d));
+                float alpha = 1f - Mathf.SmoothStep(0f, 1f, Mathf.InverseLerp(outline - aa, outline + aa, d));
                 byte c = (byte)Mathf.RoundToInt(Mathf.Lerp(OutlineLevel, 255f, fill));   // contorno oscuro → relleno blanco
                 pixels[y * w + x] = new Color32(c, c, c, (byte)Mathf.RoundToInt(alpha * 255f));
             }

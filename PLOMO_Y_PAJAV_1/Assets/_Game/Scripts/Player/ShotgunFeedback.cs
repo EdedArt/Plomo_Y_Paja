@@ -9,6 +9,8 @@ using UnityEngine.UI;
 /// y onomatopeya de cómic ("¡BANG!") cerca de la boca de la escopeta.
 /// DÓNDE VA: GameObject "Shotgun" junto a ShotgunController (lo añade "Crear Prefabs de Prueba").
 ///
+/// HUD.2: la luz del fogonazo y la onomatopeya salen de la BOCA DEL CAÑÓN del dibujo (FirstPersonViewmodel
+/// .TryGetMuzzleScreenPoint, cadera o apuntando); sin manos visibles, quedan donde estaban (muzzleLocalPosition, popupViewport).
 /// El retroceso y el temblor se aplican solo mientras la cámara renderiza y se deshacen al terminar,
 /// así no se acumulan ni pelean con el mouse look de PlayerController (ni desvían los perdigones).
 /// </summary>
@@ -44,6 +46,9 @@ public class ShotgunFeedback : MonoBehaviour
     private const int PopupPool = 4;
 
     private ShotgunController _shotgun;
+    private FirstPersonViewmodel _viewmodel;
+    private bool _hasMuzzleViewport;
+    private Vector2 _muzzleViewport;
     private Camera _camera;
     private Light _muzzleLight;
     private float _muzzleOffAt;
@@ -67,6 +72,7 @@ public class ShotgunFeedback : MonoBehaviour
         _shotgun = GetComponent<ShotgunController>();
         _camera = GetComponentInParent<Camera>();
         if (_camera == null) _camera = Camera.main;
+        _viewmodel = GetComponentInParent<FirstPersonViewmodel>();
 
         // Luz del fogonazo (apagada salvo 0.05 s por disparo)
         var lightGo = new GameObject("MuzzleLight");
@@ -106,6 +112,7 @@ public class ShotgunFeedback : MonoBehaviour
         _shakeUntil = Time.unscaledTime + shakeDuration;
         _muzzleLight.enabled = true;
         _muzzleOffAt = Time.unscaledTime + muzzleLightDuration;
+        FollowMuzzle();
 
         // La onomatopeya es rara: solo al llegar a un umbral de 15–20 disparos (configurable)
         _shotsSinceWord++;
@@ -115,6 +122,17 @@ public class ShotgunFeedback : MonoBehaviour
             _shotsSinceWord = 0;
             _shotsThreshold = PickThreshold();
         }
+    }
+
+    /// <summary>HUD.2: luz y onomatopeya en la boca del cañón del dibujo (si hay manos visibles).</summary>
+    private void FollowMuzzle()
+    {
+        _hasMuzzleViewport = false;
+        if (_viewmodel == null || _camera == null || !_viewmodel.TryGetMuzzleScreenPoint(out Vector2 screen)) return;
+        if (Screen.width <= 0 || Screen.height <= 0) return;
+        _muzzleLight.transform.position = _camera.ScreenToWorldPoint(new Vector3(screen.x, screen.y, 0.8f));
+        _muzzleViewport = new Vector2(screen.x / Screen.width, screen.y / Screen.height);
+        _hasMuzzleViewport = true;
     }
 
     private int PickThreshold()
@@ -214,9 +232,10 @@ public class ShotgunFeedback : MonoBehaviour
 
         Vector2 size = _canvasRect.rect.size;
         RectTransform rect = text.rectTransform;
+        Vector2 at = _hasMuzzleViewport ? _muzzleViewport + new Vector2(-0.06f, 0.06f) : popupViewport; // un poco arriba del cañón
         rect.anchoredPosition = new Vector2(
-            (popupViewport.x + Random.Range(-0.04f, 0.04f)) * size.x,
-            (popupViewport.y + Random.Range(-0.04f, 0.04f)) * size.y);
+            (at.x + Random.Range(-0.04f, 0.04f)) * size.x,
+            (at.y + Random.Range(-0.04f, 0.04f)) * size.y);
         rect.localRotation = Quaternion.Euler(0f, 0f, Random.Range(-popupRotationDegrees, popupRotationDegrees));
         text.text = words[word];
         text.alpha = 1f;

@@ -13,6 +13,9 @@ using UnityEngine.SceneManagement;
 /// También lo llaman "Construir patio y cuarto" y "Generar Nivel Porky" (vía ContadorYardBuilder.BuildInto),
 /// así que regenerar el nivel no lo pierde.
 ///
+/// TAMAÑO (3C.6): la raíz del prefab se escribe con escala uniforme CentavoRootScale (1.15, "un poco más grande", David).
+/// Todo lo de adentro (dibujo, cápsula, fogonazo, seatedScale 0.52, coverSink) crece con la raíz; regenerar el prefab la conserva.
+///
 /// PREFAB:
 ///   Centavo (CentavoController, AudioSource de voz 3D, LipSyncDriver)
 ///   ├── Visual
@@ -21,7 +24,7 @@ using UnityEngine.SceneManagement;
 ///   ├── Hitbox (CapsuleCollider, capa Default: la toca la escopeta)
 ///   ├── Sfx (AudioSource 3D del disparo)
 ///   ├── Fogonazo (Point Light apagada)
-///   └── Revolver_Suelto (apagado; cae al recibir el golpe; capa Ignore Raycast)
+///   └── Revolver_Suelto (apagado; cae al recibir el golpe; capa Ignore Raycast; WeaponPickup = se recoge con E, 3C.5)
 /// </summary>
 public static class ContadorCentavoBuilder
 {
@@ -30,6 +33,9 @@ public static class ContadorCentavoBuilder
     private const string InstanceName = "Centavo";
     private const string ActorsRoot = "--- ACTORS ---";
     private const string SpriteSetId = "contador";
+
+    /// <summary>Escala uniforme de la raíz del prefab (3C.6). Ya incluye el "un poco más grande" de David (era 1.0).</summary>
+    public const float CentavoRootScale = 1.15f;
 
     /// <summary>Guardias del patio que tienen que caer antes de que Centavo despierte (D2). Nombres de BuildActors.</summary>
     private static readonly string[] YardGuardNames = { "Guard_Patrulla_A", "Guard_Centinela" };
@@ -90,6 +96,7 @@ public static class ContadorCentavoBuilder
         CharacterSpriteSet set = CharacterSpriteSetBuilder.GetOrCreateSet(SpriteSetId);
 
         var root = new GameObject(InstanceName);
+        root.transform.localScale = Vector3.one * CentavoRootScale; // 3C.6: ver CentavoRootScale
         try
         {
             // Voz 3D propia: el lip-sync la lee (GetOutputData) y suena con el juego en pausa (D5)
@@ -154,16 +161,7 @@ public static class ContadorCentavoBuilder
             flash.shadows = LightShadows.None;
             flash.enabled = false;
 
-            GameObject revolver = GameObject.CreatePrimitive(PrimitiveType.Cube);
-            revolver.name = "Revolver_Suelto";
-            revolver.layer = IgnoreRaycastLayer; // no tapa la vista ni los perdigones
-            revolver.transform.SetParent(root.transform, false);
-            revolver.transform.localPosition = new Vector3(0.3f, 1.3f, 0.3f);
-            revolver.transform.localScale = new Vector3(0.05f, 0.12f, 0.22f);
-            Renderer revolverRenderer = revolver.GetComponent<Renderer>();
-            revolverRenderer.sharedMaterial = CartoonKit.M("Metal");
-            revolverRenderer.shadowCastingMode = UnityEngine.Rendering.ShadowCastingMode.Off;
-            revolver.SetActive(false);
+            GameObject revolver = BuildDroppedRevolver(root.transform, report);
 
             var lipSo = new SerializedObject(lipSync);
             lipSo.FindProperty("voiceSource").objectReferenceValue = voice;
@@ -180,6 +178,13 @@ public static class ContadorCentavoBuilder
             so.FindProperty("droppedRevolver").objectReferenceValue = revolver;
             so.ApplyModifiedPropertiesWithoutUndo();
 
+            // HUD.2 (H9): el tiro sale del revólver del dibujo (Data/MuzzlePoints/Muzzle_contador); mismos números de siempre
+            EnemyGunfire gunfire = root.AddComponent<EnemyGunfire>();
+            MuzzlePointsBuilder.ConfigureGunfire(gunfire, "contador");
+            var gunfireSo = new SerializedObject(gunfire);
+            gunfireSo.FindProperty("spriteRenderer").objectReferenceValue = sprite;
+            gunfireSo.ApplyModifiedPropertiesWithoutUndo();
+
             // Canvas del interrogatorio, si ya se creó (si no, lo enlaza "Crear UI de interrogatorio")
             var canvasPrefab = AssetDatabase.LoadAssetAtPath<InterrogationDirector>(InterrogationUIBuilder.PrefabPath);
             var interrogationSo = new SerializedObject(interrogation);
@@ -193,7 +198,7 @@ public static class ContadorCentavoBuilder
                 report.AppendLine("⚠ Falta InterrogationCanvas: correr Plomo y Paja → Contador → Crear UI de interrogatorio.");
 
             GameObject prefab = PrefabUtility.SaveAsPrefabAsset(root, PrefabPath);
-            report.AppendLine(prefab != null ? $"✓ Prefab {PrefabPath}" : $"✗ No se pudo guardar {PrefabPath}");
+            report.AppendLine(prefab != null ? $"✓ Prefab {PrefabPath} (escala de la raíz ×{CentavoRootScale:0.00})" : $"✗ No se pudo guardar {PrefabPath}");
             if (!set.HasAnyFrames)
                 report.AppendLine("⚠ El set de sprites 'contador' está vacío: correr Plomo y Paja → Reconstruir Sets de Sprites (mientras, se ve la cápsula).");
             return prefab;
@@ -205,6 +210,91 @@ public static class ContadorCentavoBuilder
     }
 
     /// <summary>Fuente 3D como la voz de los guardias (lineal, mín. 2 m), con máximo 25 m. No hay mixer en el proyecto.</summary>
+    /// <summary>Dibujo del revólver en el piso (fase 3C.5.2): Art/Pickups/revolver_suelo.png, recortado con character_key.py --single.</summary>
+    public const string RevolverPickupSpritePath = "Assets/_Game/Art/Pickups/revolver_suelo.png";
+
+    /// <summary>
+    /// Revolver_Suelto (apagado hasta el golpe, D13): raíz con la física (Rigidbody lo agrega DropRevolver), un BoxCollider
+    /// INVISIBLE y WeaponPickup; hijo "Visual" con el dibujo:
+    /// - con el PNG: SpriteRenderer + BillboardSprite (gira solo en Y hacia la cámara, look plano como los personajes);
+    ///   WeaponPickup lo deja de 0.35 m, apoyado sobre el piso y con vaivén;
+    /// - sin el PNG: revólver de piezas de CartoonKit (cañón, tambor, armazón, guardamonte, martillo, culata de madera y
+    ///   remache de latón), materiales del kit y contorno (WeaponPickup le pone el look de CharacterLook). Nunca el cubo.
+    /// El menú elige solo: en cuanto existe el PNG, la próxima corrida usa el dibujo.
+    /// </summary>
+    private static GameObject BuildDroppedRevolver(Transform parent, StringBuilder report)
+    {
+        var revolver = new GameObject("Revolver_Suelto") { layer = IgnoreRaycastLayer }; // no tapa la vista ni los perdigones
+        revolver.transform.SetParent(parent, false);
+        revolver.transform.localPosition = new Vector3(0.3f, 1.3f, 0.3f);
+        BoxCollider collider = revolver.AddComponent<BoxCollider>(); // invisible: solo para caer y apoyarse
+        collider.size = new Vector3(0.32f, 0.06f, 0.12f);
+
+        var visual = new GameObject("Visual") { layer = IgnoreRaycastLayer };
+        visual.transform.SetParent(revolver.transform, false);
+
+        var sprite = AssetDatabase.LoadAssetAtPath<Sprite>(RevolverPickupSpritePath);
+        if (sprite != null)
+        {
+            SpriteRenderer renderer = visual.AddComponent<SpriteRenderer>();
+            renderer.sprite = sprite;
+            renderer.shadowCastingMode = UnityEngine.Rendering.ShadowCastingMode.Off;
+            BillboardSprite billboard = visual.AddComponent<BillboardSprite>();
+            var billboardSo = new SerializedObject(billboard);
+            SerializedProperty idle = billboardSo.FindProperty("idleSprites");
+            idle.arraySize = 1;
+            idle.GetArrayElementAtIndex(0).objectReferenceValue = sprite;
+            billboardSo.ApplyModifiedPropertiesWithoutUndo();
+            report.AppendLine("✓ Revólver en el piso: dibujo " + RevolverPickupSpritePath + " (billboard)");
+        }
+        else
+        {
+            BuildRevolverModel(visual.transform);
+            report.AppendLine("⚠ No está " + RevolverPickupSpritePath + ": el revólver del piso usa el modelo de CartoonKit. " +
+                              "Recortar el PNG con character_key.py --single y volver a correr este menú.");
+        }
+
+        WeaponPickup pickup = revolver.AddComponent<WeaponPickup>(); // 3C.5 (D13): en el piso se recoge con E
+        var pickupSo = new SerializedObject(pickup);
+        pickupSo.FindProperty("visual").objectReferenceValue = visual.transform;
+        pickupSo.ApplyModifiedPropertiesWithoutUndo();
+        revolver.SetActive(false);
+        return revolver;
+    }
+
+    /// <summary>
+    /// Revólver de respaldo, acostado de costado (perfil en el plano XZ: cañón hacia +X, culata hacia −X y −Z, grosor en Y),
+    /// ~0.32 m de largo, piezas gruesas de caricatura. Mallas en Art/Environment/Generated (CartoonKit.GetMesh).
+    /// </summary>
+    private static void BuildRevolverModel(Transform parent)
+    {
+        Quaternion alongX = Quaternion.Euler(0f, 0f, -90f); // el torno de CartoonKit gira sobre Y: así queda sobre X
+        Mesh metal = CartoonKit.GetMesh("Pickup_Revolver_Metal", b =>
+        {
+            CartoonKit.AddBox(b, new Vector3(-0.005f, 0f, 0.005f), new Vector3(0.12f, 0.045f, 0.07f), Quaternion.identity);     // armazón
+            CartoonKit.AddLathe(b, new Vector3(-0.04f, 0f, 0.008f), alongX, new[] { 0f, 0.075f }, new[] { 0.042f, 0.042f }, 14); // tambor
+            CartoonKit.AddLathe(b, new Vector3(0.035f, 0f, 0.018f), alongX, new[] { 0f, 0.155f }, new[] { 0.019f, 0.019f }, 12); // cañón
+            CartoonKit.AddBox(b, new Vector3(0.18f, 0f, 0.042f), new Vector3(0.018f, 0.02f, 0.02f), Quaternion.identity);        // mira
+            CartoonKit.AddBox(b, new Vector3(-0.075f, 0f, 0.048f), new Vector3(0.035f, 0.025f, 0.03f), Quaternion.Euler(0f, 25f, 0f)); // martillo
+            CartoonKit.AddBox(b, new Vector3(-0.012f, 0f, -0.062f), new Vector3(0.065f, 0.016f, 0.014f), Quaternion.identity);   // guardamonte abajo
+            CartoonKit.AddBox(b, new Vector3(0.018f, 0f, -0.045f), new Vector3(0.014f, 0.016f, 0.042f), Quaternion.identity);    // guardamonte adelante
+            CartoonKit.AddBox(b, new Vector3(-0.02f, 0f, -0.04f), new Vector3(0.01f, 0.012f, 0.03f), Quaternion.Euler(0f, -15f, 0f)); // gatillo
+        });
+        Mesh grip = CartoonKit.GetMesh("Pickup_Revolver_Culata", b =>
+            CartoonKit.AddBox(b, new Vector3(-0.1f, 0f, -0.06f), new Vector3(0.055f, 0.05f, 0.12f), Quaternion.Euler(0f, -20f, 0f)));
+        Mesh pin = CartoonKit.GetMesh("Pickup_Revolver_Remache", b =>
+            CartoonKit.AddBox(b, new Vector3(-0.102f, 0f, -0.05f), new Vector3(0.016f, 0.056f, 0.016f), Quaternion.identity));
+
+        CartoonKit.MeshObject("Revolver_Metal", metal, new[] { CartoonKit.M("Metal") }, parent, Vector3.zero, Quaternion.identity);
+        CartoonKit.MeshObject("Revolver_Culata", grip, new[] { CartoonKit.M("MaderaOscura") }, parent, Vector3.zero, Quaternion.identity);
+        CartoonKit.MeshObject("Revolver_Remache", pin, new[] { CartoonKit.M("Laton") }, parent, Vector3.zero, Quaternion.identity);
+        foreach (MeshRenderer r in parent.GetComponentsInChildren<MeshRenderer>())
+        {
+            r.shadowCastingMode = UnityEngine.Rendering.ShadowCastingMode.Off;
+            r.gameObject.layer = IgnoreRaycastLayer;
+        }
+    }
+
     private static void Configure3D(AudioSource source)
     {
         source.playOnAwake = false;

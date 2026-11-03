@@ -7,9 +7,14 @@ USO (desde PLOMO_Y_PAJAV_1/):
     python Tools/character_key.py                    # procesa Contador
     python Tools/character_key.py --lo 20 --hi 90 --dilate 4
     python Tools/character_key.py --single ENTRADA.png --out SALIDA.png [--crop 4]   # un solo archivo (UI)
+    python Tools/character_key.py --center [HUD] [--size 256]   # iconos del HUD, centrados (fase HUD.1)
 
 ENTRADA : _entrante_personajes/Contador/*.png   (si no existe, usa _entrante_viewmodel/_entrante_personajes_/contador/)
 SALIDA  : Assets/_Game/Art/Characters/contador/<nombre>.png  (1024x1024 RGBA)
+
+MODO --center (fase HUD.1, iconos y caras del HUD): carpeta _entrante_hud/<NOMBRE>/ (por defecto HUD) -> --dst (por
+defecto Assets/_Game/Art/UI/HUD/). Cada PNG: mismo recorte magenta + despill + dilate, recorte a lo opaco con 4 px de margen,
+lienzo CUADRADO con el dibujo CENTRADO (no se alinea abajo) y escala a --size x --size (por defecto 256). Conserva el nombre.
 
 MODO --single (fase 3C.4, ej. el papel del diálogo Art/UI/ui_papel_dialogo.png): mismo recorte magenta + despill de borde
 + dilate, sin escalar ni alinear. --crop N recorta a lo opaco dejando N px de margen (sin --crop conserva el tamaño).
@@ -108,6 +113,39 @@ def key_single(args):
     return 0
 
 
+def key_center(args):
+    folder = args.center if isinstance(args.center, str) else "HUD"
+    src = args.src or os.path.join(ROOT, "_entrante_hud", folder)
+    dst = args.dst if args.dst != DST else os.path.join(ROOT, "Assets", "_Game", "Art", "UI", "HUD")
+    if not os.path.isdir(src):
+        sys.exit("No existe la carpeta de entrada: %s" % src)
+    os.makedirs(dst, exist_ok=True)
+    files = sorted(f for f in os.listdir(src) if f.lower().endswith(".png"))
+    if not files:
+        sys.exit("No hay PNG en %s" % src)
+    for f in files:
+        rgb, alpha = key_magenta(os.path.join(src, f), args.lo, args.hi)
+        rgb = dilate(rgb, alpha, args.dilate)
+        y0, y1, x0, x1 = bbox(alpha)
+        h, w = alpha.shape
+        y0, x0 = max(0, y0 - 4), max(0, x0 - 4)
+        y1, x1 = min(h, y1 + 4), min(w, x1 + 4)
+        rgb, alpha = rgb[y0:y1, x0:x1], alpha[y0:y1, x0:x1]
+        ch, cw = alpha.shape
+        side = max(ch, cw)
+        sq_rgb = np.zeros((side, side, 3), np.float32)
+        sq_a = np.zeros((side, side), np.float32)
+        oy, ox = (side - ch) // 2, (side - cw) // 2
+        sq_rgb[oy:oy + ch, ox:ox + cw] = rgb
+        sq_a[oy:oy + ch, ox:ox + cw] = alpha
+        sq_rgb = dilate(sq_rgb, sq_a, args.dilate)
+        out_rgb, out_a = resize(sq_rgb, sq_a, (args.size, args.size))
+        out_rgb = dilate(out_rgb, out_a, args.dilate)
+        out = os.path.join(dst, os.path.splitext(f)[0].lower() + ".png")
+        to_image(out_rgb, out_a).save(out, optimize=True)
+        print("OK %s -> %s  %dx%d (centrado)" % (f, out, args.size, args.size))
+
+
 def main():
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     ap.add_argument("--lo", type=float, default=20.0)
@@ -118,7 +156,13 @@ def main():
     ap.add_argument("--single", default=None, help="un solo PNG (sin escalar ni alinear)")
     ap.add_argument("--out", default=None, help="salida de --single (por defecto, sobrescribe la entrada)")
     ap.add_argument("--crop", type=int, default=-1, help="--single: recortar a lo opaco con este margen en px")
+    ap.add_argument("--center", nargs="?", const="HUD", default=None,
+                    help="iconos centrados: carpeta _entrante_hud/<NOMBRE> (por defecto HUD) -> Art/UI/HUD")
+    ap.add_argument("--size", type=int, default=256, help="--center: lado del lienzo cuadrado de salida")
     args = ap.parse_args()
+    if args.center:
+        key_center(args)
+        return
     if args.single:
         return key_single(args)
 

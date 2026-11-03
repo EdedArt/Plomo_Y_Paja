@@ -311,6 +311,19 @@ public class AudioLibrary : ScriptableObject
     /// <summary>¿Este asset tiene clip para la línea? (para validar desde el Editor, sin librería activa)</summary>
     public bool ContainsVoice(string lineId) => FindVoice(lineId) != null;
 
+    /// <summary>¿Este asset tiene al menos una variante del efecto/música? (validar desde el Editor; no elige variante)</summary>
+    public bool ContainsSfx(string name)
+    {
+        if (string.IsNullOrEmpty(name) || sfx == null) return false;
+        foreach (SfxEntry entry in sfx)
+        {
+            if (entry == null || entry.name != name || entry.variants == null) continue;
+            foreach (AudioClip c in entry.variants)
+                if (c != null) return true;
+        }
+        return false;
+    }
+
     /// <summary>¿Hay clip para esta línea? (sin avisar si falta).</summary>
     public static bool HasVoice(string lineId) => _active != null && _active.FindVoice(lineId) != null;
 

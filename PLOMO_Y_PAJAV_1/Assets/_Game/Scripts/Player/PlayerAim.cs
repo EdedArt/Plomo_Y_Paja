@@ -26,6 +26,7 @@ public class PlayerAim : MonoBehaviour
 
     private PlayerController _player;
     private IWeapon _weapon;
+    private WeaponSwitcher _switcher;
     private float _baseFov = -1f;
     private float _suppressUntil = -1f;
     private bool _dead;
@@ -33,6 +34,7 @@ public class PlayerAim : MonoBehaviour
     private void Awake()
     {
         TryGetComponent(out _player);
+        TryGetComponent(out _switcher);
         _weapon = GetComponentInChildren<IWeapon>(true);
         if (TryGetComponent(out PlayerHealth health)) health.OnDeath += HandleDeath;
         OnAimChanged += UpdateCrosshair;
@@ -90,20 +92,28 @@ public class PlayerAim : MonoBehaviour
         GameManager gm = GameManager.Instance;
         if (gm != null && (gm.IsGamePaused || gm.IsGameOver)) return true;
         if (InterrogationDirector.IsActive) return true;    // escena de interrogatorio (fase 3C.3)
+        if (CinematicState.IsPlaying) return true;          // taxi y llegada (INTRO.2)
         // Sin Time.timeScale: CartoonFx lo pone en 0 un instante en cada golpe (hitstop)
         return DialogueUI.Exists && DialogueUI.Instance.IsOpen;
     }
+
+    /// <summary>
+    /// ¿Las armas no responden? GameplayBlocked() + arma enfundada o sacándose (INTRO.3). Lo leen ShotgunController,
+    /// RevolverController, WeaponSwitcher y el apuntado. Los guardias NO lo usan (pueden dispararle a un Wilbur desarmado):
+    /// EnemyAI sigue con GameplayBlocked().
+    /// </summary>
+    public static bool WeaponInputBlocked() => GameplayBlocked() || PlayerWeaponHolster.BlocksWeapons;
 
     private void HandleDeath() => _dead = true;
 
     private void Update()
     {
-        bool reloading = _weapon != null && _weapon.IsReloading;
+        bool reloading = (_weapon != null && _weapon.IsReloading) || (_switcher != null && _switcher.IsSwitching);
         bool runningStart = !IsAiming && _player != null && _player.IsRunning && _player.IsMoving;
         bool want = Input.GetMouseButton(1)
                     && !reloading && !runningStart && !_dead
                     && Time.unscaledTime >= _suppressUntil
-                    && !GameplayBlocked();
+                    && !WeaponInputBlocked(); // INTRO.3: enfundada no se apunta
         SetAiming(want);
 
         float duration = IsAiming ? aimInTime : aimOutTime;

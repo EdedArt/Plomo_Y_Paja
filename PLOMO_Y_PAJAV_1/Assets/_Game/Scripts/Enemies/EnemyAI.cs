@@ -19,6 +19,12 @@ using UnityEngine.AI;            // NavMesh: navegación automática por el nive
 ///   └── SpriteHolder (BillboardSprite + RubberHoseAnimator)
 ///       └── Art (SpriteRenderer)
 ///
+/// PISTOLA (fase HUD.2, H18): dentro de Chase, si el jugador está a ≤ rangedRange y se lo ve DESDE EL CAÑÓN, el guardia
+/// se planta a una distancia al azar entre standDistance (6–14 m) y dispara con EnemyGunfire: 0.35 s de aviso (pose de
+/// apuntar) y un tiro cada 1.4–2.2 s, 30 % de acierto (15 % si Wilbur corre), 8 de daño. Si el jugador entra al alcance del
+/// golpe, sigue el ataque cuerpo a cuerpo de siempre. Rendido, muerto o con el juego bloqueado (pausa, diálogo,
+/// interrogatorio) nunca dispara. Patrulla, persecución, rendición y diálogo no cambian.
+///
 /// NAVMESH: en la escena, Window → AI → Navigation → Bake. Sin NavMesh horneado
 /// el enemigo se queda quieto, pero no lanza errores.
 /// </summary>
@@ -49,6 +55,9 @@ public class EnemyAI : MonoBehaviour
     [Tooltip("Tiempo de espera en cada punto de patrulla")]
     [SerializeField] private float waitTimeAtPoint = 2f;        // Segundos quieto en cada punto
 
+    [Tooltip("Punto de la ruta donde arranca (INTRO.2: el patrullero del patio empieza detrás de la casa). 0 = el primero")]
+    [SerializeField] private int firstPatrolPoint = 0;
+
     [Header("Detección")]
     [Tooltip("Radio de visión — si el jugador entra a este rango, el enemigo alerta")]
     [SerializeField] private float sightRange = 12f;            // Metros que alcanza a ver
@@ -68,6 +77,27 @@ public class EnemyAI : MonoBehaviour
 
     [Tooltip("Segundos entre ataques")]
     [SerializeField] private float attackCooldown = 1.5f;       // Pausa mínima entre golpes
+
+    [Header("Pistola (HUD.2, H18)")]
+    [Tooltip("Dispara a distancia además del golpe cuerpo a cuerpo")]
+    [SerializeField] private bool rangedAttack = true;
+    [Tooltip("Alcance máximo del disparo (m)")]
+    [SerializeField] private float rangedRange = 18f;
+    [Tooltip("Se planta a una distancia al azar entre estos valores para disparar (m)")]
+    [SerializeField] private Vector2 standDistance = new Vector2(6f, 14f);
+    [Tooltip("Segundos de aviso (pose de apuntar) antes del tiro")]
+    [SerializeField] private float aimTelegraph = 0.35f;
+    [Tooltip("Segundos entre tiros (al azar entre los dos)")]
+    [SerializeField] private Vector2 shotInterval = new Vector2(1.4f, 2.2f);
+    [SerializeField, Range(0f, 1f)] private float rangedHitChance = 0.3f;
+    [SerializeField, Range(0f, 1f)] private float rangedHitChanceRunning = 0.15f;
+    [SerializeField] private float rangedDamage = 8f;
+    [Tooltip("Temblor del tiro acertado (grados)")]
+    [SerializeField] private float rangedSpread = 1.5f;
+    [Tooltip("Segundos que se ve el cuadro de disparo")]
+    [SerializeField] private float shootPoseSeconds = 0.2f;
+    [Tooltip("Punto del cañón si el prefab no trae EnemyGunfire (normalizado en el dibujo shoot_01 del guardia)")]
+    [SerializeField] private Vector2 muzzleFallback = new Vector2(0.46f, 0.49f);
     // La rendición (canSurrender + umbral) se configura en EnemyHealth
 
     [Header("Velocidades")]
@@ -91,8 +121,14 @@ public class EnemyAI : MonoBehaviour
     private bool _playerInAttackRange = false;      // ¿Está al alcance del golpe?
     private bool _hasPatrolDestination = false;     // Ya se le dio el destino del punto actual
     private Vector3 _homePosition;                  // Puesto del centinela (donde empezó)
+    private bool _frozenByCinematic;                // INTRO.2 (I7): quieto mientras corre una cinemática
     private Quaternion _homeRotation;               // Hacia dónde mira el centinela en su puesto
     private bool _returningHome = false;            // true mientras el centinela camina de vuelta a su puesto
+    private EnemyGunfire _gunfire;                  // HUD.2: el disparo sale del arma
+    private float _standAt;                         // Distancia a la que se planta para disparar (esta persecución)
+    private float _nextShotTime;                    // Cuándo puede empezar a apuntar otra vez
+    private float _aimUntil = -1f;                  // > 0: apuntando (aviso); al llegar, dispara
+    private float _shootPoseUntil = -1f;            // Hasta cuándo se ve el cuadro de disparo
 
     // ===================== API pública =====================
 
@@ -120,6 +156,13 @@ public class EnemyAI : MonoBehaviour
         }
         if (playerTransform != null)                            // Guardar el PlayerController una vez (no en cada frame)
             _playerController = playerTransform.GetComponent<PlayerController>();
+
+        // HUD.2: el disparo sale del arma. Si el prefab no lo trae, se agrega con el punto de respaldo
+        if (!TryGetComponent(out _gunfire))
+        {
+            _gunfire = gameObject.AddComponent<EnemyGunfire>();
+            _gunfire.SetFallback(muzzleFallback, billboardSprite != null ? billboardSprite.MainRenderer : null);
+        }
     }
 
     private void OnEnable()
@@ -147,6 +190,14 @@ public class EnemyAI : MonoBehaviour
 
     private void Start()
     {
+        // INTRO.2: arranca en otro punto de la ruta (se planta ahí antes de guardar su puesto)
+        if (enemyType == EnemyType.Patrullero && patrolPoints != null && firstPatrolPoint > 0 &&
+            firstPatrolPoint < patrolPoints.Length && patrolPoints[firstPatrolPoint] != null)
+        {
+            _currentPatrolIndex = firstPatrolPoint;
+            if (AgentReady()) _agent.Warp(patrolPoints[firstPatrolPoint].position);
+            else transform.position = patrolPoints[firstPatrolPoint].position;
+        }
         _homePosition = transform.position;                     // El centinela volverá a este puesto...
         _homeRotation = transform.rotation;                     // ...y a mirar hacia aquí
         if (enemyType == EnemyType.Centinela)
@@ -164,6 +215,18 @@ public class EnemyAI : MonoBehaviour
     {
         // Rendido o muerto: no piensa, no se mueve, no ataca
         if (currentState == EnemyState.Dead || currentState == EnemyState.Surrender) return;
+
+        // INTRO.2 (I7): durante la cinemática nadie ve, oye, camina ni ataca; al terminar sigue donde estaba
+        if (CinematicState.IsPlaying)
+        {
+            if (!_frozenByCinematic) { _frozenByCinematic = true; SetAgentStopped(true); }
+            return;
+        }
+        if (_frozenByCinematic)
+        {
+            _frozenByCinematic = false;
+            if (!_waitingAtPoint && currentState != EnemyState.Idle) SetAgentStopped(false);
+        }
 
         CheckPlayerDetection();                                 // 1) ¿Ve u oye al jugador?
 
@@ -326,16 +389,27 @@ public class EnemyAI : MonoBehaviour
     {
         if (playerTransform == null || !AgentReady()) return;                   // Sin jugador o sin NavMesh
 
-        _agent.isStopped = false;                                               // Correr
-        _agent.speed = chaseSpeed;
-        _agent.SetDestination(playerTransform.position);                        // Ir a donde está el jugador AHORA
-        if (billboardSprite != null) billboardSprite.PlayWalk();               // Pose caminando (el rebote se acelera al correr)
-
         if (_playerInAttackRange)                                               // Ya lo alcanzó
         {
             ChangeState(EnemyState.Attack);
             return;
         }
+
+        // HUD.2 (H18): a distancia de tiro y con el cañón a la vista, se planta y dispara
+        float distance = Vector3.Distance(transform.position, playerTransform.position);
+        if (CanShoot(distance) && distance <= _standAt)
+        {
+            SetAgentStopped(true);
+            FacePlayer();
+            UpdateRanged(distance);
+            return;
+        }
+        _aimUntil = -1f;                                                        // Se movió: cancela el apuntado
+
+        _agent.isStopped = false;                                               // Correr
+        _agent.speed = chaseSpeed;
+        _agent.SetDestination(playerTransform.position);                        // Ir a donde está el jugador AHORA
+        if (billboardSprite != null) billboardSprite.PlayWalk();               // Pose caminando (el rebote se acelera al correr)
 
         // Lo perdió: fuera de vista y bastante lejos (1.5 veces el radio de visión)
         if (!_playerInSightRange && Vector3.Distance(transform.position, playerTransform.position) > sightRange * 1.5f)
@@ -363,11 +437,53 @@ public class EnemyAI : MonoBehaviour
             ChangeState(EnemyState.Chase);
     }
 
+    // ===================== Pistola (HUD.2, H18) =====================
+
+    /// <summary>¿Puede disparar ahora? Dentro del alcance, juego no bloqueado, jugador vivo y línea libre DESDE EL CAÑÓN.</summary>
+    private bool CanShoot(float distance)
+    {
+        if (!rangedAttack || _gunfire == null || distance > rangedRange) return false;
+        if (PlayerAim.GameplayBlocked()) return false;                          // Pausa, diálogo, interrogatorio
+        if (playerTransform.TryGetComponent(out PlayerHealth health) && health.IsDead) return false;
+        return _gunfire.ClearFromMuzzle(playerTransform, EnemyGunfire.ChestOf(playerTransform));
+    }
+
+    /// <summary>Plantado: espera, apunta (aviso) y dispara.</summary>
+    private void UpdateRanged(float distance)
+    {
+        if (_aimUntil > 0f)
+        {
+            if (billboardSprite != null) billboardSprite.PlayAttack();         // Aviso: pose con el arma (no hay cuadro de apuntar)
+            if (Time.time < _aimUntil) return;
+            _aimUntil = -1f;
+            bool running = _playerController != null && _playerController.IsRunning && _playerController.IsMoving;
+            _gunfire.Fire(playerTransform, running ? rangedHitChanceRunning : rangedHitChance, rangedDamage, rangedSpread);
+            _shootPoseUntil = Time.time + shootPoseSeconds;
+            _nextShotTime = Time.time + UnityEngine.Random.Range(shotInterval.x, shotInterval.y);
+            return;
+        }
+
+        if (billboardSprite != null)
+        {
+            if (Time.time < _shootPoseUntil) billboardSprite.PlayAttack();      // El cuadro de disparo un instante
+            else billboardSprite.PlayIdle();                                   // Entre tiros
+        }
+        if (Time.time >= _nextShotTime) _aimUntil = Time.time + aimTelegraph;   // Empieza a apuntar
+    }
+
+    private void FacePlayer()
+    {
+        Vector3 lookDir = playerTransform.position - transform.position;
+        lookDir.y = 0f;
+        if (lookDir.sqrMagnitude > 0.001f)
+            transform.rotation = Quaternion.Slerp(transform.rotation, Quaternion.LookRotation(lookDir), Time.deltaTime * 10f);
+    }
+
     private void PerformAttack()
     {
         _lastAttackTime = Time.time;                                            // Reiniciar la pausa
         if (playerTransform != null && playerTransform.TryGetComponent(out PlayerHealth playerHealth))
-            playerHealth.TakeDamage(attackDamage);                              // Script de David: le quita vida a Wilbur
+            playerHealth.TakeDamage(attackDamage, transform.position);          // Script de David: le quita vida a Wilbur (HUD.1: desde dónde)
     }
 
     // ===================== Cambio de estado =====================
@@ -397,6 +513,10 @@ public class EnemyAI : MonoBehaviour
                 break;
             case EnemyState.Chase:
                 SetAgentStopped(false);                                         // Arrancar
+                // HUD.2: distancia de tiro de esta persecución y un primer tiro que no sale al instante
+                _standAt = UnityEngine.Random.Range(standDistance.x, standDistance.y);
+                _nextShotTime = Time.time + UnityEngine.Random.Range(0.4f, 1f);
+                _aimUntil = -1f;
                 break;
             case EnemyState.Surrender:
                 StopAllCoroutines();                                            // Cortar patrulla/alerta pendientes

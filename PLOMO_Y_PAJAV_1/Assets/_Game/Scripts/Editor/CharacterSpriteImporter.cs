@@ -21,7 +21,24 @@ public class CharacterSpriteImporter : AssetPostprocessor
     // Subir la versión obliga a Unity a reimportar los PNG con los ajustes nuevos.
     // 4: los .meta que llegan con PPU/pivote puestos a mano (p. ej. los del guardia de Edgar) se pisan aquí.
     // 6: contador a 500 px por metro (fase 3C.2, D12).
-    public override uint GetVersion() => 6;
+    // 7: también Art/Pickups/ (fase 3C.5.2: el revólver en el piso).
+    // 8: también Art/UI/HUD/ (fase HUD.1: caras e íconos del HUD).
+    // 9: también Art/FX/ (fase HUD.2: polvo de impacto y agujero de bala).
+    // 10: Art/Intro/ (fase INTRO.0: texturas del libro, no son sprites de personaje).
+    // 11: taxista a 500 px por metro, pivote abajo al centro, mipmaps (fase INTRO.2).
+    public override uint GetVersion() => 11;
+
+    /// <summary>Texturas del libro de la intro (fase INTRO): Art/Intro/ilus_intro_NN, libro_portada, libro_guardas, libro_papel.</summary>
+    public const string IntroFolder = "Assets/_Game/Art/Intro";
+
+    /// <summary>Efectos de disparo (fase HUD.2): Art/FX/fx_impacto_01/02, fx_agujero_bala (character_key.py --center FX --dst ...).</summary>
+    public const string FxFolder = "Assets/_Game/Art/FX";
+
+    /// <summary>Caras e íconos del HUD (fase HUD.1): Art/UI/HUD/&lt;id&gt;.png, recortados con character_key.py --center.</summary>
+    public const string HudFolder = "Assets/_Game/Art/UI/HUD";
+
+    /// <summary>Objetos recogibles dibujados (fase 3C.5.2): Art/Pickups/&lt;nombre&gt;.png, recortados con character_key.py --single.</summary>
+    public const string PickupsFolder = "Assets/_Game/Art/Pickups";
 
     /// <summary>Alpha mínimo (0..255) para considerar que un píxel es parte del personaje.</summary>
     private const byte FeetAlpha = 26; // 0.1
@@ -29,6 +46,26 @@ public class CharacterSpriteImporter : AssetPostprocessor
     private void OnPreprocessTexture()
     {
         string path = assetPath.Replace('\\', '/');
+        if (path.StartsWith(PickupsFolder + "/"))
+        {
+            ApplyPickup((TextureImporter)assetImporter);
+            return;
+        }
+        if (path.StartsWith(FxFolder + "/"))
+        {
+            ApplyPickup((TextureImporter)assetImporter); // mismo trato: Sprite con alpha, pivote al centro, mipmaps
+            return;
+        }
+        if (path.StartsWith(HudFolder + "/"))
+        {
+            ApplyHud((TextureImporter)assetImporter);
+            return;
+        }
+        if (path.StartsWith(IntroFolder + "/"))
+        {
+            ApplyBook((TextureImporter)assetImporter);
+            return;
+        }
         if (!path.StartsWith(CharactersFolder + "/")) return;
 
         string characterId = CharacterSpriteSetBuilder.CharacterIdFromPath(path);
@@ -66,6 +103,13 @@ public class CharacterSpriteImporter : AssetPostprocessor
                 settings.spriteAlignment = (int)SpriteAlignment.BottomCenter;
                 settings.spritePixelsPerUnit = 500f;
                 break;
+            case "taxista":
+                // INTRO.2: lienzo 1024x1024 (conduce_01, habla_01/02) como el contador: 500 px por metro, pivote abajo al
+                // centro y mipmaps (se ve de cerca dentro del taxi)
+                importer.mipmapEnabled = true;
+                settings.spriteAlignment = (int)SpriteAlignment.BottomCenter;
+                settings.spritePixelsPerUnit = 500f;
+                break;
             case "guardia":
                 SetFeetPivot(settings, path);
                 settings.spritePixelsPerUnit = 236f;
@@ -75,6 +119,72 @@ public class CharacterSpriteImporter : AssetPostprocessor
                 settings.spritePixelsPerUnit = 250f;
                 break;
         }
+        importer.SetTextureSettings(settings);
+    }
+
+    /// <summary>
+    /// Recogibles: Sprite con alpha real, pivote al centro, mipmaps (se ven chicos y lejos), 1000 px por metro. El tamaño en
+    /// el mundo lo fija WeaponPickup (visualLength), así que el PPU no importa.
+    /// </summary>
+    private static void ApplyPickup(TextureImporter importer)
+    {
+        importer.textureType = TextureImporterType.Sprite;
+        importer.textureShape = TextureImporterShape.Texture2D;
+        importer.spriteImportMode = SpriteImportMode.Single;
+        importer.mipmapEnabled = true;
+        importer.filterMode = FilterMode.Trilinear;
+        importer.textureCompression = TextureImporterCompression.Uncompressed;
+        importer.alphaIsTransparency = true;
+        importer.alphaSource = TextureImporterAlphaSource.FromInput;
+        importer.maxTextureSize = 2048;
+        var settings = new TextureImporterSettings();
+        importer.ReadTextureSettings(settings);
+        settings.spriteMode = (int)SpriteImportMode.Single;
+        settings.spriteMeshType = SpriteMeshType.FullRect;
+        settings.spriteAlignment = (int)SpriteAlignment.Center;
+        settings.spritePixelsPerUnit = 1000f;
+        importer.SetTextureSettings(settings);
+    }
+
+    /// <summary>
+    /// Libro de la intro (INTRO.0): textura normal (van en el material de un quad, no son Sprite), sRGB, mipmaps,
+    /// Trilinear, máximo 2048, sin compresión (se ven de cerca, a ~85 % del cuadro).
+    /// </summary>
+    private static void ApplyBook(TextureImporter importer)
+    {
+        importer.textureType = TextureImporterType.Default;
+        importer.textureShape = TextureImporterShape.Texture2D;
+        importer.sRGBTexture = true;
+        importer.alphaSource = TextureImporterAlphaSource.None;
+        importer.alphaIsTransparency = false;
+        importer.mipmapEnabled = true;
+        importer.filterMode = FilterMode.Trilinear;
+        importer.anisoLevel = 4;
+        importer.wrapMode = TextureWrapMode.Clamp;
+        importer.npotScale = TextureImporterNPOTScale.None;
+        importer.isReadable = false;
+        importer.textureCompression = TextureImporterCompression.Uncompressed;
+        importer.maxTextureSize = 2048;
+    }
+
+    /// <summary>HUD (HUD.1, paso 0): Sprite con alpha real, sin compresión, SIN mipmaps, Bilinear, pivote al centro.</summary>
+    private static void ApplyHud(TextureImporter importer)
+    {
+        importer.textureType = TextureImporterType.Sprite;
+        importer.textureShape = TextureImporterShape.Texture2D;
+        importer.spriteImportMode = SpriteImportMode.Single;
+        importer.mipmapEnabled = false;
+        importer.filterMode = FilterMode.Bilinear;
+        importer.textureCompression = TextureImporterCompression.Uncompressed;
+        importer.alphaIsTransparency = true;
+        importer.alphaSource = TextureImporterAlphaSource.FromInput;
+        importer.maxTextureSize = 1024;
+        var settings = new TextureImporterSettings();
+        importer.ReadTextureSettings(settings);
+        settings.spriteMode = (int)SpriteImportMode.Single;
+        settings.spriteMeshType = SpriteMeshType.FullRect;
+        settings.spriteAlignment = (int)SpriteAlignment.Center;
+        settings.spritePixelsPerUnit = 100f;
         importer.SetTextureSettings(settings);
     }
 

@@ -81,27 +81,39 @@ public static class InterrogationUIBuilder
         return sb.ToString();
     }
 
-    private static TMP_FontAsset EnsureFont(StringBuilder report)
+    /// <summary>
+    /// Fonts/SpecialElite SDF.asset completa y estática (la crea o completa si hace falta). Pública para reutilizarla
+    /// (libro de la intro, INTRO.1). Sin el TTF devuelve la fuente por defecto de TMP.
+    /// </summary>
+    public static TMP_FontAsset EnsureFont(StringBuilder report) =>
+        EnsureFont(report, FontSources, FontAssetPath, "Special Elite");
+
+    /// <summary>
+    /// Igual que EnsureFont(report) pero para cualquier TTF: "sources" son las rutas posibles del TTF y "assetPath" la del
+    /// TMP_FontAsset estático que se crea o completa (INTRO.1.1: IM Fell English para el libro). Mismo juego de caracteres.
+    /// Sin el TTF ni el asset devuelve la fuente por defecto de TMP.
+    /// </summary>
+    public static TMP_FontAsset EnsureFont(StringBuilder report, string[] sources, string assetPath, string label)
     {
-        Font source = FindSourceFont(report);
-        TMP_FontAsset asset = AssetDatabase.LoadAssetAtPath<TMP_FontAsset>(FontAssetPath);
+        Font source = FindSourceFont(report, sources);
+        TMP_FontAsset asset = AssetDatabase.LoadAssetAtPath<TMP_FontAsset>(assetPath);
 
         // Lo que el TTF no trae no cuenta como faltante (TMP usa la fuente de respaldo para eso)
         string required = RequiredCharacters();
         bool engineOk = false;
-        string notInFont = source != null ? CharactersNotInFont(source, required, report, out engineOk) : "";
+        string notInFont = source != null ? CharactersNotInFont(source, required, report, label, out engineOk) : "";
         string wanted = Without(required, notInFont);
 
         // 1. ¿Ya está completa? (hecha por este menú o a mano) → no se toca, solo se deja estática
         if (asset != null && MissingFrom(asset, wanted).Length == 0)
         {
             MakeStatic(asset);
-            report.AppendLine($"✓ Fuente Special Elite completa ({asset.characterTable.Count} caracteres), estática: no se regenera");
+            report.AppendLine($"✓ Fuente {label} completa ({asset.characterTable.Count} caracteres), estática: no se regenera");
             return asset;
         }
         if (source == null)
         {
-            report.AppendLine("⚠ No está SpecialElite-Regular.ttf: se usa la fuente por defecto de TMP.");
+            report.AppendLine($"⚠ No está el TTF de {label} ({Path.GetFileName(sources[0])}): se usa la fuente por defecto de TMP.");
             return asset != null ? asset : TMP_Settings.defaultFontAsset;
         }
 
@@ -118,7 +130,7 @@ public static class InterrogationUIBuilder
         // 2b. Generar, o completar el MISMO asset (conserva el GUID que usa el canvas y los glifos que ya tiene)
         if (asset == null)
         {
-            LevelBuilderUtils.EnsureFolder(FontFolder);
+            LevelBuilderUtils.EnsureFolder(Path.GetDirectoryName(assetPath).Replace('\\', '/'));
             asset = TMP_FontAsset.CreateFontAsset(source, SamplingPointSize, 5, GlyphRenderMode.SDFAA, 1024, 1024,
                 AtlasPopulationMode.Dynamic, false);
             if (asset == null)
@@ -126,17 +138,17 @@ public static class InterrogationUIBuilder
                 report.AppendLine("✗ TMP no pudo crear la fuente desde el TTF: se usa la fuente por defecto. Ver la auditoría 3C.4.1 (Font Asset Creator).");
                 return TMP_Settings.defaultFontAsset;
             }
-            asset.name = "SpecialElite SDF";
-            AssetDatabase.CreateAsset(asset, FontAssetPath);
+            asset.name = Path.GetFileNameWithoutExtension(assetPath);
+            AssetDatabase.CreateAsset(asset, assetPath);
             // Textura y material dentro del mismo .asset (si no, se pierden al cerrar Unity)
             if (asset.atlasTextures != null && asset.atlasTextures.Length > 0 && asset.atlasTextures[0] != null)
             {
-                asset.atlasTextures[0].name = "SpecialElite Atlas";
+                asset.atlasTextures[0].name = asset.name + " Atlas";
                 AssetDatabase.AddObjectToAsset(asset.atlasTextures[0], asset);
             }
             if (asset.material != null)
             {
-                asset.material.name = "SpecialElite Material";
+                asset.material.name = asset.name + " Material";
                 AssetDatabase.AddObjectToAsset(asset.material, asset);
             }
         }
@@ -157,20 +169,20 @@ public static class InterrogationUIBuilder
         if (missing.Length == 0)
         {
             MakeStatic(asset);
-            report.AppendLine($"✓ Fuente Special Elite generada ({asset.characterTable.Count} caracteres) y estática");
+            report.AppendLine($"✓ Fuente {label} generada ({asset.characterTable.Count} caracteres) y estática");
         }
         else
         {
             EditorUtility.SetDirty(asset);
-            report.AppendLine($"✗ Special Elite: no se pudieron generar «{missing}». Queda dinámica. " +
+            report.AppendLine($"✗ {label}: no se pudieron generar «{missing}». Queda dinámica. " +
                               "Hacerla a mano con Window → TextMeshPro → Font Asset Creator (pasos en la auditoría 3C.4.1).");
         }
         return asset;
     }
 
-    private static Font FindSourceFont(StringBuilder report)
+    private static Font FindSourceFont(StringBuilder report, string[] sources)
     {
-        foreach (string path in FontSources)
+        foreach (string path in sources)
         {
             var font = AssetDatabase.LoadAssetAtPath<Font>(path);
             if (font == null) continue;
@@ -188,7 +200,7 @@ public static class InterrogationUIBuilder
     }
 
     /// <summary>Caracteres que el TTF no tiene (consulta directa al FontEngine). Vacío si no se pudo abrir el TTF.</summary>
-    private static string CharactersNotInFont(Font source, string characters, StringBuilder report, out bool engineOk)
+    private static string CharactersNotInFont(Font source, string characters, StringBuilder report, string label, out bool engineOk)
     {
         FontEngineError error = FontEngine.LoadFontFace(source, SamplingPointSize);
         engineOk = error == FontEngineError.Success;
@@ -201,7 +213,7 @@ public static class InterrogationUIBuilder
         foreach (char c in characters)
             if (!FontEngine.TryGetGlyphWithUnicodeValue(c, GlyphLoadFlags.LOAD_DEFAULT, out _)) missing.Append(c);
         if (missing.Length > 0)
-            report.AppendLine($"⚠ El TTF de Special Elite no trae «{missing}» (TMP los dibuja con la fuente de respaldo)");
+            report.AppendLine($"⚠ El TTF de {label} no trae «{missing}» (TMP los dibuja con la fuente de respaldo)");
         return missing.ToString();
     }
 

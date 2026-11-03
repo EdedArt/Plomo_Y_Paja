@@ -1,4 +1,5 @@
 using System;
+using System.Collections;
 using UnityEngine;
 
 /// <summary>
@@ -20,6 +21,8 @@ using UnityEngine;
 ///
 /// DAÑO: IDamageable (ShotgunController lo busca solo si no hay EnemyHealth: los guardias no cambian).
 /// TODAS las posiciones salen de ContadorShed (anclas del prefab del cuarto), nunca de coordenadas fijas.
+/// TAMAÑO (3C.6): la raíz del prefab tiene escala 1.15 (ContadorCentavoBuilder.CentavoRootScale). Dibujo, cápsula, seatedScale y
+/// coverSink crecen con ella; las alturas fijas de este código (ojos, mano, sangre, revólver) se multiplican por WorldScale.
 /// </summary>
 public class CentavoController : MonoBehaviour, IDamageable, IInterrogationTarget
 {
@@ -55,12 +58,17 @@ public class CentavoController : MonoBehaviour, IDamageable, IInterrogationTarge
     [SerializeField] private Light muzzleFlash;
     [Tooltip("Revolver suelto (apagado) que cae al recibir el golpe")]
     [SerializeField] private GameObject droppedRevolver;
+    [Tooltip("Metros a la derecha (del ancla sentado) donde cae el revólver, delante del banco (3C.5.1). A escala 1: " +
+             "se multiplica por la escala de la raíz (×1.15 → 0.69 m), así sigue fuera del cuerpo sentado (3C.6)")]
+    [SerializeField] private float revolverDropSide = 0.6f;
 
     [Header("Tamaño en el mundo (D12)")]
-    [Tooltip("Escala de los cuadros sentados (llenan el lienzo de 2.05 m). 0.52 ≈ 1.06 m de alto, apoyado en el banco de 1 m")]
+    [Tooltip("Escala de los cuadros sentados respecto a la raíz (llenan el lienzo de 2.05 m). 0.52 × raíz 1.15 ≈ 1.23 m de alto, " +
+             "apoyado en el banco de 1 m")]
     [SerializeField, Range(0.3f, 1f)] private float seatedScale = 0.52f;
 
-    [Tooltip("Metros que baja el dibujo al cubrirse (cover_01 mide 1.78 m: así solo asoma la cabeza sobre el banco)")]
+    [Tooltip("Metros (a escala 1) que baja el dibujo al cubrirse. cover_01 mide 1.78 m ×1.15 = 2.05 m: con 0.4 (×1.15 = 0.46 m) " +
+             "asoma la cabeza y los hombros sobre el banco de 1 m")]
     [SerializeField, Min(0f)] private float coverSink = 0.4f;
 
     [Header("Combate")]
@@ -104,16 +112,12 @@ public class CentavoController : MonoBehaviour, IDamageable, IInterrogationTarge
     [SerializeField, Min(0.1f)] private float fleeSpeed = 1.2f;
     [SerializeField, Min(0.5f)] private float limpFps = 4f;
 
-    [Header("Hitbox (cápsula en la capa Default: la escopeta la toca)")]
+    [Header("Hitbox (cápsula en la capa Default: la escopeta la toca). Medidas a escala 1: la raíz (×1.15) las agranda")]
     [SerializeField, Min(0.1f)] private float hitboxRadius = 0.3f;
     [SerializeField, Min(0.2f)] private float standingHeight = 1.8f;
     [Tooltip("Cubierto: más bajo que el banco (1.0 m) para que los perdigones choquen con el banco")]
     [SerializeField, Min(0.2f)] private float coverHeight = 0.7f;
     [SerializeField, Min(0.2f)] private float seatedHeight = 1.0f;
-
-    [Header("Debug (apagado en el juego)")]
-    [Tooltip("F9 = matar (como el final de la escena), F10 = perdonar y huir. Solo herido. Hasta que exista 3C.3")]
-    [SerializeField] private bool debug = false;
 
     /// <summary>Herido y el jugador llegó a ≤ 3 m con línea de vista (se dispara una vez por acercamiento).</summary>
     public event Action OnInterrogationRequested;
@@ -144,6 +148,7 @@ public class CentavoController : MonoBehaviour, IDamageable, IInterrogationTarge
 
     private Transform _player;
     private PlayerHealth _playerHealth;
+    private EnemyGunfire _gunfire; // HUD.2: el tiro sale del revólver del dibujo
     private PlayerController _playerController;
     private Camera _playerCamera;
 
@@ -177,6 +182,9 @@ public class CentavoController : MonoBehaviour, IDamageable, IInterrogationTarge
     private SpriteRenderer _spriteRenderer;
     private float _flashSpriteUntil;
 
+    /// <summary>Escala del mundo de la raíz (3C.6: ×1.15). Las alturas y distancias fijas del código se multiplican por ella.</summary>
+    private float WorldScale => Mathf.Max(0.01f, transform.lossyScale.y);
+
     // ==================================================================
     // Ciclo de vida
     // ==================================================================
@@ -189,6 +197,15 @@ public class CentavoController : MonoBehaviour, IDamageable, IInterrogationTarge
         if (droppedRevolver != null) droppedRevolver.SetActive(false);
         if (voiceSource != null) voiceSource.ignoreListenerPause = true; // D5: la voz se oye con el juego en pausa
         _ammo = shotsPerReload;
+
+        // HUD.2: el disparo sale del cañón del dibujo (shoot_01) con los mismos números de siempre. Sin el componente del
+        // menú, se agrega con el punto medido a ojo en shoot_01 (x 325, y 410 de 1024 desde arriba).
+        if (!TryGetComponent(out _gunfire))
+        {
+            _gunfire = gameObject.AddComponent<EnemyGunfire>();
+            _gunfire.SetFallback(new Vector2(0.317f, 0.6f), _spriteRenderer);
+        }
+        _gunfire.ConfigureSound("", shotSfx, shotPitch, shotVolume); // su "pop" de siempre: escopeta más aguda
     }
 
     private void Start()
@@ -233,7 +250,6 @@ public class CentavoController : MonoBehaviour, IDamageable, IInterrogationTarge
         }
 
         UpdateShotEffects();
-        UpdateDebugKeys();
     }
 
     private void OnDisable()
@@ -348,36 +364,15 @@ public class CentavoController : MonoBehaviour, IDamageable, IInterrogationTarge
     private void FireShot()
     {
         _ammo--;
-        Vector3 muzzle = MuzzlePosition();
+        _shakeUntil = Time.time + shakeSeconds; // temblor del dibujo
 
-        // Sonido: revólver "pop" (escopeta más aguda si no hay uno propio)
-        if (sfxSource != null)
-        {
-            AudioClip clip = AudioLibrary.GetSfx(shotSfx);
-            if (clip != null)
-            {
-                sfxSource.pitch = shotPitch;
-                sfxSource.PlayOneShot(clip, shotVolume * AudioLibrary.SfxVolume);
-            }
-        }
-
-        // Fogonazo chico y temblor del dibujo
-        if (muzzleFlash != null)
-        {
-            muzzleFlash.transform.position = muzzle;
-            muzzleFlash.enabled = true;
-            _flashUntil = Time.time + flashSeconds;
-        }
-        _shakeUntil = Time.time + shakeSeconds;
-
-        // Hitscan al jugador: mala puntería a propósito
-        if (_playerHealth == null || _playerHealth.IsDead || _player == null) return;
-        Vector3 target = PlayerChest();
-        if ((target - muzzle).sqrMagnitude > maxShotDistance * maxShotDistance) return;
-        if (!ClearLine(muzzle, target)) return;
+        // HUD.2: fogonazo, sonido, estela y el rayo de daño salen del cañón del dibujo shoot_01 (EnemyGunfire). Mala
+        // puntería a propósito, como siempre: hitChance / hitChanceRunning, damage, maxShotDistance. El banco y las paredes
+        // se llevan el tiro (el rayo pega en lo primero que toca).
+        bool canHit = _playerHealth != null && !_playerHealth.IsDead && _player != null
+                      && (PlayerChest() - _gunfire.MuzzlePoint()).sqrMagnitude <= maxShotDistance * maxShotDistance;
         bool running = _playerController != null && _playerController.IsRunning && _playerController.IsMoving;
-        if (UnityEngine.Random.value < (running ? hitChanceRunning : hitChance))
-            _playerHealth.TakeDamage(damage);
+        _gunfire.Fire(_player, canHit ? (running ? hitChanceRunning : hitChance) : 0f, damage, 0.5f);
     }
 
     private void UpdateShotEffects()
@@ -436,7 +431,7 @@ public class CentavoController : MonoBehaviour, IDamageable, IInterrogationTarge
         Say(LineHit, true);
 
         Vector3 away = AwayFromPlayer();
-        Vector3 chest = transform.position + Vector3.up * 1.2f;
+        Vector3 chest = transform.position + Vector3.up * (1.2f * WorldScale);
         CartoonFx.BloodBurst(chest, away);
         CartoonFx.HitStop(0.04f);
         AudioLibrary.PlaySfx("impacto_carne", chest);
@@ -458,16 +453,41 @@ public class CentavoController : MonoBehaviour, IDamageable, IInterrogationTarge
         if (hitbox != null) hitbox.enabled = true;
     }
 
+    /// <summary>
+    /// 3C.5.1: el revólver cae DELANTE del banco, al lado de donde Centavo queda sentado, para que Wilbur lo vea y lo recoja
+    /// (D13). Antes salía despedido hacia atrás ("away") y caía detrás del banco, en la franja que los barriles y la caja
+    /// cierran a propósito (3C.1): no se veía ni se podía alcanzar.
+    /// </summary>
     private void DropRevolver(Vector3 away)
     {
         if (droppedRevolver == null) return;
+        Vector3 toPlayer = -away;
+        Vector3 start;
+        Vector3 landing;
+        if (shed != null && shed.SeatedAnchor != null)
+        {
+            Transform seat = shed.SeatedAnchor;
+            landing = seat.position + seat.right * (revolverDropSide * WorldScale) + seat.forward * 0.15f;
+            float top = shed.BenchCover != null ? shed.BenchCover.bounds.max.y : seat.position.y + 1f;
+            start = new Vector3(landing.x, top + 0.25f, landing.z);
+        }
+        else
+        {
+            landing = transform.position + toPlayer * 1.2f;
+            start = MuzzlePosition();
+        }
+
         droppedRevolver.transform.SetParent(null, true);
-        droppedRevolver.transform.position = MuzzlePosition();
+        droppedRevolver.transform.localScale = Vector3.one; // la raíz de Centavo está a ×1.15: el revólver conserva su tamaño real (0.35 m)
+        droppedRevolver.transform.SetPositionAndRotation(start, Quaternion.Euler(0f, UnityEngine.Random.Range(0f, 360f), 0f));
+        if (droppedRevolver.TryGetComponent(out WeaponPickup pickup)) pickup.SetSafeSpot(landing + Vector3.up * 0.06f);
         droppedRevolver.SetActive(true);
         if (!droppedRevolver.TryGetComponent(out Rigidbody body)) body = droppedRevolver.AddComponent<Rigidbody>();
         body.mass = 0.8f;
-        body.velocity = away * 1.2f + Vector3.up * 2.2f;
-        body.angularVelocity = UnityEngine.Random.insideUnitSphere * 9f;
+        body.collisionDetectionMode = CollisionDetectionMode.ContinuousDynamic; // pieza fina: que no atraviese el piso
+        body.interpolation = RigidbodyInterpolation.Interpolate;
+        body.velocity = toPlayer * 0.4f + Vector3.up * 0.8f;
+        body.constraints = RigidbodyConstraints.FreezeRotation; // 3C.5.2: el collider invisible cae plano; el dibujo es un billboard
     }
 
     // ---------- Herido ----------
@@ -517,14 +537,15 @@ public class CentavoController : MonoBehaviour, IDamageable, IInterrogationTarge
         _nextDrip = Time.time + RandomRange(dripSeconds);
         // Al costado (fuera de la cápsula, para que la gota no caiga sobre ella), del lado de la cámara
         Vector3 side = Vector3.Cross(Vector3.up, AwayFromPlayer()).normalized;
-        Vector3 at = transform.position + side * (hitboxRadius + 0.12f) - AwayFromPlayer() * 0.1f + Vector3.up * 0.45f;
+        float s = WorldScale;
+        Vector3 at = transform.position + side * ((hitboxRadius + 0.12f) * s) - AwayFromPlayer() * (0.1f * s) + Vector3.up * (0.45f * s);
         CartoonFx.BloodDrip(at);
     }
 
     // ---------- Muerte y huida ----------
 
-    /// <param name="killHook">true = muerte "normal" (D4): cuenta para el tracker y la IA comenta como cualquier baja.
-    /// false = la escena de interrogatorio ya puso su pensamiento de la IA (D11).</param>
+    /// <param name="killHook">true = rematado antes de la escena (D4): en vez del comentario de baja al azar de la IA sale
+    /// SIEMPRE el pensamiento "lo rematas sin escucharlo" (3C.5.1). false = la escena ya puso su pensamiento (D11).</param>
     private void Die(bool killHook)
     {
         SetState(State.Dead);
@@ -533,7 +554,7 @@ public class CentavoController : MonoBehaviour, IDamageable, IInterrogationTarge
         SeatedPose();
         if (billboard != null) billboard.PlayDeath();
 
-        Vector3 chest = transform.position + Vector3.up * 0.6f;
+        Vector3 chest = transform.position + Vector3.up * (0.6f * WorldScale);
         CartoonFx.BloodBurst(chest, AwayFromPlayer());
         AudioLibrary.PlaySfx("impacto_carne", chest);
         FlashSprite();
@@ -543,7 +564,47 @@ public class CentavoController : MonoBehaviour, IDamageable, IInterrogationTarge
             GameStateTracker.Instance.RegisterContadorState(ContadorState.Dead);
             GameStateTracker.Instance.RegisterEnemyKilled("Centavo");
         }
-        if (killHook && AICompanion.Instance != null) AICompanion.Instance.Speak(AITrigger.EnemyKilled);
+        if (killHook) StartCoroutine(FinishedOffThought());
+    }
+
+    /// <summary>Última red si Interrogation_Contador.asset todavía no tiene las líneas (falta correr el menú de datos).</summary>
+    private const string FinishedOffLastResort = "Ni siquiera lo dejaste hablar. Lo que sabía se quedó en el suelo con él.";
+
+    /// <summary>
+    /// D4 sin escucharlo (3C.5.1): pide a la IA un pensamiento con RequestCustomLine y lo muestra SIEMPRE en los subtítulos
+    /// normales (AICompanion.ShowCustomLine): sin bloquear al jugador ni mover la cámara. Si la IA no contesta en
+    /// finishedOffTimeoutSeconds (tiempo real), sale una línea de respaldo de los datos. Una respuesta tardía se ignora.
+    /// </summary>
+    private IEnumerator FinishedOffThought()
+    {
+        AICompanion ai = AICompanion.Instance;
+        if (ai == null) yield break; // sin AICompanion no hay dónde mostrarlo
+
+        InterrogationData data = TryGetComponent(out CentavoInterrogation scene) ? scene.Data : null;
+        string fallback = PickFinishedOffFallback(data);
+        string situation = data != null && !string.IsNullOrEmpty(data.finishedOffSituation)
+            ? data.finishedOffSituation
+            : "Wilbur acaba de rematar a Centavo, herido y pidiendo que lo escuchara, sin escucharlo. Era el contador de Don Lobo " +
+              "y sabía de la deuda de Porky. Un pensamiento en español, noir y ambiguo, de como mucho 25 palabras.";
+        float timeout = data != null ? data.finishedOffTimeoutSeconds : 4f;
+
+        bool done = false;
+        string aiLine = null;
+        ai.RequestCustomLine(situation, line => { done = true; aiLine = line; });
+        float start = Time.unscaledTime;
+        while (!done && Time.unscaledTime - start < timeout) yield return null;
+
+        bool fromAi = done && !string.IsNullOrEmpty(aiLine);
+        if (ai != null) ai.ShowCustomLine(fromAi ? aiLine : fallback, !fromAi); // la de la IA ya entró al historial
+    }
+
+    private static string PickFinishedOffFallback(InterrogationData data)
+    {
+        var pool = new System.Collections.Generic.List<string>();
+        if (data != null && data.finishedOffThoughts != null)
+            foreach (InterrogationThought t in data.finishedOffThoughts)
+                if (t != null && !string.IsNullOrEmpty(t.text)) pool.Add(t.text);
+        return pool.Count > 0 ? pool[UnityEngine.Random.Range(0, pool.Count)] : FinishedOffLastResort;
     }
 
     private void StartFleeing()
@@ -645,14 +706,6 @@ public class CentavoController : MonoBehaviour, IDamageable, IInterrogationTarge
         if (billboard != null) billboard.SetVisible(visible);
     }
 
-    private void UpdateDebugKeys()
-    {
-        if (!debug) return;
-        if (_state != State.Wounded && _state != State.Interrogation) return;
-        if (Input.GetKeyDown(KeyCode.F9)) ResolveKilled();
-        else if (Input.GetKeyDown(KeyCode.F10)) ResolvePardoned();
-    }
-
     // ==================================================================
     // Poses, hitbox y escala
     // ==================================================================
@@ -746,16 +799,16 @@ public class CentavoController : MonoBehaviour, IDamageable, IInterrogationTarge
 
     private Vector3 PlayerChest() => PlayerEye() - Vector3.up * 0.45f;
 
-    private Vector3 StandingEye() => transform.position + Vector3.up * 1.6f;
+    private Vector3 StandingEye() => transform.position + Vector3.up * (1.6f * WorldScale);
 
-    private Vector3 SeatedEye() => transform.position + Vector3.up * 0.8f;
+    private Vector3 SeatedEye() => transform.position + Vector3.up * (0.8f * WorldScale);
 
     private Vector3 MuzzlePosition()
     {
         Vector3 toPlayer = _player != null ? _player.position - transform.position : transform.forward;
         toPlayer.y = 0f;
         toPlayer = toPlayer.sqrMagnitude > 0.001f ? toPlayer.normalized : transform.forward;
-        return transform.position + Vector3.up * 1.35f + toPlayer * 0.35f;
+        return transform.position + (Vector3.up * 1.35f + toPlayer * 0.35f) * WorldScale;
     }
 
     private Vector3 AwayFromPlayer()

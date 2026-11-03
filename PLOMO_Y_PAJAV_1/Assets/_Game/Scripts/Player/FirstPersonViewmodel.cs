@@ -18,8 +18,13 @@ using UnityEngine.UI;
 /// inferior del arte se pasan de la pantalla. Pantallas más anchas que 16:9: pegado a la derecha. Más angostas (16:10, 4:3):
 /// se recorta por la IZQUIERDA, nunca por la derecha ni abajo. ViewmodelMotion además mantiene esos dos bordes fuera de pantalla.
 ///
+/// 3C.5.2: ViewmodelProfile.handsScale achica/agranda las manos desde la esquina inferior derecha; con hipClearLeftArtX
+/// las manos se corren a la derecha lo justo para que el arma no tape la mira (16:9, 16:10, 4:3). La mira centrada al
+/// apuntar sigue exacta (ViewmodelMotion la calcula con el tamaño y la posición reales de HandsImage).
+/// Recarga por etapas (IStagedReloadWeapon, el revólver): cuadros abrir/meter/cerrar y balas visibles en el tambor
+/// (ViewmodelChamberOverlay, hijo de HandsImage).
 /// Sin perfil o sin cuadros en idle: no se crea nada (el juego sigue funcionando sin manos).
-/// Se oculta en pausa, en diálogo/interrogatorio y al morir.
+/// Se oculta en pausa, en diálogo/interrogatorio, en cinemáticas, con el arma enfundada (INTRO.3) y al morir.
 /// FASE 2 (revólver y cambio de arma): SetProfile(perfilDelArma) + SetWeapon(armaNueva). Cualquier arma que
 /// implemente IWeapon se conecta sola (OnFired / OnReloadStarted / OnReloadFinished / ReloadDuration).
 /// </summary>
@@ -54,6 +59,7 @@ public class FirstPersonViewmodel : MonoBehaviour
     private ViewmodelAnimator _animator;
     private ViewmodelMotion _motion;
     private ViewmodelLighting _lighting;
+    private ViewmodelChamberOverlay _chambers;
     private bool _dead;
     private float _debugUntil = -1f;
     private float _sightLogNext;
@@ -98,6 +104,13 @@ public class FirstPersonViewmodel : MonoBehaviour
         weapon.OnFired += HandleFired;
         weapon.OnReloadStarted += HandleReloadStarted;
         weapon.OnReloadFinished += HandleReloadFinished;
+        if (weapon is IStagedReloadWeapon staged)
+        {
+            staged.OnReloadOpened += HandleReloadOpened;
+            staged.OnRoundInserting += HandleRoundInserting;
+            staged.OnRoundLoaded += HandleRoundLoaded;
+            staged.OnReloadClosing += HandleReloadClosing;
+        }
     }
 
     private void Unsubscribe(IWeapon weapon)
@@ -106,6 +119,13 @@ public class FirstPersonViewmodel : MonoBehaviour
         weapon.OnFired -= HandleFired;
         weapon.OnReloadStarted -= HandleReloadStarted;
         weapon.OnReloadFinished -= HandleReloadFinished;
+        if (weapon is IStagedReloadWeapon staged)
+        {
+            staged.OnReloadOpened -= HandleReloadOpened;
+            staged.OnRoundInserting -= HandleRoundInserting;
+            staged.OnRoundLoaded -= HandleRoundLoaded;
+            staged.OnReloadClosing -= HandleReloadClosing;
+        }
     }
 
     /// <summary>Cambia el arma activa en runtime (fase 2). Combínalo con SetProfile y PlayerAim.SetWeapon.</summary>
@@ -126,6 +146,8 @@ public class FirstPersonViewmodel : MonoBehaviour
         if (_animator == null) return; // todavía sin canvas (Awake sin perfil)
         _motion.SetProfile(profile);
         _animator.SetProfile(profile);
+        if (_chambers != null) _chambers.SetProfile(profile);
+        FitHands();
         if (_aim != null) _aim.SetTiming(profile.aimInTime, profile.aimOutTime, profile.aimFovDelta);
     }
 
@@ -145,12 +167,65 @@ public class FirstPersonViewmodel : MonoBehaviour
 
     public void HandleReloadStarted()
     {
-        if (_animator != null) _animator.HandleReloadStarted(_weapon != null ? _weapon.ReloadDuration : 1f);
+        if (_animator != null)
+            _animator.HandleReloadStarted(_weapon != null ? _weapon.ReloadDuration : 1f, _weapon is IStagedReloadWeapon);
+    }
+
+    /// <summary>
+    /// HUD.2: dónde está en pantalla (px) la boca del cañón del dibujo actual (hipMuzzle / aimMuzzle del perfil, las mismas
+    /// anclas del fogonazo). La usa ShotgunFeedback para la luz y la onomatopeya. false sin manos visibles.
+    /// </summary>
+    public bool TryGetMuzzleScreenPoint(out Vector2 screen)
+    {
+        screen = default;
+        if (_hands == null || profile == null || _canvas == null || !_canvas.enabled) return false;
+        bool aiming = _aim != null && _aim.IsAiming;
+        Vector2 anchor = aiming ? profile.aimMuzzle : profile.hipMuzzle;
+        Rect r = _hands.rectTransform.rect;
+        var local = new Vector3(r.xMin + anchor.x / 1920f * r.width, r.yMin + anchor.y / 1080f * r.height, 0f);
+        Vector3 world = _hands.rectTransform.TransformPoint(local);
+        Camera cam = _canvas.renderMode == RenderMode.ScreenSpaceOverlay ? null : _canvas.worldCamera;
+        screen = RectTransformUtility.WorldToScreenPoint(cam, world);
+        return true;
+    }
+
+    // Recarga por etapas (3C.5.2)
+    private void HandleReloadOpened()
+    {
+        if (_animator != null) _animator.StageOpened();
+    }
+
+    private void HandleRoundInserting()
+    {
+        if (_animator != null && _weapon is IStagedReloadWeapon staged) _animator.StageInserting(staged.RoundInsertSeconds);
+    }
+
+    private void HandleRoundLoaded(int loaded)
+    {
+        if (_chambers != null) _chambers.Punch(loaded - 1);
+    }
+
+    private void HandleReloadClosing()
+    {
+        if (_animator != null) _animator.StageClosing();
     }
 
     public void HandleReloadFinished()
     {
         if (_animator != null) _animator.HandleReloadFinished();
+    }
+
+    /// <summary>Cambio de arma (WeaponSwitcher, 3C.5): las manos bajan y suben en `duration` (tiempo real), con la misma
+    /// bajada que la recarga sin cuadros. El perfil nuevo se pone a la mitad con SetProfile.</summary>
+    public void PlaySwitchDip(float duration)
+    {
+        if (_motion != null) _motion.StartReloadDip(duration);
+    }
+
+    /// <summary>INTRO.3 (PlayerWeaponHolster): las manos suben desde abajo de la pantalla en `duration` (tiempo real).</summary>
+    public void PlayDraw(float duration)
+    {
+        if (_motion != null) _motion.StartRaise(duration);
     }
 
     private void HandleDeath() => _dead = true;
@@ -205,6 +280,8 @@ public class FirstPersonViewmodel : MonoBehaviour
         _hands.preserveAspect = true;
 
         // Hermano posterior = se dibuja encima de las manos
+        _chambers = ViewmodelChamberOverlay.Create(_hands); // hijo de las manos: sigue al dibujo en todo
+
         _flash = CreateImage("MuzzleFlashImage", _root);
         RectTransform flashRect = _flash.rectTransform;
         flashRect.anchorMin = flashRect.anchorMax = flashRect.pivot = new Vector2(0.5f, 0.5f);
@@ -244,8 +321,20 @@ public class FirstPersonViewmodel : MonoBehaviour
 
         float fitHeight = area.height;
         float height = fitHeight * overscan;
-        var size = new Vector2(height * ArtAspect, height);
-        var offset = new Vector2(size.x - fitHeight * ArtAspect, -(height - fitHeight)); // lo que sobra: a la derecha y abajo
+        var baseSize = new Vector2(height * ArtAspect, height);
+        var offset = new Vector2(baseSize.x - fitHeight * ArtAspect, -(height - fitHeight)); // lo que sobra: a la derecha y abajo
+
+        // 3C.5.2: escala del perfil desde la esquina inferior derecha del dibujo (la esquina no se mueve)
+        float scale = profile != null ? Mathf.Clamp(profile.handsScale, 0.5f, 1.5f) : 1f;
+        Vector2 size = baseSize * scale;
+
+        // 3C.5.2: en la cadera el arma nunca tapa la mira. Borde izquierdo del arma en pantalla (relativo al rect de la raíz)
+        if (profile != null && profile.hipClearLeftArtX > 0f)
+        {
+            float gunLeft = area.xMax + offset.x - size.x + profile.hipClearLeftArtX / 1920f * size.x;
+            float minLeft = area.center.x + profile.hipCenterClearance;
+            if (gunLeft < minLeft) offset.x += minLeft - gunLeft;
+        }
         RectTransform rt = _hands.rectTransform;
         if (rt.sizeDelta != size) rt.sizeDelta = size;
         if (rt.anchoredPosition != offset) rt.anchoredPosition = offset;
@@ -254,9 +343,14 @@ public class FirstPersonViewmodel : MonoBehaviour
     private void LateUpdate()
     {
         if (_canvas == null) return;
-        bool hidden = _dead || PlayerAim.GameplayBlocked();
+        // Razones que se componen (I12): muerte, bloqueos del juego (pausa, diálogo, interrogatorio, cinemática) y arma
+        // enfundada (INTRO.3). Al sacarla, el canvas espera a que ViewmodelMotion ponga las manos abajo (RaisePending).
+        bool hidden = _dead || PlayerAim.GameplayBlocked() || PlayerWeaponHolster.HidesHands
+                      || (_motion != null && _motion.RaisePending);
         if (_canvas.enabled == hidden) _canvas.enabled = !hidden;
         FitHands();
+        if (_chambers != null && _animator != null)
+            _chambers.Refresh(_animator.ReloadStage, _weapon != null ? _weapon.LoadedRounds : 0);
         LogFireFrame();
         LogSightError();
     }

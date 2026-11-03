@@ -29,7 +29,6 @@ using static LevelBuilderUtils;
 public static class LevelBuilder_NivelPorky
 {
     public const string ScenePath = "Assets/Scenes/NivelPorky.unity";
-    private const string SampleScenePath = "Assets/Scenes/SampleScene.unity";
 
     private const float WallHeight = 3.5f;
     private const float WallThickness = 0.2f;
@@ -88,6 +87,14 @@ public static class LevelBuilder_NivelPorky
 
         // Fase 3C.1: cuarto de herramientas de Centavo, cerca y portón del rincón (traen sus propios flags estáticos)
         ContadorYardBuilder.BuildInto(environment, lighting);
+
+        // Fase HUD.1 (H1): HUD de Wilbur (vida y munición); regenerar el nivel lo conserva
+        HudBuilder.PlaceInOpenScene(null);
+
+        // Fase INTRO.2: taxi, llegada y camión estacionado (antes de hornear: el camión cuenta para el NavMesh)
+        var introReport = new System.Text.StringBuilder();
+        IntroTaxiBuilder.BuildInto(introReport);
+        Debug.Log("[LevelBuilder] Taxi y llegada:\n" + introReport);
 
         // Guardar antes de hornear: el NavMesh se guarda junto a la escena
         EditorSceneManager.SaveScene(scene, ScenePath);
@@ -533,7 +540,8 @@ public static class LevelBuilder_NivelPorky
 
     private static void BuildMarkers(Transform markers)
     {
-        CreateMarker("PlayerSpawn", MarkerType.PlayerSpawn, "", new Vector3(0f, 0f, -15f), 0f, markers);
+        // INTRO.2: el jugador baja del taxi en la acera de la punta oeste (la cinemática y los reintentos arrancan ahí)
+        CreateMarker("PlayerSpawn", MarkerType.PlayerSpawn, "", IntroTaxiBuilder.CurbPosition, IntroTaxiBuilder.CurbYaw, markers);
 
         CreateMarker("Clue_nota_porky_01", MarkerType.Clue, "nota_porky_01", new Vector3(2.5f, 1.1f, 0.8f), 90f, markers);
         CreateMarker("Clue_contrato_01", MarkerType.Clue, "contrato_01", new Vector3(-6.5f, 0.3f, -2.5f), 0f, markers);
@@ -644,9 +652,12 @@ public static class LevelBuilder_NivelPorky
 
     public static readonly ExtraGuard[] ExtraGuards =
     {
-        // Calle, a la derecha del spawn (x 6.5–14): el primer encuentro. A 4.5 m de la ruta A (z = -8)
+        // Calle, punta este (INTRO.2): arranca detrás del camión estacionado (IntroTaxiBuilder.TruckCenter), pasea a su
+        // lado unos 10 s sin que se lo vea desde la acera ni desde el patio delantero, y después sale a la calle.
+        // El primer encuentro. A más de 6 m de la ruta A (z = -8)
         new ExtraGuard { guardName = "Guard_Patrulla_B", type = EnemyAI.EnemyType.Patrullero, id = "B", points = new[]
-            { new Vector3(14f, 0f, -12.5f), new Vector3(6.5f, 0f, -12.5f), new Vector3(6.5f, 0f, -16.5f), new Vector3(14f, 0f, -16.5f) } },
+            { new Vector3(18.4f, 0f, -11.7f), new Vector3(14.5f, 0f, -11.9f), new Vector3(18.4f, 0f, -12.6f),
+              new Vector3(14.8f, 0f, -16.4f), new Vector3(5f, 0f, -16.4f), new Vector3(5f, 0f, -14.4f) } },
         // Sala: junto a la puerta a la cocina, mirando a la puerta delantera (-5, -6)
         new ExtraGuard { guardName = "Guard_Centinela_Sala", type = EnemyAI.EnemyType.Centinela, id = "Sala",
             points = new[] { new Vector3(-0.6f, 0f, 0.4f) }, yaw = -145f },
@@ -784,19 +795,9 @@ public static class LevelBuilder_NivelPorky
             Debug.LogWarning($"[LevelBuilder] Radio del agente = {radius}. Con puertas de {DoorWidth} m conviene 0.5 o menos.");
     }
 
+    /// <summary>INTRO.2: Intro, NivelPorky, el resto detrás; SampleScene fuera de la lista (la escena no se borra).</summary>
     private static void AddToBuildSettings()
     {
-        var scenes = new List<EditorBuildSettingsScene>(EditorBuildSettings.scenes);
-        if (scenes.Exists(s => s.path == ScenePath)) return;
-
-        int sampleIndex = scenes.FindIndex(s => s.path == SampleScenePath);
-        if (sampleIndex < 0 && File.Exists(SampleScenePath))
-        {
-            scenes.Add(new EditorBuildSettingsScene(SampleScenePath, true));
-            sampleIndex = scenes.Count - 1;
-        }
-
-        scenes.Insert(sampleIndex + 1, new EditorBuildSettingsScene(ScenePath, true));
-        EditorBuildSettings.scenes = scenes.ToArray();
+        IntroTaxiBuilder.EnsureBuildOrder(null);
     }
 }

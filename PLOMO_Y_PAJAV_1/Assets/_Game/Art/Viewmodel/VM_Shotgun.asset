@@ -80,7 +80,7 @@ MonoBehaviour:
   aimInTime: 0.15
   aimOutTime: 0.12
   aimSightPoint: {x: 960.5, y: 575}
-  sightVersion: 1
+  sightVersion: 2
   aimOffset: {x: 0, y: 0}
   aimOffsetNoSprite: {x: -320, y: 140}
   aimScaleNoSprite: 1.15
@@ -90,3 +90,12 @@ MonoBehaviour:
   aimSwayMultiplier: 0.3
   aimBreathMultiplier: 0.5
   aimKickMultiplier: 0.6
+  handsScale: 1
+  handsScaleVersion: 0
+  hipClearLeftArtX: 0
+  hipCenterClearance: 70
+  chambersOpen: []
+  chambersInsert: []
+  chamberDiameter: 0
+  chamberRim: {fileID: 0}
+  chamberRimScale: 0.92
