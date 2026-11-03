@@ -46,6 +46,19 @@ Rules 1–9 of `docs/phases/PHASE-3C-contador.md` §0 apply here **verbatim**, w
 
 ---
 
+## 1b. Amendments after INTRO.0 (A1–A5)
+Agreed in the INTRO.0 review (3 Nov). **They override the rest of this file where they conflict.**
+
+| # | Amendment |
+|---|---|
+| A1 | **Spread layout** (replaces "illustration left / text right" in INTRO.1 step 2). Edgar's illustrations (`Art/Intro/ilus_intro_01..06`) are 16:9, 1920×1080. Each story spread shows the illustration **across both pages** (Cuphead style), in the upper ~60–65 % of the spread, inset a little from the paper edges, with a thin dark ink frame. The page text goes in a band below it, centred across the spread, Special Elite, dark ink colour, typewriter per I3/I4. **Implementation:** each spread (paper + illustration + text) is composed into a RenderTexture by an offscreen camera/canvas. The left half of the RT is UV-mapped onto the back of leaf *i* and the right half onto the front of leaf *i+1*, so the content is continuous across the spine and turns with the rigid leaves. The current spread's RT updates live while typing; the turning leaf shows the outgoing spread on one face and the incoming spread on the other. No GC per frame, reasonable RT size (≈ 2048 wide). The title spread (`libro_guardas` left, title page right) may use the same system or direct textures, whichever is simpler. |
+| A2 | **Book textures:** copy `libro_portada`, `libro_guardas` and `libro_papel` from `F:\Descargas` (root, **not** `sonidos_final`; never move or delete the originals) into `Art/Intro/` with the INTRO.0 import rule. Page quads take their aspect from `libro_papel` (1086×1448, ~3:4); the cover takes its aspect from `libro_portada`. Ignore the square `ilus_intro_*` set in `F:\Descargas`. |
+| A3 | **Ambience stereo:** `AudioImporter` keeps `amb_*` and `musica_*` stereo (played 2D). Voices stay mono. `git status` first (shared-file rule); bump the importer version. |
+| A4 | **Voice silence:** trim leading/trailing silence of the intro voices (`narrador_*`, `taxista_*`, `wilbur_taxi_*`, `wilbur_casa_01`, `wilbur_arma_01`) to ≤ 0.1 s with a small Python script in `Tools/` (stdlib `wave` + `audioop` or numpy; ffmpeg is not installed), threshold ≈ −45 dBFS, run on the project copies only. List before/after durations in the audit. Do not touch the 3C voices. |
+| A5 | The fixed AI line (I9) and the taxi do **not** belong to INTRO.1; they stay in INTRO.2. |
+
+---
+
 ## 2. Subphases
 
 ### INTRO.1 — The storybook (scene `Intro`)
