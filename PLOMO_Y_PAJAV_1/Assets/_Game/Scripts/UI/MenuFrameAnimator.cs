@@ -6,8 +6,9 @@ using UnityEngine.UI;
 //   bien si los frames son casi identicos.
 // Modo Fundido: mezcla suavemente entre frames. Sirve cuando los dibujos
 //   tienen diferencias grandes.
-// Dos grupos: "frames" (espera, atardecer) y "framesTormenta" (tras el rayo).
-//   CutToStorm salta de uno a otro sin fundido; cada grupo recorre todos sus cuadros.
+// Dos grupos, cada uno con su modo: "frames" (espera, atardecer: libro animado con
+//   cortes secos y sin respiracion) y "framesTormenta" (tras el rayo: el campo "modo",
+//   fundido lento con respiracion). CutToStorm salta de uno a otro sin fundido.
 // La imagen cubre la pantalla sin deformarse (16:9, 16:10, 21:9) y se mueve con
 //   el raton (parallax de todo el fondo).
 // Usa tiempo sin escala para seguir animando con Time.timeScale en 0.
@@ -18,7 +19,15 @@ public class MenuFrameAnimator : MonoBehaviour
 
     [SerializeField] private Sprite[] frames;
     [SerializeField] private Sprite[] framesTormenta;
+    [Tooltip("Modo del grupo de tormenta")]
     [SerializeField] private Modo modo = Modo.Fundido;
+
+    [Header("Libro animado (grupo de espera)")]
+    [SerializeField] private Modo modoEspera = Modo.Hervido;
+    [SerializeField, Range(6f, 12f)] private float fpsEspera = 8f;
+    [Tooltip("Variacion al azar en lo que dura cada cuadro (0.15 = +-15 %)")]
+    [SerializeField, Range(0f, 0.5f)] private float variacionEspera = 0.15f;
+    [SerializeField] private bool respirarEspera = false;
 
     [Header("Hervido")]
     [SerializeField, Range(1f, 24f)] private float fps = 12f;
@@ -46,6 +55,8 @@ public class MenuFrameAnimator : MonoBehaviour
     private RectTransform rtB;
     private RectTransform padre;
     private Sprite[] activos;
+    private Modo modoActivo;
+    private bool enEspera = true;
     private int indice;
     private float siguienteCambio;
     private float inicioFundido = -1f;
@@ -64,8 +75,9 @@ public class MenuFrameAnimator : MonoBehaviour
         frames = SinNulos(frames);
         framesTormenta = SinNulos(framesTormenta);
         activos = frames;
+        modoActivo = modoEspera;
 
-        if (modo == Modo.Fundido) CrearCapaB();
+        if (modo == Modo.Fundido || modoEspera == Modo.Fundido) CrearCapaB();
         if (activos.Length > 0)
         {
             imagenA.sprite = activos[0];
@@ -131,11 +143,12 @@ public class MenuFrameAnimator : MonoBehaviour
 
     private float Intervalo()
     {
-        if (modo == Modo.Fundido) return segundosPorFrame;
+        if (modoActivo == Modo.Fundido) return segundosPorFrame;
 
         // Pequena variacion para que no suene a metronomo.
-        float baseT = 1f / Mathf.Max(fps, 0.01f);
-        return baseT * (1f + Random.Range(-irregularidad, irregularidad));
+        float baseT = 1f / Mathf.Max(enEspera ? fpsEspera : fps, 0.01f);
+        float variacion = enEspera ? variacionEspera : irregularidad;
+        return baseT * (1f + Random.Range(-variacion, variacion));
     }
 
     /// <summary>
@@ -147,6 +160,8 @@ public class MenuFrameAnimator : MonoBehaviour
         if (framesTormenta == null || framesTormenta.Length == 0) return false;
 
         activos = framesTormenta;
+        enEspera = false;
+        modoActivo = modo;
         indice = 0;
         inicioFundido = -1f;
         imagenA.sprite = activos[0];
@@ -189,7 +204,7 @@ public class MenuFrameAnimator : MonoBehaviour
         if (cubrirPantalla && padre != null && padre.rect.size != tamanoPadre) AjustarCobertura();
         if (activos != null && activos.Length >= 2) ActualizarCuadros(t);
 
-        if (respirar)
+        if (enEspera ? respirarEspera : respirar)
         {
             float onda = Mathf.Sin(t * velocidadRespiracion * Mathf.PI * 2f) * amplitud;
             // Cubriendo, la escala nunca baja de 1: el borde no se asoma al "exhalar".
@@ -207,7 +222,7 @@ public class MenuFrameAnimator : MonoBehaviour
             siguienteCambio = t + Intervalo();
             int sig = (indice + 1) % activos.Length;
 
-            if (modo == Modo.Hervido)
+            if (modoActivo == Modo.Hervido)
             {
                 indice = sig;
                 imagenA.sprite = activos[indice];
@@ -221,7 +236,7 @@ public class MenuFrameAnimator : MonoBehaviour
             }
         }
 
-        if (modo == Modo.Fundido && inicioFundido >= 0f)
+        if (modoActivo == Modo.Fundido && inicioFundido >= 0f)
         {
             float k = Mathf.Clamp01((t - inicioFundido) / duracionFundido);
             k = k * k * (3f - 2f * k);                     // suavizado
