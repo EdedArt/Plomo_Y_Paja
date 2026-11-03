@@ -1,4 +1,4 @@
-ESTADO: pendiente de revisión
+     ESTADO: LUZ VERDE (orquestador, 3 nov)
 
 # AUDIT INTRO.1.1 — Rediseño del libro (2D a pantalla completa, enmienda A7)
 

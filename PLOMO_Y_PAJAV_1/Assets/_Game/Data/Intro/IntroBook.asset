@@ -1,0 +1,53 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: ccc639b3d448eb348bc2a8e61ea07122, type: 3}
+  m_Name: IntroBook
+  m_EditorClassIdentifier: 
+  coverTitle: PLOMO Y PAJA
+  closedBookTexture: {fileID: 2800000, guid: 44d3056ed2a9c104db968acdef4411b0, type: 3}
+  paperTexture: {fileID: 2800000, guid: 6332b38502cda2c42b1c14dae54b20b2, type: 3}
+  pages:
+  - clipId: narrador_intro_01
+    text: "\xC9rase una vez, en la ciudad de Porc\xF3polis, tres hermanos cerditos."
+    illustration: {fileID: 2800000, guid: c66897a5918297643b8399bf97e721d9, type: 3}
+    illustrationLabel: "ILUSTRACI\xD3N 01"
+  - clipId: narrador_intro_02
+    text: Wilbur, el mayor, trabajaba de sol a sol. Su casa era de ladrillo, firme
+      como su palabra.
+    illustration: {fileID: 2800000, guid: 1c07137947772994cbaa5bca3697a3df, type: 3}
+    illustrationLabel: "ILUSTRACI\xD3N 02"
+  - clipId: narrador_intro_03
+    text: "Max, el del medio, trabajaba\u2026 a ratos. Lo que ganaba se le iba en
+      joyas, y su casa de madera brillaba m\xE1s de lo que deb\xEDa."
+    illustration: {fileID: 2800000, guid: 8f29d4e91055fe940b7bc4fdec05e77d, type: 3}
+    illustrationLabel: "ILUSTRACI\xD3N 03"
+  - clipId: narrador_intro_04
+    text: "Y Porky, el menor\u2026 Porky ten\xEDa un problema: los dados, las cartas
+      y las deudas."
+    illustration: {fileID: 2800000, guid: 96ffa547d7502a545b1860f0ec5fe309, type: 3}
+    illustrationLabel: "ILUSTRACI\xD3N 04"
+  - clipId: narrador_intro_05
+    text: "Su casa de paja nunca resisti\xF3 mucho. Y una noche de lluvia, ya no
+      hab\xEDa casa. Ni Porky."
+    illustration: {fileID: 2800000, guid: 300f51be066df414fbba5f832359d15e, type: 3}
+    illustrationLabel: "ILUSTRACI\xD3N 05"
+  - clipId: narrador_intro_06
+    text: "Wilbur tom\xF3 su escopeta. Alguien iba a pagar por esto. Lo que no sab\xEDa
+      era qui\xE9n le deb\xEDa a qui\xE9n."
+    illustration: {fileID: 2800000, guid: 294786a1db464f54aaf1655e013567be, type: 3}
+    illustrationLabel: "ILUSTRACI\xD3N 06"
+  openSfx: sfx_libro_abrir
+  pageSfx: sfx_pagina
+  music: musica_intro
+  roomAmbience: amb_intro_cuarto
+  rain: lluvia_loop
+  nextScene: NivelPorky
