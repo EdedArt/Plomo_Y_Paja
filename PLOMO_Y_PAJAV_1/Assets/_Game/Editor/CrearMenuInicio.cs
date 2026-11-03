@@ -3,6 +3,7 @@ using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Security.Cryptography;
+using System.Text;
 using System.Text.RegularExpressions;
 using UnityEngine;
 using UnityEngine.UI;
@@ -23,6 +24,11 @@ public static class CrearMenuInicio
     private const string RutaEscena = "Assets/_Game/Scenes/MenuPrincipal.unity";
     private const string RutaFuente = "Assets/_Game/Fonts/IMFellEnglish SDF.asset";
     private const string RutaFuenteRespaldo = "Assets/_Game/Fonts/SpecialElite SDF.asset";
+    private const string RutaTtfTitulo = "Assets/_Game/Fonts/LuckiestGuy-Regular.ttf";
+    private const string RutaAtlasTitulo = "Assets/_Game/Fonts/LuckiestGuy Titulo SDF.asset";
+    private const string RutaTtfCursiva = "Assets/_Game/Fonts/IMFellEnglish-Italic.ttf";
+    private const string RutaAtlasCursiva = "Assets/_Game/Fonts/IMFellEnglish-Italic Titulo SDF.asset";
+    private const float TamanoTitulo = 128f;
     private const string RutaMusica = "Assets/_Game/Audio/Music/musica_intro.wav";
     private const string RutaLibreria = "Assets/_Game/Audio/AudioLibrary.asset";
 
@@ -130,7 +136,7 @@ public static class CrearMenuInicio
         // ---------- Panel principal ----------
         var panel = NuevoPanel("PanelPrincipal", canvasGO.transform);
 
-        var logo = CrearLogo(panel.transform, faltantes);
+        var logo = CrearLogo(panel.transform, rayo, faltantes);
 
         var btnJugar    = NuevoBoton("BtnJugar",    panel.transform, "Jugar",    placa, 600,  40);
         var btnOpciones = NuevoBoton("BtnOpciones", panel.transform, "Opciones", placa, 600, -70);
@@ -147,7 +153,10 @@ public static class CrearMenuInicio
 
         // ---------- "Pulsa cualquier tecla" ----------
         var prompt = NuevoTexto("PromptEspera", canvasGO.transform, "Pulsa cualquier tecla", 56);
-        Colocar(prompt.rectTransform, 0, -450, 1200, 110);
+        Colocar(prompt.rectTransform, 0, 80, 1200, 110);
+        // Anclado abajo: en 21:9 el lienzo es mas bajo y centrado se salia de la pantalla.
+        prompt.rectTransform.anchorMin = new Vector2(0.5f, 0f);
+        prompt.rectTransform.anchorMax = new Vector2(0.5f, 0f);
         prompt.color = CremaClaro;
         prompt.outlineWidth = 0.3f;
         prompt.outlineColor = Negro;
@@ -278,6 +287,8 @@ public static class CrearMenuInicio
         Selection.activeGameObject = canvasGO;
         EditorUtility.SetDirty(canvasGO);
 
+        AssetDatabase.SaveAssets();
+
         var escena = SceneManager.GetActiveScene();
         EditorSceneManager.MarkSceneDirty(escena);
         EditorSceneManager.SaveScene(escena);
@@ -373,13 +384,17 @@ public static class CrearMenuInicio
             lista.GetArrayElementAtIndex(i).objectReferenceValue = sprites[i];
     }
 
-    // menu_logo.png si existe; si no, el titulo en TMP con contorno y sombra.
-    private static RectTransform CrearLogo(Transform padre, List<string> faltantes)
+    // menu_logo.png si existe; si no, el titulo por letras (MenuTitleLogo): M11 de Fase-Menu.
+    private static RectTransform CrearLogo(Transform padre, LightningFlash rayo, List<string> faltantes)
     {
         var go = new GameObject("Logo", typeof(RectTransform));
         go.transform.SetParent(padre, false);
         var rt = (RectTransform)go.transform;
-        Colocar(rt, 600, 300, 700, 300);
+        Colocar(rt, 400, 345, 800, 200);
+
+        var componente = go.AddComponent<MenuTitleLogo>();
+        var so = new SerializedObject(componente);
+        so.FindProperty("lightning").objectReferenceValue = rayo;
 
         var sprite = Cargar<Sprite>(RutaMenu + "menu_logo.png");
         if (sprite != null)
@@ -389,25 +404,102 @@ public static class CrearMenuInicio
             img.sprite = sprite;
             img.preserveAspect = true;
             img.raycastTarget = false;
+            so.FindProperty("logoImage").objectReferenceValue = img;
+            so.ApplyModifiedPropertiesWithoutUndo();
             return rt;
         }
 
-        faltantes.Add("menu_logo (se usa el titulo en TMP)");
+        faltantes.Add("menu_logo (se usa el titulo por letras)");
 
-        var sombra = NuevoTexto("TituloSombra", rt, "PLOMO\nY PAJA", 110);
-        Estirar(sombra.rectTransform);
-        sombra.rectTransform.anchoredPosition = new Vector2(7, -7);
-        sombra.color = new Color(Negro.r, Negro.g, Negro.b, 0.7f);
-        sombra.fontStyle = FontStyles.Bold;
+        var reporte = new StringBuilder();
+        TMP_FontAsset titulo = FuenteTitulo(reporte, RutaTtfTitulo, RutaAtlasTitulo, "Luckiest Guy", "PLOMAJ", 512);
+        if (titulo == null)
+        {
+            titulo = fuente;
+            faltantes.Add("Luckiest Guy (el titulo usa IM Fell English)");
+        }
+        TMP_FontAsset cursiva = FuenteTitulo(reporte, RutaTtfCursiva, RutaAtlasCursiva, "IM Fell Italic", "y", 256);
+        bool cursivaFalsa = cursiva == null;
+        if (cursivaFalsa)
+        {
+            cursiva = fuente;
+            faltantes.Add("IM Fell Italic (la y usa cursiva simulada)");
+        }
+        if (reporte.Length > 0) Debug.Log("[Menu] Fuentes del titulo:\n" + reporte);
 
-        var titulo = NuevoTexto("Titulo", rt, "PLOMO\nY PAJA", 110);
-        Estirar(titulo.rectTransform);
-        titulo.color = CremaClaro;
-        titulo.alignment = TextAlignmentOptions.Center;
-        titulo.fontStyle = FontStyles.Bold;
-        titulo.outlineWidth = 0.35f;
-        titulo.outlineColor = Negro;
+        // Orden de dibujo: todas las sombras, luego las letras, luego los brillos.
+        var palabras = new[]
+        {
+            new { Nombre = "Plomo", Texto = "PLOMO", Y = false, Arriba = "#C9CED6", Abajo = "#4A5260" },
+            new { Nombre = "Y", Texto = "y", Y = true, Arriba = "#B3261E", Abajo = "#B3261E" },
+            new { Nombre = "Paja", Texto = "PAJA", Y = false, Arriba = "#F6E39A", Abajo = "#C8902E" },
+        };
+        var sombras = new TMP_Text[palabras.Length];
+        var letras = new TMP_Text[palabras.Length];
+        var brillos = new TMP_Text[palabras.Length];
+        for (int i = 0; i < palabras.Length; i++)
+        {
+            var p = palabras[i];
+            sombras[i] = CapaTitulo("Sombra" + p.Nombre, rt, p.Texto, p.Y ? cursiva : titulo, p.Y,
+                p.Y && cursivaFalsa, p.Y ? 0.2f : 0.3f, Hex("#2A1A10"));
+        }
+        for (int i = 0; i < palabras.Length; i++)
+        {
+            var p = palabras[i];
+            letras[i] = CapaTitulo("Letras" + p.Nombre, rt, p.Texto, p.Y ? cursiva : titulo, p.Y,
+                p.Y && cursivaFalsa, p.Y ? 0.2f : 0.3f, p.Y ? Hex("#F3E6C4") : Hex("#2A1A10"));
+        }
+        for (int i = 0; i < palabras.Length; i++)
+        {
+            var p = palabras[i];
+            if (!p.Y) brillos[i] = CapaTitulo("Brillo" + p.Nombre, rt, p.Texto, titulo, false, false, 0f, Color.clear);
+        }
+
+        var lista = so.FindProperty("words");
+        lista.arraySize = palabras.Length;
+        for (int i = 0; i < palabras.Length; i++)
+        {
+            var e = lista.GetArrayElementAtIndex(i);
+            e.FindPropertyRelative("main").objectReferenceValue = letras[i];
+            e.FindPropertyRelative("shadow").objectReferenceValue = sombras[i];
+            e.FindPropertyRelative("shine").objectReferenceValue = brillos[i];
+            e.FindPropertyRelative("top").colorValue = Hex(palabras[i].Arriba);
+            e.FindPropertyRelative("bottom").colorValue = Hex(palabras[i].Abajo);
+            e.FindPropertyRelative("verticalOffset").floatValue = palabras[i].Y ? -18f : 0f;
+        }
+        so.ApplyModifiedPropertiesWithoutUndo();
         return rt;
+    }
+
+    // Atlas estatico solo con los glifos pedidos. null si no hay TTF o no se pudo generar.
+    private static TMP_FontAsset FuenteTitulo(StringBuilder reporte, string ttf, string atlas, string etiqueta,
+                                              string glifos, int tamanoAtlas)
+    {
+        TMP_FontAsset f = InterrogationUIBuilder.EnsureFont(reporte, new[] { ttf }, atlas, etiqueta, glifos, 96, 12, tamanoAtlas);
+        return f != null && AssetDatabase.GetAssetPath(f) == atlas ? f : null;
+    }
+
+    private static TMP_Text CapaTitulo(string nombre, Transform padre, string texto, TMP_FontAsset f, bool esY,
+                                       bool cursivaFalsa, float contorno, Color colorContorno)
+    {
+        var t = NuevoTexto(nombre, padre, texto, esY ? TamanoTitulo * 0.45f : TamanoTitulo);
+        if (f != null) t.font = f;
+        t.alignment = TextAlignmentOptions.Baseline;
+        t.enableWordWrapping = false;
+        t.overflowMode = TextOverflowModes.Overflow;
+        if (cursivaFalsa) t.fontStyle = FontStyles.Italic;
+        if (contorno > 0f)
+        {
+            t.outlineWidth = contorno;
+            t.outlineColor = colorContorno;
+        }
+        return t;
+    }
+
+    private static Color Hex(string hex)
+    {
+        ColorUtility.TryParseHtmlString(hex, out Color c);
+        return c;
     }
 
     // Reutiliza el filtro del libro (OldFilmFilter) en su propio Canvas, mas debil: se siente, no se nota.

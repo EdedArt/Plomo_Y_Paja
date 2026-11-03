@@ -93,13 +93,18 @@ public static class InterrogationUIBuilder
     /// TMP_FontAsset estático que se crea o completa (INTRO.1.1: IM Fell English para el libro). Mismo juego de caracteres.
     /// Sin el TTF ni el asset devuelve la fuente por defecto de TMP.
     /// </summary>
-    public static TMP_FontAsset EnsureFont(StringBuilder report, string[] sources, string assetPath, string label)
+    public static TMP_FontAsset EnsureFont(StringBuilder report, string[] sources, string assetPath, string label) =>
+        EnsureFont(report, sources, assetPath, label, RequiredCharacters(), SamplingPointSize, 5, 1024);
+
+    /// <summary>Igual, con juego de caracteres y atlas a medida (MENU.1.1: el título, solo con sus glifos).</summary>
+    public static TMP_FontAsset EnsureFont(StringBuilder report, string[] sources, string assetPath, string label,
+        string characters, int samplingPointSize, int padding, int atlasSize)
     {
         Font source = FindSourceFont(report, sources);
         TMP_FontAsset asset = AssetDatabase.LoadAssetAtPath<TMP_FontAsset>(assetPath);
 
         // Lo que el TTF no trae no cuenta como faltante (TMP usa la fuente de respaldo para eso)
-        string required = RequiredCharacters();
+        string required = characters;
         bool engineOk = false;
         string notInFont = source != null ? CharactersNotInFont(source, required, report, label, out engineOk) : "";
         string wanted = Without(required, notInFont);
@@ -131,7 +136,7 @@ public static class InterrogationUIBuilder
         if (asset == null)
         {
             LevelBuilderUtils.EnsureFolder(Path.GetDirectoryName(assetPath).Replace('\\', '/'));
-            asset = TMP_FontAsset.CreateFontAsset(source, SamplingPointSize, 5, GlyphRenderMode.SDFAA, 1024, 1024,
+            asset = TMP_FontAsset.CreateFontAsset(source, samplingPointSize, padding, GlyphRenderMode.SDFAA, atlasSize, atlasSize,
                 AtlasPopulationMode.Dynamic, false);
             if (asset == null)
             {

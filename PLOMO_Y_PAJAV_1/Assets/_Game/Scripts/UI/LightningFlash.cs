@@ -43,6 +43,11 @@ public class LightningFlash : MonoBehaviour
     [Tooltip("Volumen del trueno normal cuando no hay sfx_trueno_lejos")]
     [SerializeField, Range(0f, 1f)] private float farThunderFallbackVolume = 0.4f;
 
+    /// <summary>Cae el rayo (lo escucha MenuTitleLogo).</summary>
+    public event System.Action StrikeStarted;
+    /// <summary>Empieza un relámpago lejano (lo escucha MenuTitleLogo).</summary>
+    public event System.Action AmbientFlashStarted;
+
     private Coroutine _ambient;
 
     private void Awake()
@@ -53,6 +58,7 @@ public class LightningFlash : MonoBehaviour
     /// <summary>El golpe completo. Corta a la tormenta en el primer pico.</summary>
     public IEnumerator Strike()
     {
+        StrikeStarted?.Invoke();
         if (!BotonCartoon.PlayIfPresent(thunderId)) BotonCartoon.PlayIfPresent(thunderFallbackId);
         StartCoroutine(Shake());
 
@@ -85,6 +91,7 @@ public class LightningFlash : MonoBehaviour
             float wait = Random.Range(ambientMinSeconds, ambientMaxSeconds);
             for (float t = 0f; t < wait; t += Time.unscaledDeltaTime) yield return null;
 
+            AmbientFlashStarted?.Invoke();
             if (!BotonCartoon.PlayIfPresent(farThunderId))
             {
                 if (!BotonCartoon.PlayIfPresent(thunderId, farThunderFallbackVolume))

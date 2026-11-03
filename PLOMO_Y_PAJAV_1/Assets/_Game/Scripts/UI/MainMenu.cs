@@ -32,12 +32,9 @@ public class MainMenu : MonoBehaviour
 
     [Header("Logo")]
     [SerializeField] private RectTransform logo;
-    [Tooltip("En la espera el logo esta esto mas arriba; al revelar el menu baja")]
-    [SerializeField] private float bajadaLogo = 30f;
-    [SerializeField] private float duracionBajadaLogo = 0.6f;
-    [SerializeField] private float logoGrados = 1f;
-    [SerializeField] private float logoEscala = 0.01f;
-    [SerializeField] private float logoVelocidad = 0.35f;
+    [Tooltip("En la espera el logo esta esto mas abajo; con el rayo sube a su posicion del menu")]
+    [SerializeField] private float subidaLogo = 45f;
+    [SerializeField] private float duracionSubidaLogo = 0.6f;
 
     [Header("Jugar")]
     [SerializeField] private ScreenFade fundido;
@@ -94,7 +91,7 @@ public class MainMenu : MonoBehaviour
             ActivarBoton(i, 0f, false);
         }
 
-        if (logo != null) logo.anchoredPosition = posicionLogo + Vector2.up * bajadaLogo;
+        if (logo != null) logo.anchoredPosition = posicionLogo + Vector2.down * subidaLogo;
     }
 
     private void ActivarBoton(int i, float alfa, bool activo)
@@ -109,13 +106,6 @@ public class MainMenu : MonoBehaviour
     private void Update()
     {
         float t = Time.unscaledTime;
-        if (logo != null)
-        {
-            // Bamboleo lento de manguera de goma.
-            float fase = t * logoVelocidad * Mathf.PI * 2f;
-            logo.localRotation = Quaternion.Euler(0f, 0f, Mathf.Sin(fase) * logoGrados);
-            logo.localScale = Vector3.one * (1f + Mathf.Sin(fase * 0.73f + 1f) * logoEscala);
-        }
 
         if (estado == Estado.Espera)
         {
@@ -135,10 +125,10 @@ public class MainMenu : MonoBehaviour
         estado = Estado.Rayo; // ignora la entrada durante el rayo
         promptEspera.alpha = 0f;
         if (rayo != null) StartCoroutine(rayo.Strike());
+        if (logo != null) StartCoroutine(SubirLogo());
 
         for (float t = 0f; t < retrasoBotones; t += Time.unscaledDeltaTime) yield return null;
 
-        if (logo != null) StartCoroutine(BajarLogo());
         for (int i = 0; i < botones.Length; i++)
         {
             if (botones[i] != null) StartCoroutine(EntrarBoton(i));
@@ -168,12 +158,12 @@ public class MainMenu : MonoBehaviour
         ActivarBoton(i, 1f, false);
     }
 
-    private IEnumerator BajarLogo()
+    private IEnumerator SubirLogo()
     {
         Vector2 origen = logo.anchoredPosition;
-        for (float t = 0f; t < duracionBajadaLogo; t += Time.unscaledDeltaTime)
+        for (float t = 0f; t < duracionSubidaLogo; t += Time.unscaledDeltaTime)
         {
-            logo.anchoredPosition = Vector2.Lerp(origen, posicionLogo, CinematicEase.InOut(t / duracionBajadaLogo));
+            logo.anchoredPosition = Vector2.Lerp(origen, posicionLogo, CinematicEase.InOut(t / duracionSubidaLogo));
             yield return null;
         }
         logo.anchoredPosition = posicionLogo;
