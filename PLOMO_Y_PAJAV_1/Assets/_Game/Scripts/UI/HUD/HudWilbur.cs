@@ -29,6 +29,8 @@ public class HudWilbur : MonoBehaviour
     [SerializeField] private Sprite bulletFull;
     [SerializeField] private Sprite bulletEmpty;
     [SerializeField] private Sprite barFrame;
+    [Tooltip("HUD.1.1: medallón de la escopeta (hud_medallon_balas) a la izquierda de la fila de cartuchos; vacío = sin medallón")]
+    [SerializeField] private Sprite ammoMedallion;
 
     [Header("Texto y sonido")]
     [Tooltip("Special Elite SDF (Fonts/); vacío = la fuente por defecto de TMP")]
@@ -123,7 +125,7 @@ public class HudWilbur : MonoBehaviour
         ammoRt.anchorMin = ammoRt.anchorMax = ammoRt.pivot = Vector2.zero;
         ammoRt.anchoredPosition = new Vector2(faceSize + 18f, 6f); // debajo de la barra
         _ammo = ammoRt.gameObject.AddComponent<HudAmmoRow>();
-        _ammo.Init(shellFull, shellEmpty, bulletFull, bulletEmpty, font);
+        _ammo.Init(shellFull, shellEmpty, bulletFull, bulletEmpty, font, ammoMedallion);
 
         RectTransform toastRt = HudUi.Rect("AvisosCortos", cluster, Vector2.zero);
         toastRt.anchorMin = toastRt.anchorMax = toastRt.pivot = Vector2.zero;

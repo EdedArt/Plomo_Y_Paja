@@ -16,6 +16,9 @@ using UnityEngine.UI;
 /// 2. Lo coloca en NivelPorky (la abre si hace falta) y en la escena abierta si tiene Player: una sola instancia por escena
 ///    (idempotente: conserva la que haya, borra copias). "Generar Nivel Porky" también lo coloca (PlaceInOpenScene).
 /// 3. Lista en el cuadro y en la consola los ids de arte y audio que faltan.
+/// HUD.1.1: si falta una cara, se usa la más cercana que exista (02 ← 01, 03 ← 04; con solo 01 y 04, como el arte de
+/// Edgar: 01–02 = normal, 03–04 = herido) y hud_wilbur_dano usa la cara más golpeada que exista. El informe dice qué id
+/// quedó cubierto por otro. hud_medallon_balas (opcional) va a la izquierda de la fila de cartuchos.
 /// Volver a correrlo toma los PNG nuevos. Nunca edita la escena a mano: David guarda (Ctrl+S).
 /// </summary>
 public static class HudBuilder
@@ -30,6 +33,8 @@ public static class HudBuilder
     public static readonly string[] FaceIds = { "hud_wilbur_01", "hud_wilbur_02", "hud_wilbur_03", "hud_wilbur_04" };
     public static readonly string[] OtherArtIds =
         { "hud_wilbur_dano", "hud_cartucho_lleno", "hud_cartucho_vacio", "hud_bala_llena", "hud_bala_vacia", "hud_barra_marco" };
+    /// <summary>HUD.1.1: medallón de la escopeta de Edgar (opcional: sin él, la fila de munición empieza sin medallón).</summary>
+    public const string AmmoMedallionId = "hud_medallon_balas";
     /// <summary>Sonidos que usa el HUD.1 (los demás del guion son de HUD.2 / HUD.3).</summary>
     public static readonly string[] SfxIds = { "sfx_latido", "sfx_hud_aviso" };
 
@@ -89,11 +94,22 @@ public static class HudBuilder
 
             HudWilbur hud = root.AddComponent<HudWilbur>();
             var so = new SerializedObject(hud);
+            var covered = new List<string>();
+            Sprite[] faceSprites = LoadFaces(missing, covered);
             SerializedProperty faces = so.FindProperty("faces");
             faces.arraySize = FaceIds.Length;
             for (int i = 0; i < FaceIds.Length; i++)
-                faces.GetArrayElementAtIndex(i).objectReferenceValue = LoadSprite(FaceIds[i], missing);
-            so.FindProperty("faceHurt").objectReferenceValue = LoadSprite("hud_wilbur_dano", missing);
+                faces.GetArrayElementAtIndex(i).objectReferenceValue = faceSprites[i];
+            Sprite hurt = LoadSprite("hud_wilbur_dano", missing);
+            if (hurt == null)
+            {
+                for (int i = FaceIds.Length - 1; i >= 0 && hurt == null; i--)
+                    if (faceSprites[i] != null && !covered.Exists(c => c.StartsWith(FaceIds[i] + " "))) hurt = faceSprites[i];
+                if (hurt != null) covered.Add("hud_wilbur_dano ← " + hurt.name);
+            }
+            so.FindProperty("faceHurt").objectReferenceValue = hurt;
+            Sprite medallion = AssetDatabase.LoadAssetAtPath<Sprite>(ArtFolder + "/" + AmmoMedallionId + ".png");
+            so.FindProperty("ammoMedallion").objectReferenceValue = medallion;
             so.FindProperty("shellFull").objectReferenceValue = LoadSprite("hud_cartucho_lleno", missing);
             so.FindProperty("shellEmpty").objectReferenceValue = LoadSprite("hud_cartucho_vacio", missing);
             so.FindProperty("bulletFull").objectReferenceValue = LoadSprite("hud_bala_llena", missing);
@@ -111,6 +127,8 @@ public static class HudBuilder
             var missingSfx = new List<string>();
             foreach (string id in SfxIds)
                 if (AudioLibrary.Active == null || AudioLibrary.GetSfx(id) == null) missingSfx.Add(id);
+            if (covered.Count > 0) report.AppendLine("ℹ Cubiertos por otro dibujo: " + string.Join(", ", covered));
+            report.AppendLine(medallion != null ? "✓ Medallón de munición " + AmmoMedallionId : "ℹ Sin " + AmmoMedallionId + " (opcional)");
             if (missing.Count > 0)
                 report.AppendLine("⚠ Arte que falta (placeholder): " + string.Join(", ", missing) +
                                   ". Recortar _entrante_hud/HUD con: python Tools/character_key.py --center, y volver a correr este menú.");
@@ -160,6 +178,31 @@ public static class HudBuilder
     {
         GameObject player = GameObject.FindWithTag("Player");
         return player != null;
+    }
+
+    /// <summary>
+    /// Caras por franja de vida. La que falta toma la más cercana que exista (empate → la más golpeada); "missing" sigue
+    /// listando el id (para que se genere) y "covered" dice con qué se cubrió: "hud_wilbur_02 ← hud_wilbur_01".
+    /// </summary>
+    private static Sprite[] LoadFaces(List<string> missing, List<string> covered)
+    {
+        var found = new Sprite[FaceIds.Length];
+        for (int i = 0; i < FaceIds.Length; i++) found[i] = LoadSprite(FaceIds[i], missing);
+        var result = (Sprite[])found.Clone();
+        for (int i = 0; i < FaceIds.Length; i++)
+        {
+            if (found[i] != null) continue;
+            int best = -1;
+            for (int d = 1; d < FaceIds.Length && best < 0; d++)
+            {
+                if (i + d < FaceIds.Length && found[i + d] != null) best = i + d;      // empate: la más golpeada
+                else if (i - d >= 0 && found[i - d] != null) best = i - d;
+            }
+            if (best < 0) continue; // no hay ninguna cara: placeholder (círculo "WILBUR")
+            result[i] = found[best];
+            covered.Add(FaceIds[i] + " ← " + FaceIds[best]);
+        }
+        return result;
     }
 
     private static Sprite LoadSprite(string id, List<string> missing)

@@ -26,7 +26,10 @@ public class CharacterSpriteImporter : AssetPostprocessor
     // 9: también Art/FX/ (fase HUD.2: polvo de impacto y agujero de bala).
     // 10: Art/Intro/ (fase INTRO.0: texturas del libro, no son sprites de personaje).
     // 11: taxista a 500 px por metro, pivote abajo al centro, mipmaps (fase INTRO.2).
-    public override uint GetVersion() => 11;
+    // 12: HUD.1.1: el arte del HUD que cae en Art/Characters/hud/ (así llegó el de Edgar desde dev) se importa con la regla
+    //     del HUD (sprite de UI: pivote al centro, sin mipmaps, sin compresión), nunca con la de personaje (PPU 250 y pivote
+    //     en los pies). Los PNG de Edgar ya se movieron a Art/UI/HUD/ con los ids del guion.
+    public override uint GetVersion() => 12;
 
     /// <summary>Texturas del libro de la intro (fase INTRO): Art/Intro/ilus_intro_NN, libro_portada, libro_guardas, libro_papel.</summary>
     public const string IntroFolder = "Assets/_Game/Art/Intro";
@@ -36,6 +39,20 @@ public class CharacterSpriteImporter : AssetPostprocessor
 
     /// <summary>Caras e íconos del HUD (fase HUD.1): Art/UI/HUD/&lt;id&gt;.png, recortados con character_key.py --center.</summary>
     public const string HudFolder = "Assets/_Game/Art/UI/HUD";
+
+    /// <summary>
+    /// HUD.1.1: arte del HUD que llega dentro de Art/Characters (carpeta "hud"). NO es un personaje: regla del HUD y fuera
+    /// de "Reconstruir Sets de Sprites". Lo correcto es moverlo a Art/UI/HUD/ con el id del guion (HudBuilder lo busca ahí).
+    /// </summary>
+    public const string HudInCharactersFolder = CharactersFolder + "/hud";
+
+    /// <summary>¿Esta ruta es arte del HUD (Art/UI/HUD o Art/Characters/hud, sin importar mayúsculas)?</summary>
+    public static bool IsHudArt(string assetPath)
+    {
+        string path = assetPath.Replace('\\', '/');
+        return path.StartsWith(HudFolder + "/") ||
+               path.StartsWith(HudInCharactersFolder + "/", System.StringComparison.OrdinalIgnoreCase);
+    }
 
     /// <summary>Objetos recogibles dibujados (fase 3C.5.2): Art/Pickups/&lt;nombre&gt;.png, recortados con character_key.py --single.</summary>
     public const string PickupsFolder = "Assets/_Game/Art/Pickups";
@@ -56,7 +73,7 @@ public class CharacterSpriteImporter : AssetPostprocessor
             ApplyPickup((TextureImporter)assetImporter); // mismo trato: Sprite con alpha, pivote al centro, mipmaps
             return;
         }
-        if (path.StartsWith(HudFolder + "/"))
+        if (IsHudArt(path)) // HUD.1.1: también Art/Characters/hud/ (regla explícita, antes caía en la de personaje)
         {
             ApplyHud((TextureImporter)assetImporter);
             return;
@@ -167,7 +184,8 @@ public class CharacterSpriteImporter : AssetPostprocessor
         importer.maxTextureSize = 2048;
     }
 
-    /// <summary>HUD (HUD.1, paso 0): Sprite con alpha real, sin compresión, SIN mipmaps, Bilinear, pivote al centro.</summary>
+    /// <summary>HUD (HUD.1, paso 0): Sprite Single, Full Rect, pivote al centro, SIN mipmaps, sin compresión, Bilinear,
+    /// alpha = transparencia. El PPU (100) no importa en la UI: HudWilbur fija el tamaño de cada Image.</summary>
     private static void ApplyHud(TextureImporter importer)
     {
         importer.textureType = TextureImporterType.Sprite;
@@ -245,6 +263,17 @@ public static class CharacterSpriteSetBuilder
 
     private static readonly Regex FrameName = new Regex(@"^([a-z]+)_(\d+)$");
 
+    /// <summary>Carpetas de Art/Characters que NO son personajes (HUD.1.1): no se escanean ni crean set.</summary>
+    public static readonly string[] NonCharacterFolders = { "hud" };
+
+    public static bool IsCharacterFolder(string folderName)
+    {
+        string id = folderName.ToLowerInvariant();
+        foreach (string skip in NonCharacterFolders)
+            if (id == skip) return false;
+        return true;
+    }
+
     [MenuItem("Plomo y Paja/Reconstruir Sets de Sprites")]
     public static void RebuildAll()
     {
@@ -255,6 +284,7 @@ public static class CharacterSpriteSetBuilder
             foreach (string folder in AssetDatabase.GetSubFolders(CharacterSpriteImporter.CharactersFolder))
             {
                 string characterId = Path.GetFileName(folder).ToLowerInvariant(); // "Guardia" y "guardia" son el mismo personaje
+                if (!IsCharacterFolder(characterId)) continue; // HUD.1.1: el arte del HUD no es un personaje
                 Rebuild(characterId, folder);
                 built++;
             }
