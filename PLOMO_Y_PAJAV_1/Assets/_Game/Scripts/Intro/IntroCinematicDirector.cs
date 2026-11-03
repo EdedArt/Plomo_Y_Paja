@@ -13,10 +13,14 @@ using UnityEngine;
 ///  2. Taxi_Path ~9 s (acelera y frena suave), sfx_taxi_frenar, se detiene en Anchor_TaxiStop.
 ///  3. Diálogo del guion §3 con subtítulos y 0.4 s entre líneas. El taxista gira la cabeza (habla_01/02 + lip-sync)
 ///     y vuelve a conduce_01 después de taxista_03. sfx_monedas con wilbur_taxi_02.
-///  4. sfx_puerta_carro, negro 0.5 s, el jugador en Anchor_PlayerCurb, vuelve la imagen; el taxi se va por
-///     Taxi_ExitPath con sfx_taxi_arranca (3D) y se apaga cuando ya no se ve.
-///  5. Llegada: la mirada gira 1.8 s hacia Anchor_HouseLook → wilbur_casa_01 → pensamiento fijo de la IA (I9,
+///  4. sfx_puerta_carro, negro 0.5 s, el jugador en Anchor_PlayerCurb mirando curbStandYaw (el lado de la acera).
+///  5. Llegada (INTRO.2.1): a la vez vuelve la imagen, la mirada gira 1.8 s hacia Anchor_HouseLook y el taxi arranca por
+///     Taxi_ExitPath (recto al oeste, a espaldas de la cámara: fuera de cuadro en toda la llegada) con sfx_taxi_arranca
+///     (3D, se apaga con la distancia). Al final del camino se apaga, y Release lo apaga sí o sí antes de devolver el
+///     control (sin esperar Renderer.isVisible). → wilbur_casa_01 → pensamiento fijo de la IA (I9,
 ///     AICompanion.ShowCustomLine, sin API) → cartel "PLOMO Y PAJA" (opcional).
+///  PUNTO BLANCO (INTRO.2.1): CinematicState.CenterDot solo sentado en el taxi con la imagen clara (se puede mirar);
+///     apagado en los fundidos, en la llegada (giro, línea, pensamiento, cartel) y al saltar.
 ///  6. Fuera franjas y subtítulos; el control vuelve desde donde quedó la vista (sin salto; nunca toca el FOV).
 ///
 /// MIENTRAS DURA (CinematicState.IsPlaying): PlayerAim.GameplayBlocked() = true (sin manos, mira ni disparo), la pausa
@@ -97,6 +101,9 @@ public class IntroCinematicDirector : MonoBehaviour
     [SerializeField] private float exitFadeSeconds = 0.5f;
     [SerializeField] private float exitDriveSeconds = 7f;
     [SerializeField] private float revealSeconds = 1.8f;
+    [Tooltip("Hacia dónde mira Wilbur al bajarse (yaw del mundo, 0 = +z). 20 = hacia la cerca de la acera: el giro a la " +
+             "casa va a la derecha y el taxi, que se va al oeste, nunca entra en cuadro (INTRO.2.1)")]
+    [SerializeField] private float curbStandYaw = 20f;
     [SerializeField] private float aiThoughtSeconds = 5.5f;
     [SerializeField] private float titleFadeSeconds = 0.6f;
     [SerializeField] private float titleHoldSeconds = 2f;
@@ -193,6 +200,7 @@ public class IntroCinematicDirector : MonoBehaviour
         PlaceTaxiOn(arrivePath, 0f);
         Log("fundido de entrada");
         if (fade != null) StartCoroutine(fade.FadeTo(0f, fadeInSeconds));
+        StartCoroutine(CenterDotAfter(fadeInSeconds)); // punto blanco cuando ya se ve (INTRO.2.1)
 
         // 2. Recorrido con aceleración y frenada suaves
         yield return Drive(arrivePath, driveSeconds, true);
@@ -212,15 +220,16 @@ public class IntroCinematicDirector : MonoBehaviour
         if (interior != null) interior.SetTalking(false);
 
         // 4. Bajada
+        CinematicState.SetCenterDot(this, false);
         AudioLibrary.PlaySfx2D(doorId);
         if (fade != null) yield return fade.FadeTo(1f, exitFadeSeconds);
         StandUpAtCurb();
         FadeLoop(ambience, 0.4f);
         MuffleCarriedRain(false);
-        _exitDrive = StartCoroutine(DriveAway());
-        if (fade != null) yield return fade.FadeTo(0f, exitFadeSeconds);
 
-        // 5. Llegada
+        // 5. Llegada: vuelve la imagen, gira hacia la casa y el taxi arranca, todo a la vez (INTRO.2.1)
+        _exitDrive = StartCoroutine(DriveAway());
+        if (fade != null) StartCoroutine(fade.FadeTo(0f, exitFadeSeconds));
         yield return LookAt(houseLook, revealSeconds);
         yield return Say(houseLine);
         if (!string.IsNullOrWhiteSpace(aiThought))
@@ -294,7 +303,10 @@ public class IntroCinematicDirector : MonoBehaviour
         PlaceTaxiOn(path, length);
     }
 
-    /// <summary>El taxi se va (arranca suave) y se apaga cuando ya no se ve (o tras el camino, si sigue a la vista, espera).</summary>
+    /// <summary>
+    /// El taxi se va (arranca suave) y se apaga al final del camino (INTRO.2.1: sin esperar Renderer.isVisible). El camino va
+    /// recto al oeste, a espaldas de la cámara de la llegada, y termina a más de maxDistance del motor: el sonido ya se apagó.
+    /// </summary>
     private IEnumerator DriveAway()
     {
         if (taxi == null) yield break;
@@ -316,10 +328,27 @@ public class IntroCinematicDirector : MonoBehaviour
             PlaceTaxiOn(exitPath, length);
         }
         if (interior != null) interior.SetSpeed(0f);
-        Renderer body = taxi.GetComponentInChildren<Renderer>();
-        while (body != null && body.isVisible) yield return null;
-        taxi.gameObject.SetActive(false);
-        Log("taxi fuera de vista: apagado");
+        _exitDrive = null; // esta misma corrutina: no hace falta pararla
+        HideTaxi();
+        Log("taxi al final del camino: apagado");
+    }
+
+    /// <summary>Apaga el taxi (fin del camino, saltar o devolver el control). Idempotente.</summary>
+    private void HideTaxi()
+    {
+        if (_exitDrive != null)
+        {
+            StopCoroutine(_exitDrive);
+            _exitDrive = null;
+        }
+        if (taxi != null && taxi.gameObject.activeSelf) taxi.gameObject.SetActive(false);
+    }
+
+    /// <summary>Punto blanco del centro cuando ya terminó el fundido de entrada al taxi (INTRO.2.1).</summary>
+    private IEnumerator CenterDotAfter(float seconds)
+    {
+        yield return Wait(seconds);
+        if (!_skipRequested && _seated) CinematicState.SetCenterDot(this, true);
     }
 
     private void PlayOnTaxi(string id)
@@ -396,7 +425,7 @@ public class IntroCinematicDirector : MonoBehaviour
             _camera.localPosition = _cameraLocalPos;
             _camera.localRotation = _cameraLocalRot;
         }
-        PlacePlayerAtCurb(playerCurb != null ? playerCurb.eulerAngles.y : _player.transform.eulerAngles.y, 0f);
+        PlacePlayerAtCurb(curbStandYaw, 0f);
     }
 
     private void Update()
@@ -440,6 +469,7 @@ public class IntroCinematicDirector : MonoBehaviour
 
     private IEnumerator SkipToEnd()
     {
+        CinematicState.SetCenterDot(this, false);
         if (skip != null) skip.Armed = false;
         if (fade != null) yield return fade.FadeTo(1f, skipFadeSeconds);
         if (taxistaVoice != null) taxistaVoice.Stop();
@@ -449,8 +479,7 @@ public class IntroCinematicDirector : MonoBehaviour
         if (ambience != null) ambience.Stop();
         if (wipers != null) wipers.Stop();
         MuffleCarriedRain(false);
-        if (_exitDrive != null) StopCoroutine(_exitDrive);
-        if (taxi != null) taxi.gameObject.SetActive(false);
+        HideTaxi();
         if (_seated) StandUpAtCurb();
         // Estado final: en la acera, mirando la casa
         if (houseLook != null && _camera != null && _player != null)
@@ -470,6 +499,7 @@ public class IntroCinematicDirector : MonoBehaviour
         _finished = true;
         _seated = false;
         _playedThisSession = true;
+        HideTaxi(); // INTRO.2.1: nunca queda un taxi en la calle cuando vuelve el control
         if (GameStateTracker.Instance != null) GameStateTracker.Instance.MarkIntroCinematicPlayed();
         if (skip != null) skip.Armed = false;
         if (letterbox != null) letterbox.Show(false);

@@ -12,16 +12,37 @@ using UnityEngine;
 public static class CinematicState
 {
     private static Object _owner;
+    private static bool _centerDot;
 
     public static bool IsPlaying => _owner != null;
+
+    /// <summary>
+    /// INTRO.2.1: ¿la mira muestra el punto blanco del centro durante la cinemática? Solo donde se puede mirar con el
+    /// mouse (sentado en el taxi, con la imagen ya clara). RubberHoseCrosshair lo lee; fuera de una cinemática no vale nada.
+    /// </summary>
+    public static bool CenterDot => _centerDot && IsPlaying;
 
     /// <summary>Empieza (o termina, con playing = false) la cinemática de "owner".</summary>
     public static void Set(Object owner, bool playing)
     {
         if (playing) _owner = owner;
-        else if (_owner == owner) _owner = null;
+        else if (_owner == owner)
+        {
+            _owner = null;
+            _centerDot = false;
+        }
+    }
+
+    /// <summary>El dueño de la cinemática enciende o apaga el punto blanco del centro (INTRO.2.1).</summary>
+    public static void SetCenterDot(Object owner, bool on)
+    {
+        if (_owner == owner) _centerDot = on;
     }
 
     [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.SubsystemRegistration)]
-    private static void ResetStatics() => _owner = null;
+    private static void ResetStatics()
+    {
+        _owner = null;
+        _centerDot = false;
+    }
 }

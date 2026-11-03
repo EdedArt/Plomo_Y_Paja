@@ -129,7 +129,9 @@ public class WeaponSwitcher : MonoBehaviour
     private void Activate(int index)
     {
         ApplyActive(index);
-        EnforceEnabled();
+        // INTRO.2.1: si el nivel arranca bloqueado (taxi), no se vuelve a encender la escopeta que la cinemática apagó en
+        // su Start (el orden entre los dos Start no está garantizado). Update lo impone al terminar el bloqueo.
+        if (!Blocked()) EnforceEnabled();
     }
 
     private void ApplyActive(int index)

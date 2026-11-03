@@ -53,11 +53,27 @@ public static class IntroTaxiBuilder
         new Vector3(17.6f, 0f, -15.6f), new Vector3(8f, 0f, -15.6f), new Vector3(-4f, 0f, -15.0f),
         new Vector3(-10.5f, 0f, -12.9f), TaxiStopPosition,
     };
+    /// <summary>
+    /// INTRO.2.1: salida recta al oeste (hacia donde ya mira el taxi), a espaldas de la cámara de la llegada: el giro hacia la
+    /// casa va de yaw 20° a 62° y el taxi queda siempre ≥ 31° fuera del borde del cuadro (16:9 y 21:9, FOV vertical 60°).
+    /// Pasa el muro del extremo oeste (x -20.1) fuera de cuadro y sigue hasta 46 m: el motor (3D, maxDistance 45) ya no se oye
+    /// cuando el director lo apaga. Antes: vuelta en U y salida al este por el carril sur, cruzando el cuadro.
+    /// </summary>
     private static readonly Vector3[] ExitPoints =
     {
-        TaxiStopPosition, new Vector3(-16.9f, 0f, -13.5f), new Vector3(-17.6f, 0f, -15.6f), new Vector3(-15.9f, 0f, -17.6f),
-        new Vector3(-11f, 0f, -18.1f), new Vector3(4f, 0f, -18.3f), new Vector3(17.6f, 0f, -18.4f),
+        TaxiStopPosition, new Vector3(-20f, 0f, -12.45f), new Vector3(-30f, 0f, -12.45f), new Vector3(-45f, 0f, -12.45f),
+        new Vector3(-60f, 0f, -12.45f),
     };
+
+    /// <summary>Hacia dónde mira Wilbur al bajarse del taxi (yaw del mundo): la cerca de la acera, a la izquierda de la casa.</summary>
+    public const float CurbStandYaw = 20f;
+
+    // INTRO.2.1, vista desde el asiento: ojos a 1.42 m (antes 1.20, por DEBAJO del alféizar de 1.23). El alféizar bajó a 1.15
+    // (puertas más bajas) y la ventana lateral creció hacia abajo: vidrio visible 1.15..1.695 (techo), centro 1.42 = los ojos,
+    // alféizar 0.27 m por debajo de los ojos. El techo no se movió.
+    private const float SeatEyeHeight = 1.42f;
+    private const float WindowSill = 1.15f;
+    private const float WindowTop = 1.73f;
 
     /// <summary>Camión estacionado en el carril de la casa, punta este: tapa la vista desde la acera y el patio delantero.</summary>
     public static readonly Vector3 TruckCenter = new Vector3(10.8f, 0f, -11.75f);
@@ -194,8 +210,10 @@ public static class IntroTaxiBuilder
                 CartoonKit.AddBox(b, new Vector3(0f, 0.62f, -0.1f), new Vector3(1.72f, 0.42f, 3.9f), Quaternion.Euler(R(1f), 0f, R(1f)), 0.12f, 2);
                 CartoonKit.AddBox(b, new Vector3(0f, 0.98f, 1.42f), new Vector3(1.12f, 0.46f, 1.55f), Quaternion.Euler(2.5f, R(1.5f), R(1.5f)), 0.16f, 2); // capó largo
                 CartoonKit.AddBox(b, new Vector3(0f, 0.86f, -1.86f), new Vector3(1.55f, 0.5f, 0.75f), Quaternion.Euler(-4f, 0f, R(1f)), 0.18f, 2);  // baúl
-                CartoonKit.AddBox(b, new Vector3(0.84f, 1.02f, -0.35f), new Vector3(0.07f, 0.42f, 2.2f), Quaternion.Euler(0f, 0f, -3f), 0.03f, 1);   // puertas
-                CartoonKit.AddBox(b, new Vector3(-0.84f, 1.02f, -0.35f), new Vector3(0.07f, 0.42f, 2.2f), Quaternion.Euler(0f, 0f, 3f), 0.03f, 1);
+                // puertas: de 0.81 al alféizar (INTRO.2.1: antes hasta 1.23)
+                float doorH = WindowSill - 0.81f;
+                CartoonKit.AddBox(b, new Vector3(0.84f, 0.81f + doorH * 0.5f, -0.35f), new Vector3(0.07f, doorH, 2.2f), Quaternion.Euler(0f, 0f, -3f), 0.03f, 1);
+                CartoonKit.AddBox(b, new Vector3(-0.84f, 0.81f + doorH * 0.5f, -0.35f), new Vector3(0.07f, doorH, 2.2f), Quaternion.Euler(0f, 0f, 3f), 0.03f, 1);
                 CartoonKit.AddBox(b, new Vector3(0f, 1.74f, -0.38f), new Vector3(1.62f, 0.09f, 2.3f), Quaternion.Euler(R(1.5f), 0f, R(2f)), 0.04f, 1); // techo
                 CartoonKit.AddBox(b, new Vector3(0f, 1.95f, 0.25f), new Vector3(0.56f, 0.2f, 0.14f), Quaternion.Euler(0f, R(4f), R(3f)), 0.05f, 1);    // letrero
                 b.Submesh = 1; // negro: guardabarros, estribos, parantes, paragolpes
@@ -206,7 +224,8 @@ public static class IntroTaxiBuilder
                             Quaternion.Euler(sz * 6f + R(2f), 0f, sx * -4f), 0.16f, 2);
                     CartoonKit.AddBox(b, new Vector3(sx * 0.95f, 0.42f, 0f), new Vector3(0.26f, 0.05f, 1.75f), Quaternion.Euler(0f, 0f, sx * 3f), 0.02f, 1);
                     foreach (float pz in new[] { 0.72f, -0.38f, -1.46f })
-                        CartoonKit.AddBox(b, new Vector3(sx * 0.79f, 1.48f, pz), new Vector3(0.08f, 0.52f, 0.08f), Quaternion.Euler(pz > 0 ? -12f : 0f, 0f, sx * 4f), 0.03f, 1);
+                        CartoonKit.AddBox(b, new Vector3(sx * 0.79f, (WindowSill + WindowTop) * 0.5f, pz), new Vector3(0.08f, WindowTop - WindowSill + 0.02f, 0.08f),
+                            Quaternion.Euler(pz > 0 ? -12f : 0f, 0f, sx * 4f), 0.03f, 1); // parantes hasta el alféizar nuevo
                 }
                 CartoonKit.AddBox(b, new Vector3(0f, 0.55f, 2.3f), new Vector3(1.8f, 0.12f, 0.12f), Quaternion.Euler(0f, 0f, R(2f)), 0.05f, 1);
                 CartoonKit.AddBox(b, new Vector3(0f, 0.55f, -2.3f), new Vector3(1.8f, 0.12f, 0.12f), Quaternion.Euler(0f, 0f, R(2f)), 0.05f, 1);
@@ -284,8 +303,10 @@ public static class IntroTaxiBuilder
             dashLight.shadows = LightShadows.None;
 
             // Ventanas con lluvia (quads sin collider)
-            Window("Ventana_Der", root.transform, new Vector3(0.8f, 1.48f, -0.37f), Quaternion.Euler(0f, 90f, 0f), new Vector2(2.08f, 0.5f), window);
-            Window("Ventana_Izq", root.transform, new Vector3(-0.8f, 1.48f, -0.37f), Quaternion.Euler(0f, -90f, 0f), new Vector2(2.08f, 0.5f), window);
+            // INTRO.2.1: laterales del alféizar (1.15) al techo; antes 1.23..1.73
+            float sideY = (WindowSill + WindowTop) * 0.5f, sideH = WindowTop - WindowSill;
+            Window("Ventana_Der", root.transform, new Vector3(0.8f, sideY, -0.37f), Quaternion.Euler(0f, 90f, 0f), new Vector2(2.08f, sideH), window);
+            Window("Ventana_Izq", root.transform, new Vector3(-0.8f, sideY, -0.37f), Quaternion.Euler(0f, -90f, 0f), new Vector2(2.08f, sideH), window);
             Window("Parabrisas", root.transform, new Vector3(0f, 1.47f, 0.74f), Quaternion.Euler(-12f, 0f, 0f), new Vector2(1.5f, 0.5f), window);
             Window("Luneta", root.transform, new Vector3(0f, 1.5f, -1.47f), Quaternion.Euler(0f, 180f, 0f), new Vector2(1.45f, 0.42f), window);
 
@@ -336,7 +357,7 @@ public static class IntroTaxiBuilder
             // Asiento de la cámara: atrás a la derecha
             var seatAnchor = new GameObject("Anchor_TaxiSeat").transform;
             seatAnchor.SetParent(root.transform, false);
-            seatAnchor.localPosition = new Vector3(0.42f, 1.2f, -0.62f);
+            seatAnchor.localPosition = new Vector3(0.42f, SeatEyeHeight, -0.62f); // INTRO.2.1: antes y = 1.2
 
             // Motor (3D): frenada y arranque
             var engineGo = new GameObject("Motor");
@@ -541,6 +562,7 @@ public static class IntroTaxiBuilder
             FillLine(lines.GetArrayElementAtIndex(i), TaxiLines[i].speaker, TaxiLines[i].id, TaxiLines[i].text, TaxiLines[i].taxista, TaxiLines[i].sfx);
         FillLine(so.FindProperty("houseLine"), "Wilbur", "wilbur_casa_01", HouseLineText, false, "");
         so.FindProperty("aiThought").stringValue = AiThought;
+        so.FindProperty("curbStandYaw").floatValue = CurbStandYaw;
         so.ApplyModifiedPropertiesWithoutUndo();
     }
 
