@@ -109,7 +109,7 @@ public static class CrearMenuPausa
         var placa = Cargar<Sprite>(RutaMenu + "boton_placa.png");
         var btnContinuar = NuevoBoton("BtnContinuar", panel.transform, "CONTINUAR",       placa,  95);
         var btnReiniciar = NuevoBoton("BtnReiniciar", panel.transform, "REINICIAR NIVEL", placa, -20);
-        var btnMenu      = NuevoBoton("BtnMenu",      panel.transform, "MENU PRINCIPAL",  placa, -135);
+        var btnMenu      = NuevoBoton("BtnMenu",      panel.transform, "Salir al menú",  placa, -135);
         var btnSalir     = NuevoBoton("BtnSalir",     panel.transform, "SALIR",           placa, -250);
 
         var so = new SerializedObject(pausa);

@@ -1,6 +1,6 @@
 # AUDIT MENU.1 — Construcción de la pantalla de inicio
 
-ESTADO: PENDIENTE DE REVISIÓN
+ESTADO: INTEGRADA, PENDIENTE DE PRUEBA EN UNITY
 
 **Fecha:** 3 nov 2026 · **Rama:** `worktree-menu-1` (sale de `e8bfd47`, la punta de `integracion/dia4`) · **Sin push.**
 
