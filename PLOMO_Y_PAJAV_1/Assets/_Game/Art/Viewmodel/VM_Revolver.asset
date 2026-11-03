@@ -15,11 +15,13 @@ MonoBehaviour:
   weaponId: revolver
   timingVersion: 2
   idle:
-    frames: []
+    frames:
+    - {fileID: 21300000, guid: f2ab4eabdde24dcb87996c4f77964a47, type: 3}
     fps: 0
     minDuration: 0
   fire:
-    frames: []
+    frames:
+    - {fileID: 21300000, guid: 29adef941d93449bbc9516941eba3090, type: 3}
     fps: 0
     minDuration: 0.08
   cycle:
@@ -27,11 +29,15 @@ MonoBehaviour:
     fps: 0
     minDuration: 0.35
   reload:
-    frames: []
+    frames:
+    - {fileID: 21300000, guid: c4f18572beba4809bde2d8c328e26ef6, type: 3}
+    - {fileID: 21300000, guid: 6e0d2efce04944d789a20fc511167987, type: 3}
+    - {fileID: 21300000, guid: 06fd8f606faa456da8b0c79112fdefd3, type: 3}
     fps: 0
     minDuration: 0
   aimIdle:
-    frames: []
+    frames:
+    - {fileID: 21300000, guid: 544ac4d9d0b94c05b7c6a49ee577d93c, type: 3}
     fps: 0
     minDuration: 0
   aimFire:
@@ -74,8 +80,8 @@ MonoBehaviour:
   reloadEase: 0.4
   aimInTime: 0.15
   aimOutTime: 0.12
-  aimSightPoint: {x: 960.5, y: 575}
-  sightVersion: 1
+  aimSightPoint: {x: 964.3269, y: 723}
+  sightVersion: 2
   aimOffset: {x: 0, y: 0}
   aimOffsetNoSprite: {x: -320, y: 140}
   aimScaleNoSprite: 1.15
@@ -85,3 +91,22 @@ MonoBehaviour:
   aimSwayMultiplier: 0.3
   aimBreathMultiplier: 0.5
   aimKickMultiplier: 0.6
+  handsScale: 0.99
+  handsScaleVersion: 1
+  hipClearLeftArtX: 1053
+  hipCenterClearance: 70
+  chambersOpen:
+  - {x: 1081.2423, y: 517.51337}
+  - {x: 1066.7964, y: 448.65424}
+  - {x: 996.5065, y: 444.63028}
+  - {x: 968.7603, y: 509.47644}
+  - {x: 1021.1463, y: 554.5171}
+  chambersInsert:
+  - {x: 1082.4872, y: 517.1005}
+  - {x: 1067.9908, y: 447.97504}
+  - {x: 997.95575, y: 443.96448}
+  - {x: 971.03986, y: 505.83255}
+  - {x: 1027.9148, y: 554.45624}
+  chamberDiameter: 61
+  chamberRim: {fileID: 21300000, guid: 86d661ff2610407c83f3e15a3f9ec20f, type: 3}
+  chamberRimScale: 0.92

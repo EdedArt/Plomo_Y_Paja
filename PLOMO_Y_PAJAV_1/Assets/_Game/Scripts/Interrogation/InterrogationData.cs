@@ -123,6 +123,13 @@ public class InterrogationData : ScriptableObject
     public InterrogationThought[] killThoughts = new InterrogationThought[0];
     public InterrogationThought[] spareThoughts = new InterrogationThought[0];
 
+    [Header("Pensamiento si lo rematan sin escucharlo (3C.5.1, D4)")]
+    [Tooltip("Situación para la IA (se agrega el contexto del juego)")]
+    [TextArea(2, 4)] public string finishedOffSituation;
+    [Tooltip("Espera máxima de la IA (tiempo real); después, una línea de respaldo")]
+    [Min(0.5f)] public float finishedOffTimeoutSeconds = 4f;
+    public InterrogationThought[] finishedOffThoughts = new InterrogationThought[0];
+
     /// <summary>La línea con ese id, o null.</summary>
     public InterrogationLine GetLine(string id)
     {

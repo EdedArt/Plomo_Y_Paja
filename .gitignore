@@ -84,3 +84,9 @@ __pycache__/
 
 # originales de personajes (croma magenta; lo importado vive en Assets/_Game/Art/Characters)
 PLOMO_Y_PAJAV_1/_entrante_personajes/
+
+# originales del HUD (arte entrante, 3C.6: sin guion bajo, por eso no lo cubría la regla de _entrante_); lo importado vive en Assets/_Game/Art
+PLOMO_Y_PAJAV_1/entrante_hud/
+
+# red de seguridad: ninguna carpeta de originales entrantes entra al repo, esté donde esté
+**/_entrante_*/

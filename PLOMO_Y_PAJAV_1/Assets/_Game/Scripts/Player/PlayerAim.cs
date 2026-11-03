@@ -26,6 +26,7 @@ public class PlayerAim : MonoBehaviour
 
     private PlayerController _player;
     private IWeapon _weapon;
+    private WeaponSwitcher _switcher;
     private float _baseFov = -1f;
     private float _suppressUntil = -1f;
     private bool _dead;
@@ -33,6 +34,7 @@ public class PlayerAim : MonoBehaviour
     private void Awake()
     {
         TryGetComponent(out _player);
+        TryGetComponent(out _switcher);
         _weapon = GetComponentInChildren<IWeapon>(true);
         if (TryGetComponent(out PlayerHealth health)) health.OnDeath += HandleDeath;
         OnAimChanged += UpdateCrosshair;
@@ -98,7 +100,7 @@ public class PlayerAim : MonoBehaviour
 
     private void Update()
     {
-        bool reloading = _weapon != null && _weapon.IsReloading;
+        bool reloading = (_weapon != null && _weapon.IsReloading) || (_switcher != null && _switcher.IsSwitching);
         bool runningStart = !IsAiming && _player != null && _player.IsRunning && _player.IsMoving;
         bool want = Input.GetMouseButton(1)
                     && !reloading && !runningStart && !_dead

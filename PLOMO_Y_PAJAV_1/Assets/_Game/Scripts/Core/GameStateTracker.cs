@@ -37,6 +37,11 @@ public class GameStateTracker : MonoBehaviour
     [SerializeField] private ContadorInterrogation contadorInterrogation = ContadorInterrogation.None;
     [SerializeField] private bool contadorLied = false;
 
+    // ===== Revólver de Centavo (fase 3C.5, D13): segunda arma de Wilbur =====
+    [Tooltip("Escena donde Wilbur recogió el revólver (vacío = no lo tiene). En otra escena lo lleva desde el principio; " +
+             "si se reinicia la misma escena, lo vuelve a recoger del piso")]
+    [SerializeField] private string revolverObtainedInScene = "";
+
     // ===== IA companion - para que recuerde el contexto =====
     [SerializeField] private List<string> aiContextLog = new List<string>(); // Últimas 5 acciones
 
@@ -51,6 +56,16 @@ public class GameStateTracker : MonoBehaviour
     public ContadorState Contador => contadorState;
     public ContadorInterrogation ContadorInterrogationResult => contadorInterrogation;
     public bool ContadorLied => contadorLied;
+    /// <summary>¿Wilbur ya tenía el revólver al entrar a esta escena? (lo recogió en OTRA escena antes).</summary>
+    public bool HasRevolverFromEarlierScene(string sceneName) =>
+        !string.IsNullOrEmpty(revolverObtainedInScene) && revolverObtainedInScene != sceneName;
+
+    /// <summary>Wilbur recogió el revólver de Centavo (WeaponSwitcher.GiveRevolver).</summary>
+    public void RegisterRevolverObtained(string sceneName)
+    {
+        if (!string.IsNullOrEmpty(revolverObtainedInScene)) return;
+        revolverObtainedInScene = sceneName;
+    }
 
     /// <summary>Cambió qué pasó con Centavo (perdonado / muerto).</summary>
     public event System.Action<ContadorState> OnContadorStateChanged;
@@ -198,6 +213,7 @@ public class GameStateTracker : MonoBehaviour
         contadorState = ContadorState.None;
         contadorInterrogation = ContadorInterrogation.None;
         contadorLied = false;
+        revolverObtainedInScene = "";
     }
 
     /// <summary>

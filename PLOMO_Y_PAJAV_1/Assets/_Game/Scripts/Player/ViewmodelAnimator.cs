@@ -11,6 +11,8 @@ using UnityEngine.UI;
 ///   sin aimCycle sale del apuntado, bombea con cycle y vuelve si el botón sigue apretado.
 /// - Cambio cadera ↔ apuntar: el dibujo cambia a mitad de la transición con un golpecito de escala.
 /// - Recarga: clip reload en bucle o, si no hay, idle (ViewmodelMotion baja las manos).
+///   Recarga por etapas (3C.5.2, IStagedReloadWeapon, el revólver): reload_01 = abrir, reload_02 = meter, reload_03 = cerrar;
+///   cada cuadro queda quieto hasta el próximo evento del arma (StageOpened / StageInserting / StageClosing).
 /// - Fogonazo: centrado en el ancla del cañón del clip activo, giro y escala al azar, ~0.07 s,
 ///   nunca el mismo dibujo dos veces seguidas si hay 2 o más.
 /// </summary>
@@ -39,6 +41,13 @@ public class ViewmodelAnimator : MonoBehaviour
     private float _flashTimer = -1f;
     private int _lastFlash = -1;
 
+    private bool _staged;           // recarga por etapas en curso
+    private int _reloadStage = -1;  // 0 abrir, 1 meter, 2 cerrar
+    private float _stageRevert = -1f; // segundos hasta volver de "meter" a "abrir"
+
+    /// <summary>Cuadro de recarga por etapas que se ve ahora: 0 abrir, 1 meter, 2 cerrar; −1 si no hay.</summary>
+    public int ReloadStage => _mode == Mode.Reload && _staged ? _reloadStage : -1;
+
     public void Init(Image hands, Image flash, PlayerAim aim, ViewmodelMotion motion)
     {
         _hands = hands;
@@ -51,6 +60,9 @@ public class ViewmodelAnimator : MonoBehaviour
     {
         _profile = profile;
         _mode = Mode.Idle;
+        _staged = false;
+        _reloadStage = -1;
+        _stageRevert = -1f;
         _aimPose = WantsAimPose();
         HideFlash();
         PlayIdlePose();
@@ -73,12 +85,14 @@ public class ViewmodelAnimator : MonoBehaviour
         ShowFlash(aiming);
     }
 
-    public void HandleReloadStarted(float duration)
+    public void HandleReloadStarted(float duration, bool staged = false)
     {
         if (_profile == null) return;
         _mode = Mode.Reload;
         _aimPose = false; // la recarga cancela el apuntado
-        if (_profile.reload.HasFrames) Play(_profile.reload, true);
+        _staged = staged && _profile.reload.HasFrames && _profile.reload.frames.Length >= 3;
+        if (_staged) ShowStage(0);
+        else if (_profile.reload.HasFrames) Play(_profile.reload, true);
         else
         {
             Play(_profile.idle, true);
@@ -86,8 +100,44 @@ public class ViewmodelAnimator : MonoBehaviour
         }
     }
 
+    // ============ Recarga por etapas (3C.5.2) ============
+
+    public void StageOpened()
+    {
+        if (_staged && _mode == Mode.Reload) ShowStage(0);
+    }
+
+    /// <summary>Meter una bala: cuadro "meter" y, pasado el 60 % del tiempo de la bala, vuelve a "abrir".</summary>
+    public void StageInserting(float seconds)
+    {
+        if (!_staged || _mode != Mode.Reload) return;
+        ShowStage(1);
+        _stageRevert = Mathf.Max(0.05f, seconds * 0.6f);
+    }
+
+    public void StageClosing()
+    {
+        if (_staged && _mode == Mode.Reload) ShowStage(2);
+    }
+
+    private void ShowStage(int stage)
+    {
+        if (_profile == null || _hands == null || !_profile.reload.HasFrames) return;
+        stage = Mathf.Clamp(stage, 0, _profile.reload.frames.Length - 1);
+        bool changed = stage != _reloadStage;
+        _reloadStage = stage;
+        _stageRevert = -1f;
+        _clip = null; // el cuadro queda quieto hasta el próximo evento
+        _hands.enabled = true;
+        _hands.sprite = _profile.reload.frames[stage];
+        if (changed && _motion != null && stage != 1) _motion.Punch(1.03f);
+    }
+
     public void HandleReloadFinished()
     {
+        _staged = false;
+        _reloadStage = -1;
+        _stageRevert = -1f;
         if (_motion != null) _motion.EndReloadDip();
         if (_profile == null || _mode != Mode.Reload) return;
         _mode = Mode.Idle;
@@ -117,6 +167,12 @@ public class ViewmodelAnimator : MonoBehaviour
                 PlayIdlePose();
                 if (_motion != null) _motion.Punch(_profile.aimSwapPunch);
             }
+        }
+
+        if (_stageRevert > 0f)
+        {
+            _stageRevert -= dt;
+            if (_stageRevert <= 0f && _staged && _mode == Mode.Reload) ShowStage(0);
         }
 
         if (_clip == null) return;

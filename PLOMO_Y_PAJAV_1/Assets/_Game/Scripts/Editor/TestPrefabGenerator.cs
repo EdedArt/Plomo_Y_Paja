@@ -178,6 +178,13 @@ public static class TestPrefabGenerator
         aiSo.FindProperty("billboardSprite").objectReferenceValue = billboard;
         aiSo.ApplyModifiedPropertiesWithoutUndo();
 
+        // HUD.2 (H9/H18): pistola; el tiro sale del cañón del dibujo (puntos en Data/MuzzlePoints/Muzzle_guardia)
+        EnemyGunfire gunfire = root.AddComponent<EnemyGunfire>();
+        MuzzlePointsBuilder.ConfigureGunfire(gunfire, "guardia");
+        var gunfireSo = new SerializedObject(gunfire);
+        gunfireSo.FindProperty("spriteRenderer").objectReferenceValue = spriteHolder.GetComponent<SpriteRenderer>();
+        gunfireSo.ApplyModifiedPropertiesWithoutUndo();
+
         root.AddComponent<EnemyCombatFx>();
         root.AddComponent<EnemyBarks>();
 
@@ -254,6 +261,63 @@ public static class TestPrefabGenerator
     }
 
     /// <summary>
+    /// Fase 3C.5 (idempotente): GameObject "Revolver" (RevolverController + AudioSource, componente apagado: sin dueño hasta
+    /// recoger el de Centavo) junto a la escopeta, WeaponSwitcher en el Player con los dos perfiles, y la dispersión de la
+    /// escopeta × 1.5 (D14) solo si sigue en el valor viejo (5): un ajuste a mano en el Inspector no se pisa.
+    /// 3C.6: la reserva de la escopeta pasa de 18 a 24 con la misma regla (solo si sigue en 18).
+    /// </summary>
+    private static void EnsureRevolverAndSwitcher(GameObject contents, Camera cam, ShotgunController shotgun)
+    {
+        if (shotgun != null)
+        {
+            var shotgunSo = new SerializedObject(shotgun);
+            SerializedProperty spread = shotgunSo.FindProperty("spreadAngle");
+            if (Mathf.Approximately(spread.floatValue, 5f)) spread.floatValue = 7.5f;
+            MigrateInt(shotgunSo, "reserveAmmo", 18, 24); // 3C.6: AUDIT_contador_3C5, opción (a)
+            shotgunSo.ApplyModifiedPropertiesWithoutUndo();
+        }
+
+        RevolverController revolver = contents.GetComponentInChildren<RevolverController>(true);
+        if (revolver == null)
+        {
+            Transform parent = cam != null ? cam.transform : contents.transform;
+            var revolverGo = new GameObject("Revolver");
+            revolverGo.transform.SetParent(parent, false);
+            revolverGo.transform.localPosition = new Vector3(0.25f, -0.25f, 0.5f);
+            revolver = revolverGo.AddComponent<RevolverController>();
+            AudioSource audio = revolverGo.AddComponent<AudioSource>();
+            audio.playOnAwake = false;
+            audio.spatialBlend = 0f;
+        }
+        revolver.enabled = false; // WeaponSwitcher lo enciende cuando es el arma activa
+        var revolverSo = new SerializedObject(revolver);
+        if (cam != null) revolverSo.FindProperty("playerCamera").objectReferenceValue = cam;
+        // 3C.5.2: tambor de 5 + 15 de reserva. Solo se pisa si sigue con los valores de la 3C.5 (6 / 6 / 12)
+        MigrateInt(revolverSo, "magazineSize", 6, 5);
+        MigrateInt(revolverSo, "loadedRounds", 6, 5);
+        MigrateInt(revolverSo, "reserveRounds", 12, 15);
+        revolverSo.ApplyModifiedPropertiesWithoutUndo();
+
+        WeaponSwitcher switcher = contents.GetComponent<WeaponSwitcher>();
+        if (switcher == null) switcher = contents.AddComponent<WeaponSwitcher>();
+        var switcherSo = new SerializedObject(switcher);
+        switcherSo.FindProperty("shotgun").objectReferenceValue = shotgun;
+        switcherSo.FindProperty("revolver").objectReferenceValue = revolver;
+        switcherSo.FindProperty("shotgunProfile").objectReferenceValue = ViewmodelProfileBuilder.GetOrCreateShotgunProfile();
+        switcherSo.FindProperty("revolverProfile").objectReferenceValue = ViewmodelProfileBuilder.GetOrCreateRevolverProfile();
+        MigrateInt(switcherSo, "revolverLoaded", 6, 5);
+        MigrateInt(switcherSo, "revolverReserve", 12, 15);
+        switcherSo.ApplyModifiedPropertiesWithoutUndo();
+    }
+
+    /// <summary>Cambia un entero serializado solo si todavía tiene el valor viejo (un ajuste a mano no se pisa).</summary>
+    private static void MigrateInt(SerializedObject so, string property, int oldValue, int newValue)
+    {
+        SerializedProperty p = so.FindProperty(property);
+        if (p != null && p.intValue == oldValue) p.intValue = newValue;
+    }
+
+    /// <summary>
     /// SampleScene solo trae movimiento y cámara: se añade lo que falta para poder probar
     /// (vida, escopeta) y se activa el post-procesado de la cámara. No se quita nada.
     /// </summary>
@@ -264,6 +328,14 @@ public static class TestPrefabGenerator
         {
             if (contents.GetComponent<PlayerHealth>() == null)
                 contents.AddComponent<PlayerHealth>();
+
+            // HUD.1 (H4): la reserva de munición vive en un solo lugar (escopeta 24 / tope 30, revólver 0 / tope 24)
+            PlayerAmmo playerAmmo = contents.GetComponent<PlayerAmmo>();
+            if (playerAmmo == null)
+                playerAmmo = contents.AddComponent<PlayerAmmo>();
+            var ammoSo = new SerializedObject(playerAmmo);
+            MigrateInt(ammoSo, "shotgunReserve", 18, 24); // 3C.6: reserva de la escopeta 18 → 24 (solo si sigue en 18)
+            ammoSo.ApplyModifiedPropertiesWithoutUndo();
 
             // Apuntar con clic derecho (viewmodel, dispersión, velocidad, FOV y mira)
             if (contents.GetComponent<PlayerAim>() == null)
@@ -340,6 +412,9 @@ public static class TestPrefabGenerator
             if (gun != null && gun.GetComponent<ShotgunFeedback>() == null)
                 gun.gameObject.AddComponent<ShotgunFeedback>();
             EnsureCartoonFx(contents);
+
+            // Fase 3C.5: revólver de Centavo (segunda arma) + cambio de armas + balance de la escopeta
+            EnsureRevolverAndSwitcher(contents, cam, gun);
 
             // Lluvia ligera que sigue a la cámara (se apaga bajo techo)
             RainEmitter rain = contents.GetComponent<RainEmitter>();

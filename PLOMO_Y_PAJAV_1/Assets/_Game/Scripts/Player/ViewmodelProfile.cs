@@ -129,4 +129,31 @@ public class ViewmodelProfile : ScriptableObject
     public float aimSwayMultiplier = 0.3f;
     public float aimBreathMultiplier = 0.5f;
     public float aimKickMultiplier = 0.6f;
+
+    [Header("Tamaño y lugar en la cadera (3C.5.2)")]
+    [Tooltip("Escala de las manos (1 = alto de la pantalla × overscan). Crece/achica desde la esquina inferior derecha. " +
+             "La mide ViewmodelProfileBuilder comparando el guante con el de la escopeta (solo la primera vez); se puede " +
+             "ajustar en Play")]
+    [Range(0.5f, 1.5f)] public float handsScale = 1f;
+    [Tooltip("Versión de la medición de handsScale (0 = sin medir)")]
+    public int handsScaleVersion;
+    [Tooltip("Borde izquierdo del arma en los dibujos de la cadera (idle/fire), px del arte 1920x1080. 0 = no se corre. " +
+             "Si en pantalla quedaría a menos de hipCenterClearance del centro, las manos se corren a la derecha: la mira " +
+             "nunca queda tapada, también en 16:10 y 4:3. Lo mide ViewmodelProfileBuilder")]
+    public float hipClearLeftArtX;
+    [Tooltip("Distancia mínima (px de canvas a 1080p) entre el centro de la pantalla y el borde izquierdo del arma en la cadera")]
+    public float hipCenterClearance = 70f;
+
+    [Header("Balas visibles en el tambor (3C.5.2)")]
+    [Tooltip("Centros de los huecos del tambor en reload_01 (abrir), px del arte con origen abajo-izquierda, en el orden " +
+             "en que se llenan. Los mide ViewmodelProfileBuilder del PNG")]
+    public Vector2[] chambersOpen = new Vector2[0];
+    [Tooltip("Lo mismo en reload_02 (meter)")]
+    public Vector2[] chambersInsert = new Vector2[0];
+    [Tooltip("Diámetro de un hueco (px del arte)")]
+    public float chamberDiameter;
+    [Tooltip("Dibujo de la bala vista de atrás (fx_round_rim_01)")]
+    public Sprite chamberRim;
+    [Tooltip("Tamaño de la bala respecto del hueco")]
+    public float chamberRimScale = 0.92f;
 }

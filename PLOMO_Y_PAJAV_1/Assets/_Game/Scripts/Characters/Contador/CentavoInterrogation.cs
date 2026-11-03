@@ -34,6 +34,9 @@ public class CentavoInterrogation : MonoBehaviour
     [Tooltip("Data/Interrogation_Contador.asset (lo asigna el menú Crear datos del interrogatorio)")]
     [SerializeField] private InterrogationData data;
 
+    /// <summary>Datos del interrogatorio (CentavoController los usa para el pensamiento al rematarlo, 3C.5.1).</summary>
+    public InterrogationData Data => data;
+
     [Tooltip("Segundos que se ve a Centavo muerto en el retrato antes de salir")]
     [SerializeField, Min(0f)] private float killHoldSeconds = 0.8f;
 
@@ -207,7 +210,7 @@ public class CentavoInterrogation : MonoBehaviour
     {
         Transform centavo = _centavo.transform;
         Vector3 eye = d.PlayerEyePosition;
-        Func<Quaternion> lookAtHim = () => InterrogationDirector.LookFrom(eye, centavo.position + Vector3.up * spareLookHeight);
+        Func<Quaternion> lookAtHim = () => InterrogationDirector.LookFrom(eye, centavo.position + Vector3.up * (spareLookHeight * centavo.lossyScale.y)); // 3C.6: sigue la escala ×1.15 de Centavo
 
         // De agachado a la altura de los ojos, siguiéndolo; luego lo sigue cojear hacia el portón
         yield return d.MoveCamera(() => eye, lookAtHim, spareRiseSeconds);
@@ -228,7 +231,7 @@ public class CentavoInterrogation : MonoBehaviour
     private IEnumerator KillOutro(InterrogationDirector d, Func<string> thought)
     {
         Vector3 eye = d.PlayerEyePosition;
-        Vector3 body = _centavo.transform.position + Vector3.up * bodyLookHeight;
+        Vector3 body = _centavo.transform.position + Vector3.up * (bodyLookHeight * _centavo.transform.lossyScale.y);
         yield return d.MoveCamera(() => eye, () => InterrogationDirector.LookFrom(eye, body), killRiseSeconds);
         yield return d.OutroThought(thought, outroThoughtMinSeconds, outroThoughtSecondsPerCharacter);
     }

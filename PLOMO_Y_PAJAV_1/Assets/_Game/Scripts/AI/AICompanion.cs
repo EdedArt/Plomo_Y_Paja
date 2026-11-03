@@ -64,7 +64,8 @@ public class AICompanion : MonoBehaviour
     [SerializeField] private float fadeDuration = 0.5f;
 
     [Header("Debug")]
-    [SerializeField] private bool logRequests = true;
+    [Tooltip("Escribe en la consola cada línea que devuelve la IA. Apagado por defecto (3C.6).")]
+    [SerializeField] private bool logRequests = false;
 
     private const string Endpoint = "https://api.openai.com/v1/chat/completions";
     private const string KeyFileName = "openai_key.txt";
@@ -423,10 +424,24 @@ public class AICompanion : MonoBehaviour
         return options[UnityEngine.Random.Range(0, options.Length)];
     }
 
-    private void ShowLine(string line)
+    /// <summary>
+    /// Muestra una línea ya elegida en los subtítulos normales del juego (máquina de escribir, sin bloquear nada), como Speak.
+    /// La usa el pensamiento al rematar a Centavo (fase 3C.5.1) con la respuesta de RequestCustomLine o su respaldo.
+    /// remember = false si la línea ya entró al historial (RequestCustomLine la guarda al recibirla).
+    /// </summary>
+    public void ShowCustomLine(string line, bool remember = true)
     {
-        recentLines.Enqueue(line);
-        while (recentLines.Count > historySize) recentLines.Dequeue();
+        if (string.IsNullOrWhiteSpace(line)) return;
+        ShowLine(line, remember);
+    }
+
+    private void ShowLine(string line, bool remember = true)
+    {
+        if (remember)
+        {
+            recentLines.Enqueue(line);
+            while (recentLines.Count > historySize) recentLines.Dequeue();
+        }
 
         OnLineSpoken?.Invoke(line);
 
