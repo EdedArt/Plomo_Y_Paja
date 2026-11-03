@@ -248,4 +248,9 @@ Modificados:
 - **`origin/player`** no tiene nada nuevo. **`origin/levels`** no existe en el remoto.
 
 ### Pull final y push
-*(Se completa abajo después del segundo pull.)*
+- **Segundo `git fetch --all --prune` y `git pull --no-rebase origin integracion/dia4`** (después de subir la auditoría, `e6d0ce2`): **"Already up to date"**. Sin cambios en el remoto ni conflictos.
+- **Condiciones para el push:**
+  - sin conflictos: **sí**;
+  - los dos ensamblados con **0 errores**: **sí**. El código no cambió desde la compilación de `89ad934`; después solo se tocó esta auditoría;
+  - `git status` sin nada preparado por error: **sí**. Solo queda sin preparar `AICompanion.prefab` (categoría d).
+- **Push:** `git push origin integracion/dia4`. Rango empujado: **`e5f0ed2..`** hasta el commit que agrega esta sección (el último de la rama al empujar). Incluye la 3C.5.x, la 3C.6, HUD.1, los assets, los documentos, HUD.2 y estas auditorías. Sin force push.
