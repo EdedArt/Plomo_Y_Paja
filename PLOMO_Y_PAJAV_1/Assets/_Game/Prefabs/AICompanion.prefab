@@ -204,7 +204,7 @@ MonoBehaviour:
   subtitleGroup: {fileID: 1452683431710014404}
   charsPerSecond: 35
   fadeDuration: 0.5
-  logRequests: 1
+  logRequests: 0
 --- !u!1 &7520467549691128733
 GameObject:
   m_ObjectHideFlags: 0
