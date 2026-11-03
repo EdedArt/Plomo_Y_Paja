@@ -1,6 +1,6 @@
 # AUDIT MENU.0 — Reconocimiento e inventario de la pantalla de inicio
 
-ESTADO: PENDIENTE DE REVISIÓN
+ESTADO: LUZ VERDE (orquestador, 3 nov)
 
 **Fecha:** 3 nov 2026 · **Rama:** `integracion/dia4` (checkout principal, sin worktree: no se tocó nada de `Assets/`) · **Alcance:** solo MENU.0 de `Docs/phases/Fase-Menu.md` (v1.1). Solo lectura + copia de 3 imágenes a una carpeta ignorada por git.
 
