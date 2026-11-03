@@ -37,7 +37,10 @@ public class GameManager : MonoBehaviour
     {
         // Pausa con Escape (desactivada durante el interrogatorio: la escena ya congela el tiempo, fase 3C.3)
         // ni durante una cinemática (INTRO.2): ahí Esc mantenido es "saltar"
-        if (Input.GetKeyDown(KeyCode.Escape) && !gameIsOver && !InterrogationDirector.IsActive && !CinematicState.IsPlaying)
+        // ni en el menú ni en el libro (MENU.1), las mismas escenas sin pausa que PauseMenuSpawner: este objeto sobrevive
+        // al volver del nivel, y ahí Esc es "volver" (menú) o "saltar" (libro)
+        if (Input.GetKeyDown(KeyCode.Escape) && !gameIsOver && !InterrogationDirector.IsActive && !CinematicState.IsPlaying
+            && !IsSceneWithoutPause())
         {
             TogglePause();
         }
@@ -142,6 +145,12 @@ public class GameManager : MonoBehaviour
     private static void ResetPauseEvent()
     {
         OnPauseChanged = null;
+    }
+
+    private static bool IsSceneWithoutPause()
+    {
+        string scene = SceneManager.GetActiveScene().name;
+        return scene == "MenuPrincipal" || scene == "Intro";
     }
 
     public void TogglePause()

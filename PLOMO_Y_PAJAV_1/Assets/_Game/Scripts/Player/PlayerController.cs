@@ -87,8 +87,8 @@ public class PlayerController : MonoBehaviour
     {
         if (!_canMove) return;
 
-        float mouseX = Input.GetAxis("Mouse X") * mouseSensitivity;
-        float mouseY = Input.GetAxis("Mouse Y") * mouseSensitivity;
+        float mouseX = Input.GetAxis("Mouse X") * mouseSensitivity * OptionsPanel.Sensibilidad;
+        float mouseY = Input.GetAxis("Mouse Y") * mouseSensitivity * OptionsPanel.Sensibilidad;
 
         // Rotar el cuerpo del jugador horizontalmente
         transform.Rotate(Vector3.up * mouseX);
