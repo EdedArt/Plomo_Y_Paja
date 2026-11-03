@@ -131,11 +131,24 @@ public class GameManager : MonoBehaviour
 
     // ============ PAUSA ============
 
+    /// <summary>
+    /// Se dispara en cada TogglePause con el nuevo estado (true = pausado).
+    /// Lo escucha PauseMenu (UI/Pause). Se limpia al cargar el subsistema para
+    /// no arrastrar suscriptores muertos (GameManager es DontDestroyOnLoad).
+    /// </summary>
+    public static event System.Action<bool> OnPauseChanged;
+
+    [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.SubsystemRegistration)]
+    private static void ResetPauseEvent()
+    {
+        OnPauseChanged = null;
+    }
+
     public void TogglePause()
     {
         gameIsPaused = !gameIsPaused;
         Time.timeScale = gameIsPaused ? 0f : 1f;
-        if (UIManager.Instance != null) UIManager.Instance.ShowPauseMenu(gameIsPaused);
+        OnPauseChanged?.Invoke(gameIsPaused);
 
         Cursor.lockState = gameIsPaused ? CursorLockMode.None : CursorLockMode.Locked;
         Cursor.visible = gameIsPaused;
