@@ -12,6 +12,7 @@ GameObject:
   - component: {fileID: 7845013318252625604}
   - component: {fileID: 35979410094908965}
   - component: {fileID: 2419692912492606154}
+  - component: {fileID: 1365123443402144807}
   m_Layer: 2
   m_Name: Revolver_Suelto
   m_TagString: Untagged
@@ -105,6 +106,29 @@ MeshRenderer:
   m_SortingLayer: 0
   m_SortingOrder: 0
   m_AdditionalVertexStreams: {fileID: 0}
+--- !u!114 &1365123443402144807
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 2858568890338987374}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: cb71e90052884c1cbe124f0ed8c0c871, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: 
+  displayName: "Rev\xF3lver de Centavo"
+  interactPrompt: "[E] Recoger el rev\xF3lver"
+  interactDistance: 2.5
+  interactHeight: 2.2
+  pickupDelay: 0.4
+  fallRescueDepth: 1.5
+  glintColor: {r: 1, g: 0.85, b: 0.55, a: 1}
+  glintRange: 1.8
+  glintIntensity: {x: 0.4, y: 1.8}
+  glintRate: 0.9
+  debug: 0
 --- !u!1 &2944007336656735419
 GameObject:
   m_ObjectHideFlags: 0
@@ -660,6 +684,7 @@ MonoBehaviour:
   lipSync: {fileID: 9010541992088576508}
   muzzleFlash: {fileID: 1810007816924808009}
   droppedRevolver: {fileID: 2858568890338987374}
+  revolverDropSide: 0.6
   seatedScale: 0.52
   coverSink: 0.4
   coverSeconds: {x: 1, y: 1.8}
