@@ -52,7 +52,7 @@ public class ShotgunController : MonoBehaviour, IWeapon
     [Tooltip("Capacidad máxima del cargador")]
     [SerializeField] private int maxAmmoInMag = 6;
 
-    [Tooltip("Balas de reserva totales")]
+    [Tooltip("Reserva SOLO si el Player no tiene PlayerAmmo (HUD.1, H4: la reserva vive en PlayerAmmo, que empieza con 18)")]
     [SerializeField] private int reserveAmmo = 18;
 
     [Header("Tiempos")]
@@ -95,6 +95,8 @@ public class ShotgunController : MonoBehaviour, IWeapon
     public event System.Action OnReloadStarted;
     public event System.Action OnReloadFinished;
     public event System.Action OnDryFire;
+    /// <summary>Cambiaron los cartuchos cargados (HUD.1, IWeapon).</summary>
+    public event System.Action OnAmmoChanged;
 
     /// <summary>Segundos tras el disparo en que suena el bombeo de la corredera.</summary>
     private const float PumpDelay = 0.35f;
@@ -105,6 +107,7 @@ public class ShotgunController : MonoBehaviour, IWeapon
     private Coroutine _reloadRoutine;
     private Animator _animator;
     private PlayerAim _aim;
+    private PlayerAmmo _ammo; // HUD.1 (H4): la reserva vive aquí
 
     // ============ Hashes del Animator (más eficiente que strings) ============
     private static readonly int FireHash = Animator.StringToHash("Fire");
@@ -117,6 +120,7 @@ public class ShotgunController : MonoBehaviour, IWeapon
         TryGetComponent(out _animator);
         TryGetComponent(out _audioSource);
         _aim = GetComponentInParent<PlayerAim>();
+        _ammo = GetComponentInParent<PlayerAmmo>();
 
         // Si no se asignó la cámara en el Inspector, buscarla automáticamente
         if (playerCamera == null)
@@ -126,7 +130,7 @@ public class ShotgunController : MonoBehaviour, IWeapon
     private void Start()
     {
         // Notificar la UI del estado inicial
-        onAmmoChanged?.Invoke(currentAmmo, reserveAmmo);
+        NotifyAmmo();
     }
 
     private void Update()
@@ -143,7 +147,7 @@ public class ShotgunController : MonoBehaviour, IWeapon
             {
                 StartCoroutine(Fire());
             }
-            else if (reserveAmmo > 0)
+            else if (Reserve > 0)
             {
                 // Vacía con reserva (p. ej. se cambió de arma antes de la recarga automática): recargar
                 StartReload();
@@ -157,7 +161,7 @@ public class ShotgunController : MonoBehaviour, IWeapon
         }
 
         // Recarga manual: tecla R
-        if (Input.GetKeyDown(KeyCode.R) && !_isReloading && currentAmmo < maxAmmoInMag && reserveAmmo > 0)
+        if (Input.GetKeyDown(KeyCode.R) && !_isReloading && currentAmmo < maxAmmoInMag && Reserve > 0)
         {
             StartReload();
         }
@@ -185,11 +189,11 @@ public class ShotgunController : MonoBehaviour, IWeapon
 
         // 3. Restar munición y actualizar UI
         currentAmmo--;
-        onAmmoChanged?.Invoke(currentAmmo, reserveAmmo);
+        NotifyAmmo();
         OnFired?.Invoke();
 
         // 4. Auto-recarga si el cargador quedó vacío y hay reserva
-        if (currentAmmo <= 0 && reserveAmmo > 0)
+        if (currentAmmo <= 0 && Reserve > 0)
         {
             yield return new WaitForSeconds(0.3f); // Pequeña pausa antes de recargar
             // Si mientras tanto se cambió de arma (componente apagado) no recarga a escondidas: lo hace al volver
@@ -302,7 +306,7 @@ public class ShotgunController : MonoBehaviour, IWeapon
         OnReloadStarted?.Invoke();
 
         // Un "clac" por cartucho repartido en el tiempo de recarga
-        int shells = Mathf.Max(1, Mathf.Min(maxAmmoInMag - currentAmmo, reserveAmmo));
+        int shells = Mathf.Max(1, Mathf.Min(maxAmmoInMag - currentAmmo, Reserve));
         float interval = reloadTime / shells;
         for (int i = 0; i < shells; i++)
         {
@@ -312,12 +316,11 @@ public class ShotgunController : MonoBehaviour, IWeapon
 
         // Calcular cuántas balas se necesitan y si hay suficientes en reserva
         int ammoNeeded = maxAmmoInMag - currentAmmo;
-        int ammoToLoad = Mathf.Min(ammoNeeded, reserveAmmo);
+        int ammoToLoad = TakeReserve(ammoNeeded); // de PlayerAmmo (o de reserveAmmo si no hay)
 
         currentAmmo += ammoToLoad;
-        reserveAmmo -= ammoToLoad;
 
-        onAmmoChanged?.Invoke(currentAmmo, reserveAmmo);
+        NotifyAmmo();
         _isReloading = false;
         _reloadRoutine = null;
         OnReloadFinished?.Invoke();
@@ -337,10 +340,29 @@ public class ShotgunController : MonoBehaviour, IWeapon
 
     // ============ Getters para la UI ============
     public int CurrentAmmo => currentAmmo;
-    public int ReserveAmmo => reserveAmmo;
+    public int ReserveAmmo => Reserve;
     public int LoadedRounds => currentAmmo;
     public int MagazineSize => maxAmmoInMag;
-    public int ReserveRounds => reserveAmmo;
+    public int ReserveRounds => Reserve;
+    public AmmoType AmmoType => AmmoType.Shotgun;
+    public AmmoDisplayStyle DisplayStyle => AmmoDisplayStyle.Shells;
+
+    /// <summary>Reserva actual: la de PlayerAmmo (H4) o, sin PlayerAmmo, la propia.</summary>
+    private int Reserve => _ammo != null ? _ammo.GetReserve(AmmoType.Shotgun) : reserveAmmo;
+
+    private int TakeReserve(int amount)
+    {
+        if (_ammo != null) return _ammo.Take(AmmoType.Shotgun, amount);
+        int taken = Mathf.Clamp(amount, 0, reserveAmmo);
+        reserveAmmo -= taken;
+        return taken;
+    }
+
+    private void NotifyAmmo()
+    {
+        onAmmoChanged?.Invoke(currentAmmo, Reserve);
+        OnAmmoChanged?.Invoke();
+    }
     public bool IsReloading => _isReloading;
     /// <summary>Dispersión actual (con el multiplicador de apuntar). Solo lectura, para la mira del HUD; ShootPellet no cambió.</summary>
     public float SpreadAngle => spreadAngle * (_aim != null && _aim.IsAiming ? aimSpreadMultiplier : 1f);
@@ -352,7 +374,9 @@ public class ShotgunController : MonoBehaviour, IWeapon
     /// </summary>
     public void AddAmmo(int amount)
     {
-        reserveAmmo = Mathf.Min(reserveAmmo + amount, 30); // Máximo 30 en reserva
-        onAmmoChanged?.Invoke(currentAmmo, reserveAmmo);
+        // HUD.1: el tope (30) lo pone PlayerAmmo; sin PlayerAmmo, el de siempre
+        if (_ammo != null) _ammo.TryAdd(AmmoType.Shotgun, amount, out _);
+        else reserveAmmo = Mathf.Min(reserveAmmo + amount, 30); // Máximo 30 en reserva
+        NotifyAmmo();
     }
 }

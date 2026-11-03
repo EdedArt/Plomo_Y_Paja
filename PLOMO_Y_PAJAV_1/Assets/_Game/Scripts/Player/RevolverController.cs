@@ -33,6 +33,7 @@ public class RevolverController : MonoBehaviour, IWeapon, IStagedReloadWeapon
     [Tooltip("Balas en el tambor: 5, los huecos que tiene el dibujo de la recarga (3C.5.2)")]
     [SerializeField] private int magazineSize = 5;
     [SerializeField] private int loadedRounds = 5;
+    [Tooltip("Reserva SOLO si el Player no tiene PlayerAmmo (HUD.1, H4: la reserva vive en PlayerAmmo)")]
     [SerializeField] private int reserveRounds = 15;
     [Tooltip("Máximo de reserva")]
     [SerializeField] private int maxReserve = 24;
@@ -66,6 +67,8 @@ public class RevolverController : MonoBehaviour, IWeapon, IStagedReloadWeapon
     public event System.Action OnReloadOpened;
     public event System.Action OnRoundInserting;
     public event System.Action<int> OnRoundLoaded;
+    /// <summary>Cambiaron las balas cargadas (HUD.1, IWeapon).</summary>
+    public event System.Action OnAmmoChanged;
     public event System.Action OnReloadClosing;
 
     private AudioSource _audioSource;
@@ -83,7 +86,33 @@ public class RevolverController : MonoBehaviour, IWeapon, IStagedReloadWeapon
     public float RoundInsertSeconds => insertSeconds;
     public int LoadedRounds => loadedRounds;
     public int MagazineSize => magazineSize;
-    public int ReserveRounds => reserveRounds;
+    public int ReserveRounds => Reserve;
+    public AmmoType AmmoType => AmmoType.Revolver;
+    public AmmoDisplayStyle DisplayStyle => AmmoDisplayStyle.Cylinder;
+
+    private PlayerAmmo _ammo;
+    private bool _ammoLooked;
+
+    /// <summary>PlayerAmmo del Player (HUD.1, H4); se busca la primera vez (SetAmmo puede llegar antes que Awake).</summary>
+    private PlayerAmmo Ammo
+    {
+        get
+        {
+            if (!_ammoLooked) { _ammo = GetComponentInParent<PlayerAmmo>(); _ammoLooked = true; }
+            return _ammo;
+        }
+    }
+
+    /// <summary>Reserva actual: la de PlayerAmmo o, sin PlayerAmmo, la propia.</summary>
+    private int Reserve => Ammo != null ? Ammo.GetReserve(AmmoType.Revolver) : reserveRounds;
+
+    private int TakeReserve(int amount)
+    {
+        if (Ammo != null) return Ammo.Take(AmmoType.Revolver, amount);
+        int taken = Mathf.Clamp(amount, 0, reserveRounds);
+        reserveRounds -= taken;
+        return taken;
+    }
 
     /// <summary>En las unidades de ShootPellet (offset por eje = s·0.01) para que la mira lo lea igual que la escopeta.</summary>
     public float SpreadAngle => Mathf.Tan(CurrentSpreadDegrees() * Mathf.Deg2Rad) * 100f;
@@ -106,7 +135,10 @@ public class RevolverController : MonoBehaviour, IWeapon, IStagedReloadWeapon
     public void SetAmmo(int loaded, int reserve)
     {
         loadedRounds = Mathf.Clamp(loaded, 0, magazineSize);
-        reserveRounds = Mathf.Clamp(reserve, 0, maxReserve);
+        // HUD.1: la reserva se SUMA a PlayerAmmo (puede tener balas juntadas antes de tener el revólver, H14; tope 24)
+        if (Ammo != null) Ammo.TryAdd(AmmoType.Revolver, reserve, out _);
+        else reserveRounds = Mathf.Clamp(reserve, 0, maxReserve);
+        OnAmmoChanged?.Invoke();
     }
 
     private bool Blocked()
@@ -124,7 +156,7 @@ public class RevolverController : MonoBehaviour, IWeapon, IStagedReloadWeapon
         if (Input.GetButtonDown("Fire1") && !_isReloading && Time.time >= _nextFireTime)
         {
             if (loadedRounds > 0) Fire();
-            else if (reserveRounds > 0) StartReload();
+            else if (Reserve > 0) StartReload();
             else
             {
                 OnDryFire?.Invoke();
@@ -133,7 +165,7 @@ public class RevolverController : MonoBehaviour, IWeapon, IStagedReloadWeapon
             }
         }
 
-        if (Input.GetKeyDown(KeyCode.R) && !_isReloading && loadedRounds < magazineSize && reserveRounds > 0)
+        if (Input.GetKeyDown(KeyCode.R) && !_isReloading && loadedRounds < magazineSize && Reserve > 0)
             StartReload();
     }
 
@@ -141,6 +173,7 @@ public class RevolverController : MonoBehaviour, IWeapon, IStagedReloadWeapon
     {
         _nextFireTime = Time.time + fireInterval;
         loadedRounds--;
+        OnAmmoChanged?.Invoke();
 
         if (fireSound != null) PlaySound(fireSound);
         else PlayLibraryShot();
@@ -149,13 +182,13 @@ public class RevolverController : MonoBehaviour, IWeapon, IStagedReloadWeapon
         OnFired?.Invoke();
 
         // Tambor vacío con reserva: recarga sola tras una pausa corta (como la escopeta)
-        if (loadedRounds <= 0 && reserveRounds > 0) StartCoroutine(AutoReload());
+        if (loadedRounds <= 0 && Reserve > 0) StartCoroutine(AutoReload());
     }
 
     private IEnumerator AutoReload()
     {
         yield return new WaitForSeconds(0.3f);
-        if (isActiveAndEnabled && !_isReloading && loadedRounds <= 0 && reserveRounds > 0 && !Blocked()) StartReload();
+        if (isActiveAndEnabled && !_isReloading && loadedRounds <= 0 && Reserve > 0 && !Blocked()) StartReload();
     }
 
     private void ShootBullet()
@@ -204,13 +237,13 @@ public class RevolverController : MonoBehaviour, IWeapon, IStagedReloadWeapon
 
     private void StartReload()
     {
-        if (_isReloading || loadedRounds >= magazineSize || reserveRounds <= 0) return;
+        if (_isReloading || loadedRounds >= magazineSize || Reserve <= 0) return;
         _reloadRoutine = StartCoroutine(Reload());
     }
 
     private float PlanReload()
     {
-        int missing = Mathf.Max(0, Mathf.Min(magazineSize - loadedRounds, reserveRounds));
+        int missing = Mathf.Max(0, Mathf.Min(magazineSize - loadedRounds, Reserve));
         return openSeconds + missing * insertSeconds + closeSeconds;
     }
 
@@ -227,12 +260,13 @@ public class RevolverController : MonoBehaviour, IWeapon, IStagedReloadWeapon
         yield return new WaitForSeconds(openSeconds);
 
         // Una bala por cada una que falta, nunca más que la reserva. Cada bala cuenta al entrar (si se corta, se queda)
-        while (loadedRounds < magazineSize && reserveRounds > 0)
+        while (loadedRounds < magazineSize && Reserve > 0)
         {
             OnRoundInserting?.Invoke();
             yield return new WaitForSeconds(insertSeconds);
+            if (TakeReserve(1) <= 0) break; // la reserva vive en PlayerAmmo
             loadedRounds++;
-            reserveRounds--;
+            OnAmmoChanged?.Invoke();
             if (reloadSound != null) PlaySound(reloadSound); else AudioLibrary.PlaySfx2D("escopeta_cargar");
             OnRoundLoaded?.Invoke(loadedRounds);
             if (_fireQueued) break; // termina esta bala, cierra y dispara

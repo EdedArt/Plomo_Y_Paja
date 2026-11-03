@@ -89,6 +89,9 @@ public static class LevelBuilder_NivelPorky
         // Fase 3C.1: cuarto de herramientas de Centavo, cerca y portón del rincón (traen sus propios flags estáticos)
         ContadorYardBuilder.BuildInto(environment, lighting);
 
+        // Fase HUD.1 (H1): HUD de Wilbur (vida y munición); regenerar el nivel lo conserva
+        HudBuilder.PlaceInOpenScene(null);
+
         // Guardar antes de hornear: el NavMesh se guarda junto a la escena
         EditorSceneManager.SaveScene(scene, ScenePath);
         BakeNavMesh();

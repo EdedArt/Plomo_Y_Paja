@@ -30,7 +30,24 @@ public interface IWeapon
 
     /// <summary>Corta una recarga en curso (cambio de arma). Lo ya cargado se queda. No dispara OnReloadFinished.</summary>
     void CancelReload();
+
+    // ============ HUD.1 (H5): lo que necesita el HUD ============
+
+    /// <summary>Tipo de munición: la reserva vive en PlayerAmmo con este tipo (H4).</summary>
+    AmmoType AmmoType { get; }
+
+    /// <summary>Cómo dibuja el HUD la fila de balas cargadas.</summary>
+    AmmoDisplayStyle DisplayStyle { get; }
+
+    /// <summary>Cambiaron las balas cargadas (disparo, bala que entra, recarga completa, munición nueva).</summary>
+    event System.Action OnAmmoChanged;
 }
+
+/// <summary>Tipos de munición de Wilbur (HUD.1, H4). La reserva de cada uno vive en PlayerAmmo.</summary>
+public enum AmmoType { Shotgun, Revolver }
+
+/// <summary>Cómo dibuja el HUD las balas cargadas (HUD.1, H5): cartuchos de escopeta o balas de revólver.</summary>
+public enum AmmoDisplayStyle { Shells, Cylinder }
 
 /// <summary>
 /// Recarga por etapas, bala por bala (fase 3C.5.2, VM2): abrir → meter una bala por cada una que falta → cerrar.

@@ -22,7 +22,11 @@ public class CharacterSpriteImporter : AssetPostprocessor
     // 4: los .meta que llegan con PPU/pivote puestos a mano (p. ej. los del guardia de Edgar) se pisan aquí.
     // 6: contador a 500 px por metro (fase 3C.2, D12).
     // 7: también Art/Pickups/ (fase 3C.5.2: el revólver en el piso).
-    public override uint GetVersion() => 7;
+    // 8: también Art/UI/HUD/ (fase HUD.1: caras e íconos del HUD).
+    public override uint GetVersion() => 8;
+
+    /// <summary>Caras e íconos del HUD (fase HUD.1): Art/UI/HUD/&lt;id&gt;.png, recortados con character_key.py --center.</summary>
+    public const string HudFolder = "Assets/_Game/Art/UI/HUD";
 
     /// <summary>Objetos recogibles dibujados (fase 3C.5.2): Art/Pickups/&lt;nombre&gt;.png, recortados con character_key.py --single.</summary>
     public const string PickupsFolder = "Assets/_Game/Art/Pickups";
@@ -36,6 +40,11 @@ public class CharacterSpriteImporter : AssetPostprocessor
         if (path.StartsWith(PickupsFolder + "/"))
         {
             ApplyPickup((TextureImporter)assetImporter);
+            return;
+        }
+        if (path.StartsWith(HudFolder + "/"))
+        {
+            ApplyHud((TextureImporter)assetImporter);
             return;
         }
         if (!path.StartsWith(CharactersFolder + "/")) return;
@@ -108,6 +117,27 @@ public class CharacterSpriteImporter : AssetPostprocessor
         settings.spriteMeshType = SpriteMeshType.FullRect;
         settings.spriteAlignment = (int)SpriteAlignment.Center;
         settings.spritePixelsPerUnit = 1000f;
+        importer.SetTextureSettings(settings);
+    }
+
+    /// <summary>HUD (HUD.1, paso 0): Sprite con alpha real, sin compresión, SIN mipmaps, Bilinear, pivote al centro.</summary>
+    private static void ApplyHud(TextureImporter importer)
+    {
+        importer.textureType = TextureImporterType.Sprite;
+        importer.textureShape = TextureImporterShape.Texture2D;
+        importer.spriteImportMode = SpriteImportMode.Single;
+        importer.mipmapEnabled = false;
+        importer.filterMode = FilterMode.Bilinear;
+        importer.textureCompression = TextureImporterCompression.Uncompressed;
+        importer.alphaIsTransparency = true;
+        importer.alphaSource = TextureImporterAlphaSource.FromInput;
+        importer.maxTextureSize = 1024;
+        var settings = new TextureImporterSettings();
+        importer.ReadTextureSettings(settings);
+        settings.spriteMode = (int)SpriteImportMode.Single;
+        settings.spriteMeshType = SpriteMeshType.FullRect;
+        settings.spriteAlignment = (int)SpriteAlignment.Center;
+        settings.spritePixelsPerUnit = 100f;
         importer.SetTextureSettings(settings);
     }
 

@@ -17,8 +17,7 @@ using UnityEngine.UI;
 ///   stretch" (se alargan y se adelgazan) y vuelven en 0.12 s (tiempo real).
 /// - Se oculta al apuntar (PlayerAim), en diálogo, pausa y muerte.
 /// - Marcador de impacto: las marcas se ponen rojas 0.1 s cuando un enemigo recibe daño (EnemyHealth.OnDamaged).
-/// - Munición (3C.5; 3C.5.2: abajo a la izquierda de la pantalla, lejos de las armas): una fila de puntos = balas del arma activa (llenos = cargadas, tenues =
-///   vacías) y "+N" = reserva. No hay HUD de munición (3B parte 4 pendiente); esto es lo mínimo. Sigue visible al apuntar.
+/// - Munición: la muestra el HUD de Wilbur (HUD.1, HudWilbur). La fila provisional de la 3C.5 se quitó: un solo lugar (H4).
 /// - Avisos (3C.5): ShowNotice(texto) (ej: "Revólver de Centavo") y SetPrompt(texto) (ej: "[E] Recoger el revólver"),
 ///   en el mismo canvas porque el aviso de pistas y el prompt de UIManager no existen en las escenas.
 /// - WeaponSwitcher llama SetWeapon al cambiar de arma: las marcas leen la dispersión del arma activa.
@@ -57,15 +56,7 @@ public class RubberHoseCrosshair : MonoBehaviour
     [Tooltip("Suavizado de la apertura (más alto = sigue más rápido)")]
     [SerializeField] private float smoothing = 18f;
 
-    [Header("Munición y avisos (3C.5)")]
-    [SerializeField] private bool showAmmo = true;
-    [Tooltip("Posición de la fila de balas desde la esquina inferior IZQUIERDA (px a 1080p). 3C.5.2: ya no va bajo la mira, " +
-             "donde quedaba encima del arma")]
-    [SerializeField] private Vector2 ammoCorner = new Vector2(56f, 52f);
-    [SerializeField] private float ammoSpacing = 18f;
-    [Tooltip("Tamaño de cada punto respecto del punto central de la mira")]
-    [SerializeField] private float ammoDotScale = 1.5f;
-    [SerializeField, Range(0f, 1f)] private float emptyRoundAlpha = 0.22f;
+    [Header("Avisos (3C.5)")]
     [SerializeField] private float noticeSeconds = 2.5f;
 
     /// <summary>La mira del jugador (para avisos de recogibles). Null si no hay.</summary>
@@ -77,13 +68,9 @@ public class RubberHoseCrosshair : MonoBehaviour
     private CharacterController _body;
     private Canvas _canvas;
     private RectTransform _crosshairRoot;
-    private RectTransform _ammoRoot;
-    private readonly List<Image> _rounds = new List<Image>();
-    private TextMeshProUGUI _reserveText;
     private TextMeshProUGUI _noticeText;
     private TextMeshProUGUI _promptText;
     private float _noticeUntil = -1f;
-    private int _shownLoaded = -1, _shownMagazine = -1, _shownReserve = -1;
     private readonly RectTransform[] _tickRects = new RectTransform[4];
     private readonly Image[] _ticks = new Image[4];
     private float _tickLength;
@@ -120,7 +107,6 @@ public class RubberHoseCrosshair : MonoBehaviour
         if (isActiveAndEnabled && _weapon != null) _weapon.OnFired -= HandleFired;
         _weapon = weapon;
         if (isActiveAndEnabled && _weapon != null) _weapon.OnFired += HandleFired;
-        _shownMagazine = -1; // rehacer la fila
     }
 
     /// <summary>Aviso corto bajo la mira (tiempo real).</summary>
@@ -189,13 +175,7 @@ public class RubberHoseCrosshair : MonoBehaviour
         root.anchoredPosition = Vector2.zero;
         _crosshairRoot = root;
 
-        // Munición y avisos: hermanos de la mira (siguen visibles al apuntar)
-        var ammoGo = new GameObject("Ammo", typeof(RectTransform));
-        ammoGo.transform.SetParent(canvasGo.transform, false);
-        _ammoRoot = (RectTransform)ammoGo.transform;
-        _ammoRoot.anchorMin = _ammoRoot.anchorMax = _ammoRoot.pivot = Vector2.zero;   // esquina inferior izquierda
-        _ammoRoot.anchoredPosition = ammoCorner;
-        _reserveText = CreateText("Reserve", _ammoRoot, 22f, TextAlignmentOptions.Left);
+        // Avisos: hermanos de la mira (siguen visibles al apuntar)
         _noticeText = CreateText("Notice", canvasGo.transform, 30f, TextAlignmentOptions.Center);
         _noticeText.rectTransform.anchoredPosition = new Vector2(0f, -120f);
         _noticeText.enabled = false;
@@ -254,40 +234,6 @@ public class RubberHoseCrosshair : MonoBehaviour
         return text;
     }
 
-    /// <summary>Fila de balas del arma activa: un punto por bala del cargador, lleno = cargada. "+N" = reserva.</summary>
-    private void UpdateAmmo()
-    {
-        bool show = showAmmo && _weapon != null;
-        if (_ammoRoot.gameObject.activeSelf != show) _ammoRoot.gameObject.SetActive(show);
-        if (!show) return;
-
-        int magazine = Mathf.Clamp(_weapon.MagazineSize, 0, 12);
-        int loaded = _weapon.LoadedRounds;
-        int reserve = _weapon.ReserveRounds;
-        if (magazine == _shownMagazine && loaded == _shownLoaded && reserve == _shownReserve) return;
-
-        if (magazine != _shownMagazine)
-        {
-            float pip = ((DotWhiteRadius + OutlineThickness) * 2f + SpriteMargin) * ammoDotScale;
-            while (_rounds.Count < magazine)
-                _rounds.Add(CreateImage("Round" + _rounds.Count, _ammoRoot, _dotSprite, new Vector2(pip, pip)));
-            float start = pip * 0.5f; // la fila empieza en la esquina y crece hacia la derecha
-            for (int i = 0; i < _rounds.Count; i++)
-            {
-                bool used = i < magazine;
-                _rounds[i].gameObject.SetActive(used);
-                if (used) _rounds[i].rectTransform.anchoredPosition = new Vector2(start + i * ammoSpacing, 0f);
-            }
-            _reserveText.rectTransform.anchoredPosition = new Vector2(start + (magazine - 1) * ammoSpacing + ammoSpacing * 0.9f, 0f);
-        }
-        for (int i = 0; i < magazine; i++)
-            _rounds[i].color = new Color(1f, 1f, 1f, i < loaded ? 1f : emptyRoundAlpha);
-        _reserveText.text = "+" + reserve;
-        _shownMagazine = magazine;
-        _shownLoaded = loaded;
-        _shownReserve = reserve;
-    }
-
     /// <summary>radius = distancia del centro a la punta de cada gota; pop 0..1 la alarga y la adelgaza (squash and stretch).</summary>
     private void PlaceTicks(float radius, float pop)
     {
@@ -310,7 +256,6 @@ public class RubberHoseCrosshair : MonoBehaviour
         if (_canvas.enabled == blocked) _canvas.enabled = !blocked;
         if (blocked) return;
 
-        UpdateAmmo();
         if (_noticeUntil > 0f && Time.unscaledTime >= _noticeUntil)
         {
             _noticeUntil = -1f;

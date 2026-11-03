@@ -320,6 +320,10 @@ public static class TestPrefabGenerator
             if (contents.GetComponent<PlayerHealth>() == null)
                 contents.AddComponent<PlayerHealth>();
 
+            // HUD.1 (H4): la reserva de munición vive en un solo lugar (escopeta 18 / tope 30, revólver 0 / tope 24)
+            if (contents.GetComponent<PlayerAmmo>() == null)
+                contents.AddComponent<PlayerAmmo>();
+
             // Apuntar con clic derecho (viewmodel, dispersión, velocidad, FOV y mira)
             if (contents.GetComponent<PlayerAim>() == null)
                 contents.AddComponent<PlayerAim>();

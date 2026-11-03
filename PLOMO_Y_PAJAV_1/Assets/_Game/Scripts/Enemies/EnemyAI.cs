@@ -367,7 +367,7 @@ public class EnemyAI : MonoBehaviour
     {
         _lastAttackTime = Time.time;                                            // Reiniciar la pausa
         if (playerTransform != null && playerTransform.TryGetComponent(out PlayerHealth playerHealth))
-            playerHealth.TakeDamage(attackDamage);                              // Script de David: le quita vida a Wilbur
+            playerHealth.TakeDamage(attackDamage, transform.position);          // Script de David: le quita vida a Wilbur (HUD.1: desde dónde)
     }
 
     // ===================== Cambio de estado =====================

@@ -380,7 +380,7 @@ public class CentavoController : MonoBehaviour, IDamageable, IInterrogationTarge
         if (!ClearLine(muzzle, target)) return;
         bool running = _playerController != null && _playerController.IsRunning && _playerController.IsMoving;
         if (UnityEngine.Random.value < (running ? hitChanceRunning : hitChance))
-            _playerHealth.TakeDamage(damage);
+            _playerHealth.TakeDamage(damage, muzzle); // HUD.1: el HUD señala desde dónde vino el tiro
     }
 
     private void UpdateShotEffects()
