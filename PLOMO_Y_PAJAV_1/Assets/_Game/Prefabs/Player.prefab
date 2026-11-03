@@ -303,11 +303,13 @@ MonoBehaviour:
   aimSpreadDegrees: 0
   range: 80
   fireInterval: 0.45
-  magazineSize: 6
-  loadedRounds: 6
-  reserveRounds: 12
+  magazineSize: 5
+  loadedRounds: 5
+  reserveRounds: 15
   maxReserve: 24
-  reloadTime: 2.2
+  openSeconds: 0.35
+  insertSeconds: 0.3
+  closeSeconds: 0.35
   fireSound: {fileID: 0}
   emptySound: {fileID: 0}
   reloadSound: {fileID: 0}
@@ -671,8 +673,9 @@ MonoBehaviour:
   hitDuration: 0.1
   smoothing: 18
   showAmmo: 1
-  ammoOffset: 34
+  ammoCorner: {x: 56, y: 52}
   ammoSpacing: 11
+  ammoDotScale: 1.5
   emptyRoundAlpha: 0.22
   noticeSeconds: 2.5
 --- !u!114 &3936613672936606328
@@ -692,8 +695,8 @@ MonoBehaviour:
   shotgunProfile: {fileID: 11400000, guid: e802b3c742688fc45b1a3a085aec4245, type: 2}
   revolverProfile: {fileID: 11400000, guid: cf95f0e2a457a2c44993cf153c271821, type: 2}
   switchTime: 0.35
-  revolverLoaded: 6
-  revolverReserve: 12
+  revolverLoaded: 5
+  revolverReserve: 15
   debug: 0
 --- !u!1 &6518145712602977180
 GameObject:
