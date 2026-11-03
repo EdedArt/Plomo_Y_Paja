@@ -81,7 +81,11 @@ public static class InterrogationUIBuilder
         return sb.ToString();
     }
 
-    private static TMP_FontAsset EnsureFont(StringBuilder report)
+    /// <summary>
+    /// Fonts/SpecialElite SDF.asset completa y estática (la crea o completa si hace falta). Pública para reutilizarla
+    /// (libro de la intro, INTRO.1). Sin el TTF devuelve la fuente por defecto de TMP.
+    /// </summary>
+    public static TMP_FontAsset EnsureFont(StringBuilder report)
     {
         Font source = FindSourceFont(report);
         TMP_FontAsset asset = AssetDatabase.LoadAssetAtPath<TMP_FontAsset>(FontAssetPath);
