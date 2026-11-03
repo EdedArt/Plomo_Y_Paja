@@ -24,7 +24,7 @@ using UnityEngine.UI;
 /// Recarga por etapas (IStagedReloadWeapon, el revólver): cuadros abrir/meter/cerrar y balas visibles en el tambor
 /// (ViewmodelChamberOverlay, hijo de HandsImage).
 /// Sin perfil o sin cuadros en idle: no se crea nada (el juego sigue funcionando sin manos).
-/// Se oculta en pausa, en diálogo/interrogatorio y al morir.
+/// Se oculta en pausa, en diálogo/interrogatorio, en cinemáticas, con el arma enfundada (INTRO.3) y al morir.
 /// FASE 2 (revólver y cambio de arma): SetProfile(perfilDelArma) + SetWeapon(armaNueva). Cualquier arma que
 /// implemente IWeapon se conecta sola (OnFired / OnReloadStarted / OnReloadFinished / ReloadDuration).
 /// </summary>
@@ -222,6 +222,12 @@ public class FirstPersonViewmodel : MonoBehaviour
         if (_motion != null) _motion.StartReloadDip(duration);
     }
 
+    /// <summary>INTRO.3 (PlayerWeaponHolster): las manos suben desde abajo de la pantalla en `duration` (tiempo real).</summary>
+    public void PlayDraw(float duration)
+    {
+        if (_motion != null) _motion.StartRaise(duration);
+    }
+
     private void HandleDeath() => _dead = true;
 
     // ============ Canvas ============
@@ -337,7 +343,10 @@ public class FirstPersonViewmodel : MonoBehaviour
     private void LateUpdate()
     {
         if (_canvas == null) return;
-        bool hidden = _dead || PlayerAim.GameplayBlocked();
+        // Razones que se componen (I12): muerte, bloqueos del juego (pausa, diálogo, interrogatorio, cinemática) y arma
+        // enfundada (INTRO.3). Al sacarla, el canvas espera a que ViewmodelMotion ponga las manos abajo (RaisePending).
+        bool hidden = _dead || PlayerAim.GameplayBlocked() || PlayerWeaponHolster.HidesHands
+                      || (_motion != null && _motion.RaisePending);
         if (_canvas.enabled == hidden) _canvas.enabled = !hidden;
         FitHands();
         if (_chambers != null && _animator != null)

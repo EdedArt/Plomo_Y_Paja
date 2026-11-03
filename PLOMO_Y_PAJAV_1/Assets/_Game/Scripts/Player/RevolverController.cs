@@ -143,12 +143,19 @@ public class RevolverController : MonoBehaviour, IWeapon, IStagedReloadWeapon
 
     private bool Blocked()
     {
-        return PlayerAim.GameplayBlocked() || (_health != null && _health.IsDead) || playerCamera == null;
+        return PlayerAim.WeaponInputBlocked() || (_health != null && _health.IsDead) || playerCamera == null; // INTRO.3: + enfundada
     }
 
     private void Update()
     {
-        if (Blocked()) return;
+        if (Blocked())
+        {
+            // INTRO.2.1: bloqueado no suena nada. El interrogatorio y la cinemática no apagan este componente: una
+            // recarga en curso se corta aquí (las balas ya metidas se quedan) y un disparo en cola se descarta
+            if (_isReloading) CancelReload();
+            _fireQueued = false;
+            return;
+        }
 
         // Disparar durante la recarga: termina la bala actual, cierra y dispara (VM2)
         if (_isReloading && Input.GetButtonDown("Fire1")) _fireQueued = true;

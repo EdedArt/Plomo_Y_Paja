@@ -79,6 +79,7 @@ public class WeaponSwitcher : MonoBehaviour
     {
         if (_switching || Blocked()) return;
         EnforceEnabled();
+        if (PlayerWeaponHolster.BlocksWeapons) return; // INTRO.3: enfundada (o sacándose) no se cambia de arma
 
         int wanted = -1;
         if (Input.GetKeyDown(KeyCode.Alpha1) || Input.GetKeyDown(KeyCode.Keypad1)) wanted = Shotgun;
@@ -97,7 +98,17 @@ public class WeaponSwitcher : MonoBehaviour
         if (first) revolver.SetAmmo(revolverLoaded, revolverReserve);
         if (GameStateTracker.Instance != null)
             GameStateTracker.Instance.RegisterRevolverObtained(SceneManager.GetActiveScene().name);
-        if (first) RequestSwitch(Revolver);
+        if (first)
+        {
+            // INTRO.3: con el arma enfundada no hay bajada/subida de manos (no se ven): queda activo y sale al sacarla
+            if (PlayerWeaponHolster.BlocksWeapons && !_switching)
+            {
+                if (Weapon(_active) != null) Weapon(_active).CancelReload();
+                ApplyActive(Revolver);
+                if (!Blocked()) EnforceEnabled();
+            }
+            else RequestSwitch(Revolver);
+        }
         return true;
     }
 
@@ -129,7 +140,9 @@ public class WeaponSwitcher : MonoBehaviour
     private void Activate(int index)
     {
         ApplyActive(index);
-        EnforceEnabled();
+        // INTRO.2.1: si el nivel arranca bloqueado (taxi), no se vuelve a encender la escopeta que la cinemática apagó en
+        // su Start (el orden entre los dos Start no está garantizado). Update lo impone al terminar el bloqueo.
+        if (!Blocked()) EnforceEnabled();
     }
 
     private void ApplyActive(int index)

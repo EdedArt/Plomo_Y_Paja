@@ -142,6 +142,23 @@ public class PlayerController : MonoBehaviour
         _controller.Move(_velocity * Time.deltaTime);
     }
 
+    /// <summary>Inclinación actual de la cámara (grados, + = abajo), la que lleva CameraHolder.</summary>
+    public float ViewPitch => _xRotation;
+
+    /// <summary>
+    /// Pone la mirada de golpe: el cuerpo gira a "yaw" (mundo) y la cámara a "pitch" (+ = abajo). La usa la cinemática de
+    /// la llegada (INTRO.2) para devolver el control desde donde quedó la vista, sin salto.
+    /// </summary>
+    public void SetViewAngles(float yaw, float pitch)
+    {
+        transform.rotation = Quaternion.Euler(0f, yaw, 0f);
+        _xRotation = Mathf.Clamp(pitch, maxLookDown, maxLookUp);
+        if (cameraHolder != null) cameraHolder.localRotation = Quaternion.Euler(_xRotation, 0f, 0f);
+    }
+
+    /// <summary>CameraHolder (la cámara cuelga de aquí).</summary>
+    public Transform CameraHolder => cameraHolder;
+
     /// <summary>
     /// Llamar esto desde DialogueSystem para que el jugador no se mueva durante diálogos.
     /// </summary>

@@ -93,6 +93,7 @@ public class PlayerHealth : MonoBehaviour
     private void ApplyDamage(float damage, Vector3? source)
     {
         if (_isDead || _isInvincible) return;
+        if (CinematicState.IsPlaying) return;   // INTRO.2 (I7): nada daña al jugador durante una cinemática
 
         currentHealth -= damage;
         currentHealth = Mathf.Max(0, currentHealth);

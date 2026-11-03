@@ -135,8 +135,25 @@ public class ShotgunController : MonoBehaviour, IWeapon
 
     private void Update()
     {
+        // INTRO.2.1: bloqueada (pausa, diálogo, interrogatorio, cinemática): ni disparo, ni recarga, ni sonido.
+        // Una recarga en curso se corta (como el revólver); lo ya cargado se queda.
+        if (InputBlocked())
+        {
+            if (_isReloading) CancelReload();
+            return;
+        }
         HandleInput();
     }
+
+    private void OnDisable()
+    {
+        // Las corrutinas siguen aunque el componente esté apagado (interrogatorio, cinemática, muerte): sin esto la
+        // recarga seguía sonando con el arma bloqueada (INTRO.2.1)
+        CancelReload();
+    }
+
+    /// <summary>¿El arma no responde? El bloqueo del juego + arma enfundada (PlayerAim.WeaponInputBlocked, INTRO.3).</summary>
+    private static bool InputBlocked() => PlayerAim.WeaponInputBlocked();
 
     private void HandleInput()
     {
@@ -197,7 +214,7 @@ public class ShotgunController : MonoBehaviour, IWeapon
         {
             yield return new WaitForSeconds(0.3f); // Pequeña pausa antes de recargar
             // Si mientras tanto se cambió de arma (componente apagado) no recarga a escondidas: lo hace al volver
-            if (isActiveAndEnabled && !_isReloading) StartReload();
+            if (isActiveAndEnabled && !_isReloading && !InputBlocked()) StartReload();
         }
 
         // 5. Esperar antes de poder disparar de nuevo (fire rate)
@@ -327,7 +344,7 @@ public class ShotgunController : MonoBehaviour, IWeapon
     private IEnumerator PlayPumpSound()
     {
         yield return new WaitForSeconds(PumpDelay);
-        AudioLibrary.PlaySfx2D("escopeta_bombeo");
+        if (!InputBlocked()) AudioLibrary.PlaySfx2D("escopeta_bombeo");
     }
 
     private void PlaySound(AudioClip clip)

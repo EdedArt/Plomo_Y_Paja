@@ -92,9 +92,17 @@ public class PlayerAim : MonoBehaviour
         GameManager gm = GameManager.Instance;
         if (gm != null && (gm.IsGamePaused || gm.IsGameOver)) return true;
         if (InterrogationDirector.IsActive) return true;    // escena de interrogatorio (fase 3C.3)
+        if (CinematicState.IsPlaying) return true;          // taxi y llegada (INTRO.2)
         // Sin Time.timeScale: CartoonFx lo pone en 0 un instante en cada golpe (hitstop)
         return DialogueUI.Exists && DialogueUI.Instance.IsOpen;
     }
+
+    /// <summary>
+    /// ¿Las armas no responden? GameplayBlocked() + arma enfundada o sacándose (INTRO.3). Lo leen ShotgunController,
+    /// RevolverController, WeaponSwitcher y el apuntado. Los guardias NO lo usan (pueden dispararle a un Wilbur desarmado):
+    /// EnemyAI sigue con GameplayBlocked().
+    /// </summary>
+    public static bool WeaponInputBlocked() => GameplayBlocked() || PlayerWeaponHolster.BlocksWeapons;
 
     private void HandleDeath() => _dead = true;
 
@@ -105,7 +113,7 @@ public class PlayerAim : MonoBehaviour
         bool want = Input.GetMouseButton(1)
                     && !reloading && !runningStart && !_dead
                     && Time.unscaledTime >= _suppressUntil
-                    && !GameplayBlocked();
+                    && !WeaponInputBlocked(); // INTRO.3: enfundada no se apunta
         SetAiming(want);
 
         float duration = IsAiming ? aimInTime : aimOutTime;

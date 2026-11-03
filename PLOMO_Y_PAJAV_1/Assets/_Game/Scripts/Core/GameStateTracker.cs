@@ -56,6 +56,19 @@ public class GameStateTracker : MonoBehaviour
     public ContadorState Contador => contadorState;
     public ContadorInterrogation ContadorInterrogationResult => contadorInterrogation;
     public bool ContadorLied => contadorLied;
+
+    // ===== Cinemática del taxi y la llegada (INTRO.2, I6): una vez por sesión =====
+    [SerializeField] private bool introCinematicPlayed = false;
+    /// <summary>¿Ya se vio el taxi y la llegada en esta sesión? (el tracker sobrevive a recargar la escena)</summary>
+    public bool IntroCinematicPlayed => introCinematicPlayed;
+    public void MarkIntroCinematicPlayed() => introCinematicPlayed = true;
+
+    // ===== Escopeta sacada (INTRO.3, I8): una vez por sesión, igual que la bandera del taxi =====
+    // ResetState (Reintentar) no la borra: tras morir se empieza armado.
+    [SerializeField] private bool weaponDrawn = false;
+    /// <summary>¿Wilbur ya sacó la escopeta en esta sesión? (PlayerWeaponHolster)</summary>
+    public bool WeaponDrawn => weaponDrawn;
+    public void MarkWeaponDrawn() => weaponDrawn = true;
     /// <summary>¿Wilbur ya tenía el revólver al entrar a esta escena? (lo recogió en OTRA escena antes).</summary>
     public bool HasRevolverFromEarlierScene(string sceneName) =>
         !string.IsNullOrEmpty(revolverObtainedInScene) && revolverObtainedInScene != sceneName;

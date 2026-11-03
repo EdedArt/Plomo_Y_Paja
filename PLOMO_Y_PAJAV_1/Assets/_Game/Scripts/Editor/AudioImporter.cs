@@ -7,11 +7,15 @@ using UnityEngine;
 /// <summary>
 /// Ajustes de importación por carpeta (Audio/Voices, Audio/SFX, Audio/Music):
 /// - Voces y SFX: Decompress On Load, Vorbis calidad 70, mono (los sonidos 3D no necesitan estéreo)
-/// - Música y ambiente (carpeta Music o nombres "lluvia_"/"musica_"): Streaming, Vorbis calidad 60, se respeta el estéreo
+/// - Música y ambiente (carpeta Music o nombres "lluvia_"/"musica_"/"amb_"): Streaming, Vorbis calidad 60, se respeta el
+///   estéreo (se reproducen en 2D). Las voces siempre en mono, se llamen como se llamen (INTRO.1, enmienda A3).
 /// El bucle (lluvia) no es un ajuste de importación: lo decide el AudioSource (loop = true) que lo reproduzca.
 /// </summary>
 public class GameAudioImporter : AssetPostprocessor
 {
+    /// <summary>Subir al cambiar las reglas: Unity reimporta los clips afectados. 1 = amb_* en estéreo (INTRO.1).</summary>
+    public override uint GetVersion() => 1;
+
     public const string AudioRoot = "Assets/_Game/Audio";
     public const string VoicesFolder = AudioRoot + "/Voices";
     public const string SfxFolder = AudioRoot + "/SFX";
@@ -30,7 +34,7 @@ public class GameAudioImporter : AssetPostprocessor
 
         var importer = (UnityEditor.AudioImporter)assetImporter;
         string file = Path.GetFileNameWithoutExtension(path).ToLowerInvariant();
-        bool isLong = inMusic || file.StartsWith("lluvia_") || file.StartsWith("musica_");
+        bool isLong = !isVoice && (inMusic || file.StartsWith("lluvia_") || file.StartsWith("musica_") || file.StartsWith("amb_"));
 
         importer.forceToMono = !isLong;
         var s = importer.defaultSampleSettings;

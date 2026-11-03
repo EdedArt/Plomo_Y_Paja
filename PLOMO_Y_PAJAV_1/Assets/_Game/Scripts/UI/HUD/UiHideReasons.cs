@@ -17,7 +17,8 @@ using UnityEngine.SceneManagement;
 ///   (GameManager.IsGamePaused / IsGameOver, DialogueUI.IsOpen, InterrogationDirector.IsActive). Esos sistemas no tienen
 ///   eventos y son archivos de otras fases; leer tres bool estáticos por frame no genera basura. Si algún día avisan con
 ///   eventos, que llamen Set y se borra su línea de SyncLegacyStates.
-/// - Cinematic, Holstered: para INTRO.3 (nadie las activa todavía).
+/// - Cinematic: IntroCinematicDirector (taxi y llegada, INTRO.2).
+/// - Holstered: PlayerWeaponHolster (arma enfundada o sacándose, INTRO.3); se apaga al llegar a Ready.
 /// </summary>
 public static class UiHideReasons
 {
