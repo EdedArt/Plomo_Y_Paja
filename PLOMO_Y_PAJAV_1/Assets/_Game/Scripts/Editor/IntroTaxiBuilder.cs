@@ -19,6 +19,8 @@ using UnityEngine.UI;
 ///    techo con collider (RainEmitter lo toma como techo: lluvia ahogada y sin gotas adentro) y Anchor_TaxiSeat.
 ///  - En la escena: Taxi_Path, Taxi_ExitPath, Anchor_TaxiStop, Anchor_PlayerCurb, Anchor_HouseLook, un camión
 ///    estacionado (tapa la vista al guardia de la calle), la UI de la cinemática y el director.
+///  - INTRO.3: WeaponDraw_Puerta (trigger de respaldo para sacar la escopeta, frente a la puerta de Porky) y
+///    PlayerWeaponHolster en Player.prefab.
 ///  - Mueve el PlayerSpawn y el Player a la acera; el patrullero del patio arranca detrás de la casa (punto 2).
 ///  - Build Settings: Intro, NivelPorky (SampleScene fuera de la lista; la escena no se borra).
 ///
@@ -78,6 +80,13 @@ public static class IntroTaxiBuilder
     /// <summary>Camión estacionado en el carril de la casa, punta este: tapa la vista desde la acera y el patio delantero.</summary>
     public static readonly Vector3 TruckCenter = new Vector3(10.8f, 0f, -11.75f);
     public static readonly Vector3 TruckSize = new Vector3(5.6f, 2.7f, 2.4f);
+
+    /// <summary>
+    /// INTRO.3: trigger de respaldo para sacar la escopeta, en el patio delantero frente a la puerta de Porky (x -5, fachada
+    /// z -6): 2.4 × 2 × 2 m, de z -8.2 a -6.2. Quien va a la puerta desde la acera lo cruza sí o sí.
+    /// </summary>
+    public static readonly Vector3 DrawTriggerCenter = new Vector3(-5f, 1f, -7.2f);
+    public static readonly Vector3 DrawTriggerSize = new Vector3(2.4f, 2f, 2f);
 
     /// <summary>Punto de la ruta A donde arranca el patrullero del patio (Patrol_A_2 = esquina de atrás, detrás de la casa).</summary>
     public const int YardPatrolFirstPoint = 2;
@@ -167,10 +176,12 @@ public static class IntroTaxiBuilder
         Transform curb = Anchor("Anchor_PlayerCurb", CurbPosition, CurbYaw, root);
         Transform house = Anchor("Anchor_HouseLook", HouseLookPosition, 0f, root);
         BuildTruck(root);
+        BuildDrawTrigger(root);
 
         TMP_FontAsset font = InterrogationUIBuilder.EnsureFont(report);
         BuildDirector(root, taxiGo, arrive, exit, curb, house, font);
 
+        EnsurePlayerHolster(report);
         MovePlayerToCurb(report);
         SetYardPatrolStart(report);
         EnsureBuildOrder(report);
@@ -178,6 +189,7 @@ public static class IntroTaxiBuilder
 
         report.AppendLine($"✓ Taxi en la parada {TaxiStopPosition}, acera {CurbPosition}, casa {HouseLookPosition}");
         report.AppendLine($"✓ Camión estacionado en {TruckCenter} ({TruckSize.x}×{TruckSize.z} m, alto {TruckSize.y})");
+        report.AppendLine($"✓ Trigger para sacar el arma frente a la puerta: {DrawTriggerCenter} ({DrawTriggerSize.x}×{DrawTriggerSize.z} m)");
         report.AppendLine(missing.Count == 0 ? "✓ No falta ningún asset del taxi." : "⚠ Faltan (placeholder): " + string.Join(", ", missing));
     }
 
@@ -449,6 +461,56 @@ public static class IntroTaxiBuilder
         go.transform.SetParent(parent, false);
         go.transform.SetPositionAndRotation(position, Quaternion.Euler(0f, yaw, 0f));
         return go.transform;
+    }
+
+    /// <summary>INTRO.3: caja trigger frente a la puerta (WeaponDrawTrigger). Capa Ignore Raycast: no tapa vistas ni balas.</summary>
+    private static void BuildDrawTrigger(Transform parent)
+    {
+        var go = new GameObject("WeaponDraw_Puerta") { layer = 2 }; // Ignore Raycast
+        go.transform.SetParent(parent, false);
+        go.transform.position = DrawTriggerCenter;
+        BoxCollider box = go.AddComponent<BoxCollider>();
+        box.isTrigger = true;
+        box.size = DrawTriggerSize;
+        go.AddComponent<WeaponDrawTrigger>();
+    }
+
+    /// <summary>
+    /// INTRO.3: el Player.prefab (y el Player de la escena, si no fuera instancia) lleva PlayerWeaponHolster. Idempotente.
+    /// </summary>
+    private static void EnsurePlayerHolster(StringBuilder report)
+    {
+        string path = TestPrefabGenerator.PlayerPath;
+        if (AssetDatabase.LoadAssetAtPath<GameObject>(path) == null)
+        {
+            report.AppendLine("⚠ No existe " + path + ": no se pudo añadir PlayerWeaponHolster (corre Crear Prefabs de Prueba).");
+        }
+        else
+        {
+            GameObject contents = PrefabUtility.LoadPrefabContents(path);
+            try
+            {
+                if (contents.GetComponent<PlayerWeaponHolster>() == null)
+                {
+                    contents.AddComponent<PlayerWeaponHolster>();
+                    PrefabUtility.SaveAsPrefabAsset(contents, path);
+                    report.AppendLine("✓ PlayerWeaponHolster añadido a " + path);
+                }
+                else report.AppendLine("✓ " + path + " ya tenía PlayerWeaponHolster");
+            }
+            finally
+            {
+                PrefabUtility.UnloadPrefabContents(contents);
+            }
+        }
+
+        PlayerController player = Object.FindObjectOfType<PlayerController>(true);
+        if (player != null && player.GetComponent<PlayerWeaponHolster>() == null)
+        {
+            player.gameObject.AddComponent<PlayerWeaponHolster>();
+            EditorUtility.SetDirty(player.gameObject);
+            report.AppendLine("✓ PlayerWeaponHolster añadido al Player de la escena (no era instancia del prefab)");
+        }
     }
 
     /// <summary>Camión de reparto estacionado (primitivas del kit): estático, con collider (capa Default: tapa la vista).</summary>

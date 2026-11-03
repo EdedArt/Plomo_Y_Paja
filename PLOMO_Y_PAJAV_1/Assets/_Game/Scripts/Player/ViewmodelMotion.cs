@@ -45,6 +45,17 @@ public class ViewmodelMotion : MonoBehaviour
     private float _reloadDuration;
     private float _dip;                  // 0..1
 
+    // INTRO.3: sacar el arma = la bajada de recarga al revés, desde más abajo (todo el dibujo fuera de la pantalla)
+    private const float DrawDepthScale = 1.8f; // × reloadDip del perfil (500 → 900 px de 1080)
+    private bool _raiseActive;
+    private float _raiseTimer;
+    private float _raiseDuration;
+    private float _dipScale = 1f;
+
+    /// <summary>Se pidió subir las manos y todavía no se aplicó la primera pose (FirstPersonViewmodel no muestra el canvas
+    /// hasta entonces: así nunca se ven un frame en reposo antes de subir).</summary>
+    public bool RaisePending { get; private set; }
+
     private float _punchTimer = -1f;
     private float _punchScale = 1f;
     private const float PunchDuration = 0.12f;
@@ -84,6 +95,18 @@ public class ViewmodelMotion : MonoBehaviour
     }
 
     public void EndReloadDip() => _reloadDipActive = false;
+
+    /// <summary>INTRO.3: las manos suben desde abajo de la pantalla en `duration` segundos (tiempo real, ViewmodelTime).</summary>
+    public void StartRaise(float duration)
+    {
+        _reloadDipActive = false;
+        _raiseActive = true;
+        _raiseTimer = 0f;
+        _raiseDuration = Mathf.Max(0.01f, duration);
+        _dip = 1f;
+        _dipScale = DrawDepthScale;
+        RaisePending = true;
+    }
 
     /// <summary>Golpecito de escala (ej: 1.03 al cambiar al dibujo de apuntar).</summary>
     public void Punch(float scale)
@@ -154,8 +177,20 @@ public class ViewmodelMotion : MonoBehaviour
         }
         float k = _kick * _kickStrength;
 
+        // --- Sacar el arma (INTRO.3): de abajo de la pantalla a la pose, suave ---
+        if (_raiseActive)
+        {
+            _raiseTimer += dt;
+            float u = Mathf.Clamp01(_raiseTimer / _raiseDuration);
+            _dip = 1f - Mathf.SmoothStep(0f, 1f, u);
+            if (u >= 1f)
+            {
+                _raiseActive = false;
+                _dipScale = 1f;
+            }
+        }
         // --- Recarga sin cuadros: bajar al principio, esperar, subir al final ---
-        if (_reloadDipActive)
+        else if (_reloadDipActive)
         {
             _reloadTimer += dt;
             float ease = Mathf.Min(p.reloadEase, _reloadDuration * 0.5f);
@@ -184,7 +219,7 @@ public class ViewmodelMotion : MonoBehaviour
         Vector2 pos = aimOffset + bob + sway + new Vector2(0f, breathY)
                       + p.kickOffset * k
                       + new Vector2(0f, -p.runLower * _runBlend * (1f - aimT))
-                      + new Vector2(0f, -p.reloadDip * _dip);
+                      + new Vector2(0f, -p.reloadDip * _dipScale * _dip);
         float rot = p.runTilt * _runBlend * (1f - aimT) + _sway.x * p.swayTiltPerPixel * swayMul + p.kickRotation * k;
         float sx = Mathf.LerpUnclamped(1f, p.kickSquash.x, k) * aimScale * punch;
         float sy = Mathf.LerpUnclamped(1f, p.kickSquash.y, k) * aimScale * punch * breathScaleY;
@@ -198,6 +233,7 @@ public class ViewmodelMotion : MonoBehaviour
         _root.anchoredPosition = pos;
         _root.localRotation = Quaternion.Euler(0f, 0f, rot);
         _root.localScale = new Vector3(sx, sy, 1f);
+        RaisePending = false;
     }
 
     /// <summary>

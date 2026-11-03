@@ -345,6 +345,10 @@ public static class TestPrefabGenerator
             if (contents.GetComponent<RubberHoseCrosshair>() == null)
                 contents.AddComponent<RubberHoseCrosshair>();
 
+            // INTRO.3: arranque sin arma tras el taxi (sin cinemática empieza lista: no cambia nada en otras escenas)
+            if (contents.GetComponent<PlayerWeaponHolster>() == null)
+                contents.AddComponent<PlayerWeaponHolster>();
+
             // Mantiene cargada la librería de audio (sin referencia no entraría en el build)
             AudioLibraryLoader loader = contents.GetComponent<AudioLibraryLoader>();
             if (loader == null) loader = contents.AddComponent<AudioLibraryLoader>();

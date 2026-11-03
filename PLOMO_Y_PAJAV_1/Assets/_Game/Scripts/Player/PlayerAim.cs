@@ -97,6 +97,13 @@ public class PlayerAim : MonoBehaviour
         return DialogueUI.Exists && DialogueUI.Instance.IsOpen;
     }
 
+    /// <summary>
+    /// ¿Las armas no responden? GameplayBlocked() + arma enfundada o sacándose (INTRO.3). Lo leen ShotgunController,
+    /// RevolverController, WeaponSwitcher y el apuntado. Los guardias NO lo usan (pueden dispararle a un Wilbur desarmado):
+    /// EnemyAI sigue con GameplayBlocked().
+    /// </summary>
+    public static bool WeaponInputBlocked() => GameplayBlocked() || PlayerWeaponHolster.BlocksWeapons;
+
     private void HandleDeath() => _dead = true;
 
     private void Update()
@@ -106,7 +113,7 @@ public class PlayerAim : MonoBehaviour
         bool want = Input.GetMouseButton(1)
                     && !reloading && !runningStart && !_dead
                     && Time.unscaledTime >= _suppressUntil
-                    && !GameplayBlocked();
+                    && !WeaponInputBlocked(); // INTRO.3: enfundada no se apunta
         SetAiming(want);
 
         float duration = IsAiming ? aimInTime : aimOutTime;

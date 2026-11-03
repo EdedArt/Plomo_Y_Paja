@@ -152,8 +152,8 @@ public class ShotgunController : MonoBehaviour, IWeapon
         CancelReload();
     }
 
-    /// <summary>¿El arma no responde? El mismo bloqueo que el resto del juego (PlayerAim.GameplayBlocked).</summary>
-    private static bool InputBlocked() => PlayerAim.GameplayBlocked();
+    /// <summary>¿El arma no responde? El bloqueo del juego + arma enfundada (PlayerAim.WeaponInputBlocked, INTRO.3).</summary>
+    private static bool InputBlocked() => PlayerAim.WeaponInputBlocked();
 
     private void HandleInput()
     {

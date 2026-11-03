@@ -28,7 +28,8 @@ using UnityEngine;
 /// SALTAR (I5): mantener ESPACIO/Esc 1 s → negro, jugador en la acera mirando la casa, taxi fuera, control devuelto.
 /// UNA VEZ POR SESIÓN (I6): GameStateTracker.IntroCinematicPlayed (sobrevive a recargar la escena) + una bandera estática
 /// de respaldo. Al reintentar tras morir, el jugador ya está en la acera (el builder lo pone ahí) y no hay cinemática.
-/// El arma queda como está hoy (enfundarla es INTRO.3).
+/// ARMA (INTRO.3): si la cinemática corre en esta carga (PlaysThisLoad), PlayerWeaponHolster arranca enfundada y así
+/// queda también al saltar; se saca con el primer guardia a la vista, daño, alerta o el trigger de la puerta.
 /// </summary>
 public class IntroCinematicDirector : MonoBehaviour
 {
@@ -132,6 +133,9 @@ public class IntroCinematicDirector : MonoBehaviour
     private Coroutine _main;
     private Coroutine _exitDrive;
     private AudioLowPassFilter[] _carriedFilters = new AudioLowPassFilter[0];
+
+    /// <summary>¿La cinemática del taxi corre en esta carga? (válido desde Awake; lo lee PlayerWeaponHolster en Start)</summary>
+    public bool PlaysThisLoad => _playing;
 
     public static bool HasPlayed =>
         _playedThisSession || (GameStateTracker.Instance != null && GameStateTracker.Instance.IntroCinematicPlayed);

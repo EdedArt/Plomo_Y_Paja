@@ -293,6 +293,7 @@ public class RubberHoseCrosshair : MonoBehaviour
         if (_dead) return Mode.Hidden;
         if (CinematicState.IsPlaying) return CinematicState.CenterDot ? Mode.Dot : Mode.Hidden;
         if (PlayerAim.GameplayBlocked()) return Mode.Hidden;
+        if (PlayerWeaponHolster.BlocksWeapons) return Mode.Dot; // INTRO.3: enfundada o sacándose; la completa entra en Ready
         return Mode.Full;
     }
 

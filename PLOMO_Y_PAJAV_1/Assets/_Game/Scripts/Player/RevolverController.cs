@@ -143,7 +143,7 @@ public class RevolverController : MonoBehaviour, IWeapon, IStagedReloadWeapon
 
     private bool Blocked()
     {
-        return PlayerAim.GameplayBlocked() || (_health != null && _health.IsDead) || playerCamera == null;
+        return PlayerAim.WeaponInputBlocked() || (_health != null && _health.IsDead) || playerCamera == null; // INTRO.3: + enfundada
     }
 
     private void Update()
