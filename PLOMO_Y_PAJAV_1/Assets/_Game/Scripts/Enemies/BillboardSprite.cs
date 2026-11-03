@@ -100,6 +100,16 @@ public class BillboardSprite : MonoBehaviour
 
     private Camera _mainCamera;
     private SpriteRenderer _spriteRenderer;
+
+    /// <summary>El SpriteRenderer del dibujo principal (no el accesorio). Lo usa EnemyGunfire para el punto del cañón (HUD.2).</summary>
+    public SpriteRenderer MainRenderer
+    {
+        get
+        {
+            if (_spriteRenderer == null && !TryGetComponent(out _spriteRenderer)) _spriteRenderer = GetComponentInChildren<SpriteRenderer>();
+            return _spriteRenderer;
+        }
+    }
     private SpriteRenderer _accessoryRenderer;
     private float _animTimer;
     private int _currentFrame;

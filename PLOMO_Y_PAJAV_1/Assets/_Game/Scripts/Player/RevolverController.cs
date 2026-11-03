@@ -218,6 +218,7 @@ public class RevolverController : MonoBehaviour, IWeapon, IStagedReloadWeapon
             GameObject hole = Instantiate(bulletHolePrefab, hit.point + hit.normal * 0.01f, Quaternion.LookRotation(-hit.normal));
             Destroy(hole, bulletHoleDuration);
         }
+        else CombatFx.Impact(hit.point, hit.normal); // HUD.2: polvo y agujero del pool compartido
     }
 
     private float CurrentSpreadDegrees()

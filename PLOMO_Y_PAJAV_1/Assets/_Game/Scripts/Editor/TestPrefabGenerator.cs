@@ -178,6 +178,13 @@ public static class TestPrefabGenerator
         aiSo.FindProperty("billboardSprite").objectReferenceValue = billboard;
         aiSo.ApplyModifiedPropertiesWithoutUndo();
 
+        // HUD.2 (H9/H18): pistola; el tiro sale del cañón del dibujo (puntos en Data/MuzzlePoints/Muzzle_guardia)
+        EnemyGunfire gunfire = root.AddComponent<EnemyGunfire>();
+        MuzzlePointsBuilder.ConfigureGunfire(gunfire, "guardia");
+        var gunfireSo = new SerializedObject(gunfire);
+        gunfireSo.FindProperty("spriteRenderer").objectReferenceValue = spriteHolder.GetComponent<SpriteRenderer>();
+        gunfireSo.ApplyModifiedPropertiesWithoutUndo();
+
         root.AddComponent<EnemyCombatFx>();
         root.AddComponent<EnemyBarks>();
 

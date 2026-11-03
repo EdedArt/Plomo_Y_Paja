@@ -148,6 +148,7 @@ public class CentavoController : MonoBehaviour, IDamageable, IInterrogationTarge
 
     private Transform _player;
     private PlayerHealth _playerHealth;
+    private EnemyGunfire _gunfire; // HUD.2: el tiro sale del revólver del dibujo
     private PlayerController _playerController;
     private Camera _playerCamera;
 
@@ -196,6 +197,15 @@ public class CentavoController : MonoBehaviour, IDamageable, IInterrogationTarge
         if (droppedRevolver != null) droppedRevolver.SetActive(false);
         if (voiceSource != null) voiceSource.ignoreListenerPause = true; // D5: la voz se oye con el juego en pausa
         _ammo = shotsPerReload;
+
+        // HUD.2: el disparo sale del cañón del dibujo (shoot_01) con los mismos números de siempre. Sin el componente del
+        // menú, se agrega con el punto medido a ojo en shoot_01 (x 325, y 410 de 1024 desde arriba).
+        if (!TryGetComponent(out _gunfire))
+        {
+            _gunfire = gameObject.AddComponent<EnemyGunfire>();
+            _gunfire.SetFallback(new Vector2(0.317f, 0.6f), _spriteRenderer);
+        }
+        _gunfire.ConfigureSound("", shotSfx, shotPitch, shotVolume); // su "pop" de siempre: escopeta más aguda
     }
 
     private void Start()
@@ -354,36 +364,15 @@ public class CentavoController : MonoBehaviour, IDamageable, IInterrogationTarge
     private void FireShot()
     {
         _ammo--;
-        Vector3 muzzle = MuzzlePosition();
+        _shakeUntil = Time.time + shakeSeconds; // temblor del dibujo
 
-        // Sonido: revólver "pop" (escopeta más aguda si no hay uno propio)
-        if (sfxSource != null)
-        {
-            AudioClip clip = AudioLibrary.GetSfx(shotSfx);
-            if (clip != null)
-            {
-                sfxSource.pitch = shotPitch;
-                sfxSource.PlayOneShot(clip, shotVolume * AudioLibrary.SfxVolume);
-            }
-        }
-
-        // Fogonazo chico y temblor del dibujo
-        if (muzzleFlash != null)
-        {
-            muzzleFlash.transform.position = muzzle;
-            muzzleFlash.enabled = true;
-            _flashUntil = Time.time + flashSeconds;
-        }
-        _shakeUntil = Time.time + shakeSeconds;
-
-        // Hitscan al jugador: mala puntería a propósito
-        if (_playerHealth == null || _playerHealth.IsDead || _player == null) return;
-        Vector3 target = PlayerChest();
-        if ((target - muzzle).sqrMagnitude > maxShotDistance * maxShotDistance) return;
-        if (!ClearLine(muzzle, target)) return;
+        // HUD.2: fogonazo, sonido, estela y el rayo de daño salen del cañón del dibujo shoot_01 (EnemyGunfire). Mala
+        // puntería a propósito, como siempre: hitChance / hitChanceRunning, damage, maxShotDistance. El banco y las paredes
+        // se llevan el tiro (el rayo pega en lo primero que toca).
+        bool canHit = _playerHealth != null && !_playerHealth.IsDead && _player != null
+                      && (PlayerChest() - _gunfire.MuzzlePoint()).sqrMagnitude <= maxShotDistance * maxShotDistance;
         bool running = _playerController != null && _playerController.IsRunning && _playerController.IsMoving;
-        if (UnityEngine.Random.value < (running ? hitChanceRunning : hitChance))
-            _playerHealth.TakeDamage(damage, muzzle); // HUD.1: el HUD señala desde dónde vino el tiro
+        _gunfire.Fire(_player, canHit ? (running ? hitChanceRunning : hitChance) : 0f, damage, 0.5f);
     }
 
     private void UpdateShotEffects()

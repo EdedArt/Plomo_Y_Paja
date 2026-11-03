@@ -178,6 +178,13 @@ public static class ContadorCentavoBuilder
             so.FindProperty("droppedRevolver").objectReferenceValue = revolver;
             so.ApplyModifiedPropertiesWithoutUndo();
 
+            // HUD.2 (H9): el tiro sale del revólver del dibujo (Data/MuzzlePoints/Muzzle_contador); mismos números de siempre
+            EnemyGunfire gunfire = root.AddComponent<EnemyGunfire>();
+            MuzzlePointsBuilder.ConfigureGunfire(gunfire, "contador");
+            var gunfireSo = new SerializedObject(gunfire);
+            gunfireSo.FindProperty("spriteRenderer").objectReferenceValue = sprite;
+            gunfireSo.ApplyModifiedPropertiesWithoutUndo();
+
             // Canvas del interrogatorio, si ya se creó (si no, lo enlaza "Crear UI de interrogatorio")
             var canvasPrefab = AssetDatabase.LoadAssetAtPath<InterrogationDirector>(InterrogationUIBuilder.PrefabPath);
             var interrogationSo = new SerializedObject(interrogation);

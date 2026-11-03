@@ -239,11 +239,9 @@ public class ShotgunController : MonoBehaviour, IWeapon
                 if (damage > 0f && target.TakeDamage(damage)) onEnemyKilled?.Invoke();
             }
 
-            // ¿Impactó en una superficie (pared, suelo)?
-            else if (bulletHolePrefab != null)
-            {
-                SpawnBulletHole(hit);
-            }
+            // ¿Impactó en una superficie (pared, suelo)? HUD.2: polvo y agujero del pool compartido (CombatFx)
+            else if (bulletHolePrefab != null) SpawnBulletHole(hit);
+            else CombatFx.Impact(hit.point, hit.normal);
         }
     }
 

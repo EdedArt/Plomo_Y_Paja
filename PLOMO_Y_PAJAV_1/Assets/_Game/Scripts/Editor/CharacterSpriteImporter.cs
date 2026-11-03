@@ -23,7 +23,11 @@ public class CharacterSpriteImporter : AssetPostprocessor
     // 6: contador a 500 px por metro (fase 3C.2, D12).
     // 7: también Art/Pickups/ (fase 3C.5.2: el revólver en el piso).
     // 8: también Art/UI/HUD/ (fase HUD.1: caras e íconos del HUD).
-    public override uint GetVersion() => 8;
+    // 9: también Art/FX/ (fase HUD.2: polvo de impacto y agujero de bala).
+    public override uint GetVersion() => 9;
+
+    /// <summary>Efectos de disparo (fase HUD.2): Art/FX/fx_impacto_01/02, fx_agujero_bala (character_key.py --center FX --dst ...).</summary>
+    public const string FxFolder = "Assets/_Game/Art/FX";
 
     /// <summary>Caras e íconos del HUD (fase HUD.1): Art/UI/HUD/&lt;id&gt;.png, recortados con character_key.py --center.</summary>
     public const string HudFolder = "Assets/_Game/Art/UI/HUD";
@@ -40,6 +44,11 @@ public class CharacterSpriteImporter : AssetPostprocessor
         if (path.StartsWith(PickupsFolder + "/"))
         {
             ApplyPickup((TextureImporter)assetImporter);
+            return;
+        }
+        if (path.StartsWith(FxFolder + "/"))
+        {
+            ApplyPickup((TextureImporter)assetImporter); // mismo trato: Sprite con alpha, pivote al centro, mipmaps
             return;
         }
         if (path.StartsWith(HudFolder + "/"))

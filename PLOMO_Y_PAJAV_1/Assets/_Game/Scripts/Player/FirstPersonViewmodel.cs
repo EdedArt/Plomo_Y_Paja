@@ -171,6 +171,24 @@ public class FirstPersonViewmodel : MonoBehaviour
             _animator.HandleReloadStarted(_weapon != null ? _weapon.ReloadDuration : 1f, _weapon is IStagedReloadWeapon);
     }
 
+    /// <summary>
+    /// HUD.2: dónde está en pantalla (px) la boca del cañón del dibujo actual (hipMuzzle / aimMuzzle del perfil, las mismas
+    /// anclas del fogonazo). La usa ShotgunFeedback para la luz y la onomatopeya. false sin manos visibles.
+    /// </summary>
+    public bool TryGetMuzzleScreenPoint(out Vector2 screen)
+    {
+        screen = default;
+        if (_hands == null || profile == null || _canvas == null || !_canvas.enabled) return false;
+        bool aiming = _aim != null && _aim.IsAiming;
+        Vector2 anchor = aiming ? profile.aimMuzzle : profile.hipMuzzle;
+        Rect r = _hands.rectTransform.rect;
+        var local = new Vector3(r.xMin + anchor.x / 1920f * r.width, r.yMin + anchor.y / 1080f * r.height, 0f);
+        Vector3 world = _hands.rectTransform.TransformPoint(local);
+        Camera cam = _canvas.renderMode == RenderMode.ScreenSpaceOverlay ? null : _canvas.worldCamera;
+        screen = RectTransformUtility.WorldToScreenPoint(cam, world);
+        return true;
+    }
+
     // Recarga por etapas (3C.5.2)
     private void HandleReloadOpened()
     {
