@@ -466,6 +466,7 @@ GameObject:
   - component: {fileID: 7145779748193337901}
   - component: {fileID: 3936613672936606328}
   - component: {fileID: 3940299618158744191}
+  - component: {fileID: 122769869994602012}
   m_Layer: 0
   m_Name: Player
   m_TagString: Player
@@ -673,6 +674,7 @@ MonoBehaviour:
   popDuration: 0.12
   hitDuration: 0.1
   smoothing: 18
+  fullFadeInSeconds: 0.15
   noticeSeconds: 2.5
 --- !u!114 &3936613672936606328
 MonoBehaviour:
@@ -710,6 +712,28 @@ MonoBehaviour:
   shotgunCap: 30
   revolverReserve: 0
   revolverCap: 24
+--- !u!114 &122769869994602012
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 4875529059081152043}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 581b78a23de6418cbe9f54ef422a13cb, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: 
+  drawSeconds: 0.5
+  pumpAt: 0.3
+  drawVoiceId: wilbur_arma_01
+  pumpSfxId: escopeta_bombeo
+  sightRange: 30
+  checkInterval: 0.1
+  sightBlockers:
+    serializedVersion: 2
+    m_Bits: 1
+  debug: 0
 --- !u!1 &6518145712602977180
 GameObject:
   m_ObjectHideFlags: 0
