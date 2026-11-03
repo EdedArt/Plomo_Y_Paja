@@ -465,6 +465,7 @@ GameObject:
   - component: {fileID: 7392264454064115031}
   - component: {fileID: 7145779748193337901}
   - component: {fileID: 3936613672936606328}
+  - component: {fileID: 3940299618158744191}
   m_Layer: 0
   m_Name: Player
   m_TagString: Player
@@ -672,11 +673,6 @@ MonoBehaviour:
   popDuration: 0.12
   hitDuration: 0.1
   smoothing: 18
-  showAmmo: 1
-  ammoCorner: {x: 56, y: 52}
-  ammoSpacing: 11
-  ammoDotScale: 1.5
-  emptyRoundAlpha: 0.22
   noticeSeconds: 2.5
 --- !u!114 &3936613672936606328
 MonoBehaviour:
@@ -698,6 +694,22 @@ MonoBehaviour:
   revolverLoaded: 5
   revolverReserve: 15
   debug: 0
+--- !u!114 &3940299618158744191
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 4875529059081152043}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: fc917d74ef9a37145804af89b5b8858d, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: 
+  shotgunReserve: 24
+  shotgunCap: 30
+  revolverReserve: 0
+  revolverCap: 24
 --- !u!1 &6518145712602977180
 GameObject:
   m_ObjectHideFlags: 0
@@ -883,7 +895,7 @@ MonoBehaviour:
   zeroDamageDistance: 30
   currentAmmo: 6
   maxAmmoInMag: 6
-  reserveAmmo: 18
+  reserveAmmo: 24
   fireRate: 1.2
   reloadTime: 2.5
   muzzleFlash: {fileID: 0}
