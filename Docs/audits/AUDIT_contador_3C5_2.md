@@ -191,5 +191,5 @@ Modificados:
 
 ## Commits
 - `74d6974`: dia4(david): 3C.5.1 assets generados (PNG del revólver como 2D, VM_Revolver con cuadros, datos del remate, prefabs)
-- Siguiente: código y arte de la 3C.5.2.
-- Siguiente: esta auditoría.
+- `d1223f7`: dia4(david): 3C.5.2 revólver: dibujo en el piso, mira medida, manos que no tapan la mira, recarga bala por bala con balas visibles
+- `0bcc11b`: esta auditoría (y este ajuste de hashes en el commit siguiente).
