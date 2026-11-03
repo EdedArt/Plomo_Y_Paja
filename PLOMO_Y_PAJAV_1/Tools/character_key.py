@@ -8,6 +8,7 @@ USO (desde PLOMO_Y_PAJAV_1/):
     python Tools/character_key.py --lo 20 --hi 90 --dilate 4
     python Tools/character_key.py --single ENTRADA.png --out SALIDA.png [--crop 4]   # un solo archivo (UI)
     python Tools/character_key.py --center [HUD] [--size 256]   # iconos del HUD, centrados (fase HUD.1)
+    python Tools/character_key.py Objetos [--size 512]          # objetos del mapa, alineados abajo (fase HUD.3)
 
 ENTRADA : _entrante_personajes/Contador/*.png   (si no existe, usa _entrante_viewmodel/_entrante_personajes_/contador/)
 SALIDA  : Assets/_Game/Art/Characters/contador/<nombre>.png  (1024x1024 RGBA)
@@ -15,6 +16,10 @@ SALIDA  : Assets/_Game/Art/Characters/contador/<nombre>.png  (1024x1024 RGBA)
 MODO --center (fase HUD.1, iconos y caras del HUD): carpeta _entrante_hud/<NOMBRE>/ (por defecto HUD) -> --dst (por
 defecto Assets/_Game/Art/UI/HUD/). Cada PNG: mismo recorte magenta + despill + dilate, recorte a lo opaco con 4 px de margen,
 lienzo CUADRADO con el dibujo CENTRADO (no se alinea abajo) y escala a --size x --size (por defecto 256). Conserva el nombre.
+Los pickup_* que estén en esa carpeta se saltan: son objetos del mapa, no del HUD. La carpeta real es entrante_hud/ (sin guion bajo).
+
+MODO Objetos (fase HUD.3, objetos del mapa): carpeta <entrante_hud>/Objetos/ -> Assets/_Game/Art/Props/pickups/. Mismo recorte, pero
+el dibujo queda ALINEADO ABAJO y centrado en X (apoya en el piso; pivote abajo al centro en el importador). --size 512 por defecto.
 
 MODO --single (fase 3C.4, ej. el papel del diálogo Art/UI/ui_papel_dialogo.png): mismo recorte magenta + despill de borde
 + dilate, sin escalar ni alinear. --crop N recorta a lo opaco dejando N px de margen (sin --crop conserva el tamaño).
@@ -44,6 +49,7 @@ ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
 SRC = os.path.join(ROOT, "_entrante_personajes", "Contador")
 SRC_FALLBACK = os.path.join(ROOT, "_entrante_viewmodel", "_entrante_personajes_", "contador")
 DST = os.path.join(ROOT, "Assets", "_Game", "Art", "Characters", "contador")
+PROPS_DST = os.path.join(ROOT, "Assets", "_Game", "Art", "Props", "pickups")
 CANVAS = 1024
 EDGE = 3
 OPAQUE = 0.5
@@ -57,7 +63,7 @@ PAIRS = {  # frame -> referencia
 }
 
 
-def key_magenta(path, lo, hi):
+def key_magenta(path, lo, hi, despill_all=False):
     a = np.asarray(Image.open(path).convert("RGB")).astype(np.float32)
     r, g, b = a[..., 0], a[..., 1], a[..., 2]
     m = np.minimum(r, b) - g
@@ -70,6 +76,8 @@ def key_magenta(path, lo, hi):
         near = near | p[:-2, 1:-1] | p[2:, 1:-1] | p[1:-1, :-2] | p[1:-1, 2:]
     spill = (m > 0) & near
     d = np.where(spill, m * 0.5, 0.0)
+    if despill_all:  # humo translúcido (fx_impacto_02): el magenta se transparenta en todo el dibujo; R y B bajan hasta G
+        d = np.where(m > 0, m, 0.0)
     return np.dstack([r - d, g, b - d]), alpha
 
 
@@ -113,18 +121,30 @@ def key_single(args):
     return 0
 
 
-def key_center(args):
+def incoming_hud_folder(folder):
+    """La carpeta de originales del HUD: entrante_hud/ (la real) o _entrante_hud/ (la del guion)."""
+    for name in ("entrante_hud", "_entrante_hud"):
+        path = os.path.join(ROOT, name, folder)
+        if os.path.isdir(path):
+            return path
+    return os.path.join(ROOT, "entrante_hud", folder)
+
+
+def key_center(args, bottom=False):
     folder = args.center if isinstance(args.center, str) else "HUD"
-    src = args.src or os.path.join(ROOT, "_entrante_hud", folder)
-    dst = args.dst if args.dst != DST else os.path.join(ROOT, "Assets", "_Game", "Art", "UI", "HUD")
+    src = args.src or incoming_hud_folder(folder)
+    default_dst = PROPS_DST if bottom else os.path.join(ROOT, "Assets", "_Game", "Art", "UI", "HUD")
+    dst = args.dst if args.dst != DST else default_dst
     if not os.path.isdir(src):
         sys.exit("No existe la carpeta de entrada: %s" % src)
     os.makedirs(dst, exist_ok=True)
     files = sorted(f for f in os.listdir(src) if f.lower().endswith(".png"))
+    if not bottom:
+        files = [f for f in files if not f.lower().startswith("pickup_")]  # copias de los objetos del mapa
     if not files:
         sys.exit("No hay PNG en %s" % src)
     for f in files:
-        rgb, alpha = key_magenta(os.path.join(src, f), args.lo, args.hi)
+        rgb, alpha = key_magenta(os.path.join(src, f), args.lo, args.hi, args.despill_all)
         rgb = dilate(rgb, alpha, args.dilate)
         y0, y1, x0, x1 = bbox(alpha)
         h, w = alpha.shape
@@ -135,7 +155,7 @@ def key_center(args):
         side = max(ch, cw)
         sq_rgb = np.zeros((side, side, 3), np.float32)
         sq_a = np.zeros((side, side), np.float32)
-        oy, ox = (side - ch) // 2, (side - cw) // 2
+        oy, ox = (side - ch if bottom else (side - ch) // 2), (side - cw) // 2
         sq_rgb[oy:oy + ch, ox:ox + cw] = rgb
         sq_a[oy:oy + ch, ox:ox + cw] = alpha
         sq_rgb = dilate(sq_rgb, sq_a, args.dilate)
@@ -143,7 +163,7 @@ def key_center(args):
         out_rgb = dilate(out_rgb, out_a, args.dilate)
         out = os.path.join(dst, os.path.splitext(f)[0].lower() + ".png")
         to_image(out_rgb, out_a).save(out, optimize=True)
-        print("OK %s -> %s  %dx%d (centrado)" % (f, out, args.size, args.size))
+        print("OK %s -> %s  %dx%d (%s)" % (f, out, args.size, args.size, "abajo" if bottom else "centrado"))
 
 
 def main():
@@ -158,8 +178,16 @@ def main():
     ap.add_argument("--crop", type=int, default=-1, help="--single: recortar a lo opaco con este margen en px")
     ap.add_argument("--center", nargs="?", const="HUD", default=None,
                     help="iconos centrados: carpeta _entrante_hud/<NOMBRE> (por defecto HUD) -> Art/UI/HUD")
-    ap.add_argument("--size", type=int, default=256, help="--center: lado del lienzo cuadrado de salida")
+    ap.add_argument("--size", type=int, default=None, help="lado del lienzo cuadrado de salida (--center 256, Objetos 512)")
+    ap.add_argument("--despill-all", action="store_true", help="--center/Objetos: quita el magenta de todo el dibujo (humo translúcido)")
+    ap.add_argument("objects", nargs="?", default=None, help="carpeta de objetos del mapa, alineados abajo (Objetos)")
     args = ap.parse_args()
+    if args.objects:
+        args.center = args.objects
+        args.size = args.size or 512
+        key_center(args, bottom=True)
+        return
+    args.size = args.size or 256
     if args.center:
         key_center(args)
         return
