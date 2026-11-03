@@ -11,32 +11,52 @@ using UnityEngine.SceneManagement;
 using UnityEngine.UI;
 
 /// <summary>
-/// MENÚ: Plomo y Paja → Intro → Construir escena del libro (fase INTRO.1)
+/// MENÚ: Plomo y Paja → Intro → Construir escena del libro (INTRO.1.1, enmienda A7: libro 2D a pantalla completa)
 /// Crea o actualiza, idempotente (correrlo dos veces deja lo mismo):
-///  - Data/Intro/IntroBook.asset: páginas con los textos EXACTOS del guion §2, ids de audio y texturas de Art/Intro.
-///  - Materials/Intro/*.mat (URP Lit) y Settings/IntroVignetteProfile.asset (viñeta más fuerte encima del perfil del juego).
-///  - Prefabs/Intro/StoryBook.prefab: libro 3D (ver IntroBookBuilder.Book.cs) + SpreadCompositor (doble página en RT, A1).
-///  - Assets/Scenes/Intro.unity, regenerada desde cero (EditorSceneManager, nunca YAML a mano): mesa, lámpara de aceite
-///    con parpadeo (LightFlicker de 3A), luz fría de relleno, el libro, la cámara, el Volume, el fundido, el aviso de
-///    saltar y el director (StoryBookDirector + HoldToSkip + AudioLibraryLoader + 4 fuentes 2D).
-///  - Build Settings: Intro en el índice 0 y NivelPorky en el 1 (el resto, detrás, en su orden).
-/// Lo que falte (texturas, audio) se reemplaza por un placeholder visible y se lista en el informe.
+///  - Data/Intro/IntroBook.asset: libro_cerrado, hoja_papel y las páginas con los textos EXACTOS del guion §2.
+///  - Fonts/IMFellEnglish SDF.asset: TMP estático desde Fonts/IMFellEnglish-Regular.ttf (mismo método que la fuente del
+///    interrogatorio). Sin ese TTF se usa Special Elite y se avisa.
+///  - Materials/Intro/IntroPageCurl.mat y IntroOldFilm.mat (shaders PlomoYPaja/Intro/PageCurl y /OldFilm).
+///  - Assets/Scenes/Intro.unity, regenerada desde cero (EditorSceneManager, nunca YAML a mano):
+///    cámara principal (no dibuja nada, solo limpia a negro y escucha), "Compositor" con 2 rigs que componen cada página
+///    en un RT 1920×1080, Canvas UI_Libro (la página + el rizo), UI_Fundido, UI_Pelicula (filtro de película vieja),
+///    UI_Saltar (aviso) y el director (StoryBookDirector + HoldToSkip + AudioLibraryLoader + 4 fuentes 2D).
+///  - Build Settings: Intro (0), NivelPorky (1), el resto detrás; SampleScene se quita de la lista (la escena no se borra).
+/// Lo que falte (texturas, audio, fuente) se reemplaza por un placeholder visible y se lista en el informe.
 /// </summary>
-public static partial class IntroBookBuilder
+public static class IntroBookBuilder
 {
     public const string ScenePath = "Assets/Scenes/Intro.unity";
-    public const string PrefabFolder = "Assets/_Game/Prefabs/Intro";
-    public const string PrefabPath = PrefabFolder + "/StoryBook.prefab";
     public const string DataFolder = "Assets/_Game/Data/Intro";
     public const string DataPath = DataFolder + "/IntroBook.asset";
     public const string MaterialFolder = "Assets/_Game/Materials/Intro";
-    public const string VignetteProfilePath = "Assets/_Game/Settings/IntroVignetteProfile.asset";
+    public const string CurlMaterialPath = MaterialFolder + "/IntroPageCurl.mat";
+    public const string FilmMaterialPath = MaterialFolder + "/IntroOldFilm.mat";
+    private const string CurlShader = "PlomoYPaja/Intro/PageCurl";
+    private const string FilmShader = "PlomoYPaja/Intro/OldFilm";
+    private const string SampleScenePath = "Assets/Scenes/SampleScene.unity";
+    private const string BookFontTtf = "Assets/_Game/Fonts/IMFellEnglish-Regular.ttf";
+    private const string BookFontAsset = "Assets/_Game/Fonts/IMFellEnglish SDF.asset";
     private const string ArtFolder = CharacterSpriteImporter.IntroFolder;
-    private const string LitShader = "Universal Render Pipeline/Lit";
     private const int UiLayer = 5;
+
+    // Maqueta de la página (A7 §3), en fracciones de la página 1920×1080 (origen abajo a la izquierda)
+    private static readonly Vector2Int PageSize = new Vector2Int(1920, 1080);
+    private const float IllustrationTop = 0.965f;        // margen de 3.5 % arriba
+    private const float IllustrationHeight = 0.63f;      // ~68 % superior de la página contando márgenes
+    private const float IllustrationMaxWidth = 0.86f;    // tope de ancho; el 16:9 sin recorte queda en 63 % (lo limita el alto)
+    private const float InkFramePixels = 6f;
+    private const float TextBottom = 0.035f;
+    private const float TextTop = 0.315f;
+    private const float TextMargin = 0.07f;              // texto a lo ancho del 86 % central
+    private const float FellFontSize = 64f;              // narrador_intro_03 (el más largo) = 2 líneas de ≤ 1606 px en 1651
+    private const float FallbackFontSize = 58f;          // Special Elite: 3 líneas
 
     private static readonly Color Ink = new Color32(0x2A, 0x1F, 0x1A, 0xFF);
     private static readonly Color Cream = new Color32(0xF2, 0xE6, 0xC8, 0xFF);
+    private static readonly Color PaperFallback = new Color32(0xEE, 0xDF, 0xBF, 0xFF);
+    private static readonly Color CoverRed = new Color32(0x4E, 0x12, 0x10, 0xFF);
+    private static readonly Color Gold = new Color32(0xD9, 0xA8, 0x45, 0xFF);
 
     // Guion §2 (v1.1). Copiados EXACTOS: no cambiar sin cambiar el guion.
     private static readonly string[] PageTexts =
@@ -57,21 +77,15 @@ public static partial class IntroBookBuilder
 
         var report = new StringBuilder();
         var missing = new List<string>();
-        CartoonKit.BeginSession();
 
-        TMP_FontAsset font = InterrogationUIBuilder.EnsureFont(report);
+        TMP_FontAsset font = EnsureBookFont(report, missing, out float bodySize);
         IntroBookData data = BuildData(missing);
         CheckAudio(data, missing);
+        Material curl = ShaderMaterial(CurlMaterialPath, CurlShader, report, missing);
+        Material film = ShaderMaterial(FilmMaterialPath, FilmShader, report, missing);
 
-        // Escena nueva primero: el prefab se arma dentro de ella (nada temporal cae en la escena que estaba abierta)
         Scene scene = EditorSceneManager.NewScene(NewSceneSetup.EmptyScene, NewSceneMode.Single);
-        GameObject prefab = BuildBookPrefab(data, font, report);
-        if (prefab == null)
-        {
-            EditorUtility.DisplayDialog("Construir escena del libro", "No se pudo guardar el prefab del libro.\n\n" + report, "Entendido");
-            return;
-        }
-        BuildScene(scene, data, prefab, font, report);
+        BuildScene(scene, data, font, bodySize, curl, film, report);
         UpdateBuildSettings(report);
         AssetDatabase.SaveAssets();
 
@@ -83,8 +97,30 @@ public static partial class IntroBookBuilder
     }
 
     // ==================================================================
-    // Datos
+    // Fuente, datos, materiales
     // ==================================================================
+
+    /// <summary>IM Fell English estática; si falta el TTF o no se puede generar, Special Elite (y se avisa).</summary>
+    private static TMP_FontAsset EnsureBookFont(StringBuilder report, List<string> missing, out float bodySize)
+    {
+        if (File.Exists(BookFontTtf))
+        {
+            TMP_FontAsset fell = InterrogationUIBuilder.EnsureFont(report, new[] { BookFontTtf }, BookFontAsset, "IM Fell English");
+            if (fell != null && fell != TMP_Settings.defaultFontAsset && AssetDatabase.GetAssetPath(fell) == BookFontAsset)
+            {
+                bodySize = FellFontSize;
+                return fell;
+            }
+            report.AppendLine("⚠ IM Fell English no se pudo generar: el libro usa Special Elite.");
+        }
+        else
+        {
+            report.AppendLine("⚠ No está " + BookFontTtf + ": el libro usa Special Elite.");
+        }
+        missing.Add("IMFellEnglish-Regular.ttf (respaldo: Special Elite)");
+        bodySize = FallbackFontSize;
+        return InterrogationUIBuilder.EnsureFont(report);
+    }
 
     private static IntroBookData BuildData(List<string> missing)
     {
@@ -97,11 +133,8 @@ public static partial class IntroBookBuilder
         }
 
         data.coverTitle = "PLOMO Y PAJA";
-        data.titlePageTitle = "Plomo y Paja";
-        data.titlePageSubtitle = "Una historia de los tres cerditos";
-        data.coverTexture = FindTexture("libro_portada", missing);
-        data.endpaperTexture = FindTexture("libro_guardas", missing);
-        data.paperTexture = FindTexture("libro_papel", missing);
+        data.closedBookTexture = FindTexture("libro_cerrado", missing);
+        data.paperTexture = FindTexture("hoja_papel", missing);
 
         var pages = new IntroBookData.Page[PageTexts.Length];
         for (int i = 0; i < pages.Length; i++)
@@ -155,179 +188,241 @@ public static partial class IntroBookBuilder
             if (!library.ContainsSfx(id)) missing.Add(id);
     }
 
+    /// <summary>Material con un shader propio (crea o actualiza). Null si el shader no está o no compila.</summary>
+    private static Material ShaderMaterial(string path, string shaderName, StringBuilder report, List<string> missing)
+    {
+        Shader shader = Shader.Find(shaderName);
+        if (shader == null || !shader.isSupported)
+        {
+            report.AppendLine("✗ Shader " + shaderName + " no encontrado o no soportado (¿errores en la consola?).");
+            missing.Add(shaderName + " (respaldo sin efecto)");
+            return null;
+        }
+        LevelBuilderUtils.EnsureFolder(MaterialFolder);
+        var mat = AssetDatabase.LoadAssetAtPath<Material>(path);
+        if (mat == null)
+        {
+            mat = new Material(shader) { name = Path.GetFileNameWithoutExtension(path) };
+            AssetDatabase.CreateAsset(mat, path);
+        }
+        else if (mat.shader != shader)
+        {
+            mat.shader = shader;
+        }
+        EditorUtility.SetDirty(mat);
+        return mat;
+    }
+
     // ==================================================================
     // Escena
     // ==================================================================
 
-    private static void BuildScene(Scene scene, IntroBookData data, GameObject bookPrefab, TMP_FontAsset font, StringBuilder report)
+    private static void BuildScene(Scene scene, IntroBookData data, TMP_FontAsset font, float bodySize, Material curl,
+        Material film, StringBuilder report)
     {
-        // Luz ambiente: noche, casi negro azulado (la lámpara hace el trabajo)
         RenderSettings.skybox = null;
         RenderSettings.ambientMode = AmbientMode.Flat;
-        RenderSettings.ambientLight = new Color(0.05f, 0.055f, 0.08f);
+        RenderSettings.ambientLight = Color.black;
         RenderSettings.fog = false;
 
-        var room = new GameObject("Cuarto").transform;
-        BuildTable(room);
-        BuildLamp(room, new Vector3(0.43f, 0f, 0.24f));
-        BuildFillLight(room);
-
-        var book = (GameObject)PrefabUtility.InstantiatePrefab(bookPrefab, scene);
-        book.transform.SetPositionAndRotation(Vector3.zero, Quaternion.identity);
-        var storyBook = book.GetComponent<StoryBook>();
-        var compositor = book.GetComponent<SpreadCompositor>();
-
-        Camera cam = BuildCamera(storyBook);
-        BuildVolumes();
-        BuildOverlay(font, out ScreenFade fade, out CanvasGroup hint, out Image radial);
-        BuildDirector(data, storyBook, compositor, cam, fade, hint, radial);
+        BuildMainCamera();
+        PageCompositor compositor = BuildCompositor(font, bodySize);
+        PageCurlView view = BuildDisplay(curl, out RectTransform page);
+        ScreenFade fade = BuildFade();
+        BuildFilm(film, page);
+        BuildSkipHint(font, out CanvasGroup hint, out Image radial);
+        BuildDirector(data, compositor, view, fade, hint, radial);
 
         EditorSceneManager.MarkSceneDirty(scene);
         EditorSceneManager.SaveScene(scene, ScenePath);
-        report.AppendLine("✓ Escena " + ScenePath + " y prefab " + PrefabPath);
+        report.AppendLine("✓ Escena " + ScenePath + " (libro 2D, páginas de " + PageSize.x + "×" + PageSize.y + ")");
     }
 
-    private static void BuildTable(Transform parent)
-    {
-        Material wood = CartoonKit.M("MaderaOscura");
-        Material top = CartoonKit.M("Madera");
-        Box("Mesa", parent, new Vector3(0.1f, -0.035f, 0.1f), new Vector3(1.6f, 0.07f, 1.0f), top, 0.012f);
-        float legH = 0.72f;
-        foreach (Vector2 c in new[] { new Vector2(-0.6f, -0.33f), new Vector2(0.8f, -0.33f), new Vector2(-0.6f, 0.53f), new Vector2(0.8f, 0.53f) })
-            Box("Pata", parent, new Vector3(c.x, -0.07f - legH * 0.5f, c.y), new Vector3(0.07f, legH, 0.07f), wood, 0.01f);
-        Box("Piso", parent, new Vector3(0f, -0.07f - legH - 0.025f, 0f), new Vector3(6f, 0.05f, 6f), wood, 0.01f);
-    }
-
-    /// <summary>Lámpara de aceite (latón + tubo de vidrio cálido) con luz puntual cálida, sombras suaves y parpadeo.</summary>
-    private static void BuildLamp(Transform parent, Vector3 basePos)
-    {
-        Mesh mesh = CartoonKit.GetMesh("IntroLamparaAceite", b =>
-        {
-            b.Submesh = 0; // latón: pie, depósito y collar
-            CartoonKit.AddLathe(b, Vector3.zero, Quaternion.identity,
-                new[] { 0f, 0.012f, 0.03f, 0.05f, 0.075f, 0.09f, 0.1f, 0.115f },
-                new[] { 0.06f, 0.06f, 0.042f, 0.05f, 0.056f, 0.04f, 0.03f, 0.03f }, 16);
-            b.Submesh = 1; // tubo de vidrio encendido
-            CartoonKit.AddLathe(b, Vector3.zero, Quaternion.identity,
-                new[] { 0.115f, 0.14f, 0.17f, 0.2f, 0.25f },
-                new[] { 0.027f, 0.04f, 0.043f, 0.03f, 0.022f }, 16, false, false);
-        });
-        GameObject lamp = CartoonKit.MeshObject("LamparaAceite", mesh, new[] { CartoonKit.M("Laton"), CartoonKit.M("VidrioCalido") },
-            parent, basePos, Quaternion.identity);
-        lamp.transform.localPosition = basePos;
-
-        Light light = LevelBuilderUtils.CreatePointLight("LamparaAceite_Luz", basePos + new Vector3(0f, 0.165f, 0f),
-            new Color(1f, 0.72f, 0.42f), 2.2f, 2.6f, parent);
-        light.transform.localPosition = basePos + new Vector3(0f, 0.165f, 0f);
-        light.shadows = LightShadows.Soft;
-        light.shadowStrength = 0.85f;
-        light.shadowNearPlane = 0.05f;
-
-        // Reutiliza el parpadeo de 3A (LightFlicker), afinado para llama de aceite: temblor suave, sin apagones
-        var flicker = light.gameObject.AddComponent<LightFlicker>();
-        var so = new SerializedObject(flicker);
-        so.FindProperty("noiseAmount").floatValue = 0.1f;
-        so.FindProperty("noiseSpeed").floatValue = 2.5f;
-        so.FindProperty("dipChancePerSecond").floatValue = 0.25f;
-        so.FindProperty("dipMinMultiplier").floatValue = 0.78f;
-        so.FindProperty("dipDuration").vector2Value = new Vector2(0.08f, 0.3f);
-        so.FindProperty("offChancePerSecond").floatValue = 0f;
-        so.ApplyModifiedPropertiesWithoutUndo();
-    }
-
-    private static void BuildFillLight(Transform parent)
-    {
-        var go = new GameObject("Relleno_Frio");
-        go.transform.SetParent(parent, false);
-        go.transform.rotation = Quaternion.Euler(52f, -35f, 0f);
-        Light light = go.AddComponent<Light>();
-        light.type = LightType.Directional;
-        light.color = new Color(0.55f, 0.65f, 0.95f);
-        light.intensity = 0.14f;
-        light.shadows = LightShadows.None;
-    }
-
-    private static Camera BuildCamera(StoryBook book)
+    /// <summary>La cámara principal no dibuja nada: limpia a negro (bandas si la pantalla no es 16:9) y escucha el audio.</summary>
+    private static void BuildMainCamera()
     {
         var go = new GameObject("Main Camera") { tag = "MainCamera" };
         Camera cam = go.AddComponent<Camera>();
-        cam.fieldOfView = BookFov; // el director nunca lo cambia
-        cam.nearClipPlane = 0.02f;
-        cam.farClipPlane = 30f;
         cam.clearFlags = CameraClearFlags.SolidColor;
         cam.backgroundColor = Color.black;
-        cam.cullingMask = ~(1 << UiLayer); // los rigs de doble página (capa UI) no se ven desde aquí
+        cam.cullingMask = 0;
+        cam.orthographic = true;
         cam.depth = 0f;
         go.AddComponent<AudioListener>();
         UniversalAdditionalCameraData urp = cam.GetUniversalAdditionalCameraData();
-        urp.renderPostProcessing = true;
-        urp.antialiasing = AntialiasingMode.SubpixelMorphologicalAntiAliasing;
-        if (book != null && book.CamWide != null)
-            go.transform.SetPositionAndRotation(book.CamWide.position, book.CamWide.rotation);
-        return cam;
+        urp.renderPostProcessing = false;
+        urp.antialiasing = AntialiasingMode.None;
     }
 
-    /// <summary>Volume del juego (Technicolor) + una viñeta más fuerte en un perfil propio con más prioridad.</summary>
-    private static void BuildVolumes()
+    // ------------------------------------------------------------------
+    // Compositor: 2 rigs (cámara ortográfica + Canvas Screen Space - Camera) que pintan cada página en un RT
+    // ------------------------------------------------------------------
+
+    private static PageCompositor BuildCompositor(TMP_FontAsset font, float bodySize)
     {
-        var root = new GameObject("PostProceso").transform;
+        var root = new GameObject("Compositor");
+        root.transform.position = new Vector3(0f, -500f, 0f); // lejos de todo
+        var rigs = new PageCompositor.Rig[2];
+        for (int i = 0; i < rigs.Length; i++) rigs[i] = BuildRig(i, root.transform, font, bodySize);
 
-        var global = new GameObject("Volume_Technicolor");
-        global.transform.SetParent(root, false);
-        Volume volume = global.AddComponent<Volume>();
-        volume.isGlobal = true;
-        volume.priority = 1f;
-        volume.sharedProfile = NoirVolumeBuilder.GetOrCreateTechnicolorProfile();
-
-        var vignetteGo = new GameObject("Volume_IntroVineta");
-        vignetteGo.transform.SetParent(root, false);
-        Volume vignetteVolume = vignetteGo.AddComponent<Volume>();
-        vignetteVolume.isGlobal = true;
-        vignetteVolume.priority = 2f;
-        vignetteVolume.sharedProfile = GetOrCreateVignetteProfile();
+        PageCompositor compositor = root.AddComponent<PageCompositor>();
+        compositor.EditorSetup(rigs, PageSize, IllustrationRect());
+        EditorUtility.SetDirty(compositor);
+        return compositor;
     }
 
-    private static VolumeProfile GetOrCreateVignetteProfile()
+    /// <summary>Ilustración 16:9 sin recorte: el alto manda; el ancho nunca pasa del 86 %.</summary>
+    private static Rect IllustrationRect()
     {
-        var profile = AssetDatabase.LoadAssetAtPath<VolumeProfile>(VignetteProfilePath);
-        if (profile == null)
+        float pageAspect = (float)PageSize.x / PageSize.y;
+        float height = IllustrationHeight;
+        float width = height * (16f / 9f) / pageAspect;
+        if (width > IllustrationMaxWidth)
         {
-            LevelBuilderUtils.EnsureFolder(Path.GetDirectoryName(VignetteProfilePath).Replace('\\', '/'));
-            profile = ScriptableObject.CreateInstance<VolumeProfile>();
-            AssetDatabase.CreateAsset(profile, VignetteProfilePath);
+            width = IllustrationMaxWidth;
+            height = width * pageAspect / (16f / 9f);
         }
-        if (!profile.TryGet(out Vignette vignette))
-        {
-            vignette = profile.Add<Vignette>();
-            AssetDatabase.AddObjectToAsset(vignette, profile);
-        }
-        vignette.intensity.Override(0.5f);
-        vignette.smoothness.Override(0.5f);
-        vignette.color.Override(Color.black);
-        EditorUtility.SetDirty(profile);
-        return profile;
+        return new Rect(0.5f - width * 0.5f, IllustrationTop - height, width, height);
     }
 
-    /// <summary>Canvas Overlay propio: fundido a negro y aviso "Mantén ESPACIO para saltar" con anillo radial.</summary>
-    private static void BuildOverlay(TMP_FontAsset font, out ScreenFade fade, out CanvasGroup hint, out Image radial)
+    private static PageCompositor.Rig BuildRig(int index, Transform parent, TMP_FontAsset font, float bodySize)
     {
-        var canvasGo = new GameObject("UI_Intro");
+        var rigGo = new GameObject("Rig_" + index);
+        rigGo.transform.SetParent(parent, false);
+        rigGo.transform.localPosition = new Vector3(index * 100f, 0f, 0f); // separados: ninguna cámara ve el otro Canvas
+        rigGo.layer = UiLayer;
+
+        var camGo = new GameObject("Camara");
+        camGo.transform.SetParent(rigGo.transform, false);
+        camGo.layer = UiLayer;
+        Camera cam = camGo.AddComponent<Camera>();
+        cam.orthographic = true;
+        cam.orthographicSize = 5f;
+        cam.nearClipPlane = 0.1f;
+        cam.farClipPlane = 10f;
+        cam.clearFlags = CameraClearFlags.SolidColor;
+        cam.backgroundColor = PaperFallback;
+        cam.cullingMask = 1 << UiLayer;
+        cam.depth = -10f;
+        UniversalAdditionalCameraData urp = cam.GetUniversalAdditionalCameraData();
+        urp.renderPostProcessing = false;
+        urp.antialiasing = AntialiasingMode.None;
+        urp.renderShadows = false;
+
+        var canvasGo = new GameObject("Lienzo", typeof(RectTransform));
+        canvasGo.transform.SetParent(rigGo.transform, false);
+        canvasGo.layer = UiLayer;
         Canvas canvas = canvasGo.AddComponent<Canvas>();
+        canvas.renderMode = RenderMode.ScreenSpaceCamera;
+        canvas.worldCamera = cam;
+        canvas.planeDistance = 1f;
+        Transform c = canvasGo.transform;
+
+        var rig = new PageCompositor.Rig { camera = cam, canvas = canvas };
+
+        // --- Apertura: libro_cerrado a pantalla completa (o rojo oscuro con el título) ---
+        RectTransform coverGroup = UiChild("Apertura", c, Vector2.zero, Vector2.one, Vector2.zero, Vector2.zero);
+        rig.coverGroup = coverGroup.gameObject;
+        rig.cover = Raw("LibroCerrado", coverGroup, Vector2.zero, Vector2.one);
+        RectTransform placeholder = UiChild("LibroCerrado_Reemplazo", coverGroup, Vector2.zero, Vector2.one, Vector2.zero, Vector2.zero);
+        Image red = placeholder.gameObject.AddComponent<Image>();
+        red.color = CoverRed;
+        red.raycastTarget = false;
+        rig.coverPlaceholder = placeholder.gameObject;
+        rig.coverTitle = Label("Titulo", placeholder, new Vector2(0.1f, 0.3f), new Vector2(0.9f, 0.7f), font, 150f, Gold);
+        rig.coverTitle.text = "PLOMO Y PAJA";
+        placeholder.gameObject.SetActive(false);
+
+        // --- Página: papel + marco de tinta + ilustración + texto ---
+        RectTransform pageGroup = UiChild("Pagina", c, Vector2.zero, Vector2.one, Vector2.zero, Vector2.zero);
+        rig.pageGroup = pageGroup.gameObject;
+        rig.paper = Raw("Papel", pageGroup, Vector2.zero, Vector2.one);
+        rig.paper.color = PaperFallback;
+
+        Rect ill = IllustrationRect();
+        RectTransform frame = UiChild("MarcoTinta", pageGroup, ill.min, ill.max,
+            new Vector2(-InkFramePixels, -InkFramePixels), new Vector2(InkFramePixels, InkFramePixels));
+        Image frameImage = frame.gameObject.AddComponent<Image>();
+        frameImage.color = Ink;
+        frameImage.raycastTarget = false;
+        rig.illustration = Raw("Ilustracion", pageGroup, ill.min, ill.max);
+        rig.placeholder = Label("Ilustracion_Reemplazo", rig.illustration.transform, Vector2.zero, Vector2.one, font, 72f, Cream);
+        rig.placeholder.gameObject.SetActive(false);
+
+        rig.body = Label("Texto", pageGroup, new Vector2(TextMargin, TextBottom), new Vector2(1f - TextMargin, TextTop),
+            font, bodySize, Ink);
+        rig.body.enableWordWrapping = true;
+        rig.body.overflowMode = TextOverflowModes.Overflow;
+        rig.body.lineSpacing = 0f;
+        pageGroup.gameObject.SetActive(false);
+
+        SetLayerRecursive(rigGo, UiLayer);
+        return rig;
+    }
+
+    // ------------------------------------------------------------------
+    // Pantalla: la página (con el rizo) a 16:9, fundido, película, aviso de saltar
+    // ------------------------------------------------------------------
+
+    private static Canvas OverlayCanvas(string name, int order)
+    {
+        var go = new GameObject(name);
+        Canvas canvas = go.AddComponent<Canvas>();
         canvas.renderMode = RenderMode.ScreenSpaceOverlay;
-        canvas.sortingOrder = 50;
-        var scaler = canvasGo.AddComponent<CanvasScaler>();
+        canvas.sortingOrder = order;
+        var scaler = go.AddComponent<CanvasScaler>();
         scaler.uiScaleMode = CanvasScaler.ScaleMode.ScaleWithScreenSize;
         scaler.referenceResolution = new Vector2(1920f, 1080f);
         scaler.matchWidthOrHeight = 0.5f;
+        return canvas;
+    }
 
-        RectTransform black = UiChild("Fundido", canvasGo.transform, Vector2.zero, Vector2.one, Vector2.zero, Vector2.zero);
+    private static PageCurlView BuildDisplay(Material curl, out RectTransform page)
+    {
+        Canvas canvas = OverlayCanvas("UI_Libro", 0);
+        RectTransform frame = UiChild("Marco16x9", canvas.transform, Vector2.zero, Vector2.one, Vector2.zero, Vector2.zero);
+        var fitter = frame.gameObject.AddComponent<AspectRatioFitter>();
+        fitter.aspectMode = AspectRatioFitter.AspectMode.FitInParent;
+        fitter.aspectRatio = (float)PageSize.x / PageSize.y;
+
+        RawImage image = Raw("Pagina", frame, Vector2.zero, Vector2.one);
+        image.color = Color.white;
+        if (curl != null) image.material = curl;
+        page = image.rectTransform;
+        PageCurlView view = image.gameObject.AddComponent<PageCurlView>();
+        SetRef(view, "image", image);
+        return view;
+    }
+
+    private static ScreenFade BuildFade()
+    {
+        Canvas canvas = OverlayCanvas("UI_Fundido", 50);
+        RectTransform black = UiChild("Fundido", canvas.transform, Vector2.zero, Vector2.one, Vector2.zero, Vector2.zero);
         Image blackImage = black.gameObject.AddComponent<Image>();
         blackImage.color = Color.black;
         blackImage.raycastTarget = false;
         black.gameObject.AddComponent<CanvasGroup>().alpha = 1f;
-        fade = black.gameObject.AddComponent<ScreenFade>();
+        return black.gameObject.AddComponent<ScreenFade>();
+    }
 
-        RectTransform skip = UiChild("Saltar", canvasGo.transform, new Vector2(1f, 0f), new Vector2(1f, 0f),
+    private static void BuildFilm(Material film, RectTransform weaveTarget)
+    {
+        Canvas canvas = OverlayCanvas("UI_Pelicula", 60);
+        RectTransform rect = UiChild("Pelicula", canvas.transform, Vector2.zero, Vector2.one, Vector2.zero, Vector2.zero);
+        Image image = rect.gameObject.AddComponent<Image>();
+        image.color = Color.white;
+        image.raycastTarget = false;
+        if (film != null) image.material = film;
+        OldFilmFilter filter = rect.gameObject.AddComponent<OldFilmFilter>();
+        SetRef(filter, "graphic", image);
+        SetRef(filter, "weaveTarget", weaveTarget);
+    }
+
+    /// <summary>Aviso "Mantén ESPACIO para saltar" con anillo radial (igual que INTRO.1), encima de la película.</summary>
+    private static void BuildSkipHint(TMP_FontAsset font, out CanvasGroup hint, out Image radial)
+    {
+        Canvas canvas = OverlayCanvas("UI_Saltar", 70);
+        RectTransform skip = UiChild("Saltar", canvas.transform, new Vector2(1f, 0f), new Vector2(1f, 0f),
             new Vector2(-520f, 40f), new Vector2(-40f, 120f));
         hint = skip.gameObject.AddComponent<CanvasGroup>();
         hint.alpha = 0f;
@@ -351,19 +446,15 @@ public static partial class IntroBookBuilder
         radial.fillAmount = 0f;
         radial.raycastTarget = false;
 
-        RectTransform label = UiChild("Texto", skip, Vector2.zero, Vector2.one, Vector2.zero, new Vector2(-88f, 0f));
-        TextMeshProUGUI text = label.gameObject.AddComponent<TextMeshProUGUI>();
-        if (font != null) text.font = font;
+        TMP_Text text = Label("Texto", skip, Vector2.zero, Vector2.one, font, 30f, Cream);
+        ((RectTransform)text.transform).offsetMax = new Vector2(-88f, 0f);
         text.text = "Mantén ESPACIO para saltar";
-        text.fontSize = 30f;
-        text.color = Cream;
         text.alignment = TextAlignmentOptions.MidlineRight;
         text.enableWordWrapping = false;
-        text.raycastTarget = false;
     }
 
-    private static void BuildDirector(IntroBookData data, StoryBook book, SpreadCompositor compositor, Camera cam,
-        ScreenFade fade, CanvasGroup hint, Image radial)
+    private static void BuildDirector(IntroBookData data, PageCompositor compositor, PageCurlView view, ScreenFade fade,
+        CanvasGroup hint, Image radial)
     {
         var go = new GameObject("IntroDirector");
 
@@ -383,9 +474,8 @@ public static partial class IntroBookBuilder
         var director = go.AddComponent<StoryBookDirector>();
         var so = new SerializedObject(director);
         so.FindProperty("data").objectReferenceValue = data;
-        so.FindProperty("book").objectReferenceValue = book;
         so.FindProperty("compositor").objectReferenceValue = compositor;
-        so.FindProperty("viewCamera").objectReferenceValue = cam;
+        so.FindProperty("view").objectReferenceValue = view;
         so.FindProperty("fade").objectReferenceValue = fade;
         so.FindProperty("skip").objectReferenceValue = skip;
         so.FindProperty("narratorSource").objectReferenceValue = narrator;
@@ -417,7 +507,7 @@ public static partial class IntroBookBuilder
 
         var list = new List<EditorBuildSettingsScene>();
         foreach (EditorBuildSettingsScene s in before)
-            if (s.path != ScenePath && s.path != LevelBuilder_NivelPorky.ScenePath) list.Add(s);
+            if (s.path != ScenePath && s.path != LevelBuilder_NivelPorky.ScenePath && s.path != SampleScenePath) list.Add(s);
 
         list.Insert(0, new EditorBuildSettingsScene(ScenePath, true));
         if (File.Exists(LevelBuilder_NivelPorky.ScenePath))
@@ -426,7 +516,7 @@ public static partial class IntroBookBuilder
             report.AppendLine("⚠ No existe " + LevelBuilder_NivelPorky.ScenePath + ": el libro usará el índice 1 de Build Settings.");
 
         EditorBuildSettings.scenes = list.ToArray();
-        report.AppendLine("Build Settings después: " + Describe(list));
+        report.AppendLine("Build Settings después: " + Describe(list) + " (SampleScene fuera de la lista, no borrada)");
     }
 
     private static string Describe(List<EditorBuildSettingsScene> scenes)
@@ -445,15 +535,6 @@ public static partial class IntroBookBuilder
     // Utilidades
     // ==================================================================
 
-    /// <summary>Caja redondeada del kit sin collider, colocada en coordenadas LOCALES del padre.</summary>
-    private static GameObject Box(string name, Transform parent, Vector3 localCenter, Vector3 size, Material mat, float bevel)
-    {
-        GameObject go = CartoonKit.Box(name, Vector3.zero, size, mat, parent, default, bevel, false);
-        go.transform.localPosition = localCenter;
-        go.transform.localRotation = Quaternion.identity;
-        return go;
-    }
-
     private static RectTransform UiChild(string name, Transform parent, Vector2 anchorMin, Vector2 anchorMax,
         Vector2 offsetMin, Vector2 offsetMax)
     {
@@ -467,63 +548,33 @@ public static partial class IntroBookBuilder
         return rt;
     }
 
+    private static RawImage Raw(string name, Transform parent, Vector2 anchorMin, Vector2 anchorMax)
+    {
+        RectTransform rt = UiChild(name, parent, anchorMin, anchorMax, Vector2.zero, Vector2.zero);
+        RawImage image = rt.gameObject.AddComponent<RawImage>();
+        image.raycastTarget = false;
+        return image;
+    }
+
+    private static TMP_Text Label(string name, Transform parent, Vector2 anchorMin, Vector2 anchorMax, TMP_FontAsset font,
+        float size, Color color)
+    {
+        RectTransform rt = UiChild(name, parent, anchorMin, anchorMax, Vector2.zero, Vector2.zero);
+        TextMeshProUGUI text = rt.gameObject.AddComponent<TextMeshProUGUI>();
+        if (font != null) text.font = font;
+        text.fontSize = size;
+        text.color = color;
+        text.alignment = TextAlignmentOptions.Center;
+        text.raycastTarget = false;
+        return text;
+    }
+
     private static void SetRef(Object target, string property, Object value)
     {
         var so = new SerializedObject(target);
         so.FindProperty(property).objectReferenceValue = value;
         so.ApplyModifiedPropertiesWithoutUndo();
     }
-
-    /// <summary>Material URP Lit del libro (crea o actualiza). Con textura, el color base queda blanco.</summary>
-    private static Material LitMaterial(string name, Color color, Texture texture, Vector4 st)
-    {
-        LevelBuilderUtils.EnsureFolder(MaterialFolder);
-        string path = MaterialFolder + "/" + name + ".mat";
-        var mat = AssetDatabase.LoadAssetAtPath<Material>(path);
-        if (mat == null)
-        {
-            Shader shader = Shader.Find(LitShader);
-            if (shader == null) shader = Shader.Find("Standard");
-            mat = new Material(shader) { name = name };
-            AssetDatabase.CreateAsset(mat, path);
-        }
-        var scale = new Vector2(st.x, st.y);
-        var offset = new Vector2(st.z, st.w);
-        Color baseColor = texture != null ? Color.white : color;
-        foreach (string tex in new[] { "_BaseMap", "_MainTex" })
-        {
-            if (!mat.HasProperty(tex)) continue;
-            mat.SetTexture(tex, texture);
-            mat.SetTextureScale(tex, scale);
-            mat.SetTextureOffset(tex, offset);
-        }
-        if (mat.HasProperty("_BaseColor")) mat.SetColor("_BaseColor", baseColor);
-        if (mat.HasProperty("_Color")) mat.SetColor("_Color", baseColor);
-        if (mat.HasProperty("_Smoothness")) mat.SetFloat("_Smoothness", 0.05f);
-        if (mat.HasProperty("_SpecularHighlights")) mat.SetFloat("_SpecularHighlights", 0f);
-        if (mat.HasProperty("_EnvironmentReflections")) mat.SetFloat("_EnvironmentReflections", 0f);
-        mat.EnableKeyword("_SPECULARHIGHLIGHTS_OFF");
-        mat.EnableKeyword("_ENVIRONMENTREFLECTIONS_OFF");
-        EditorUtility.SetDirty(mat);
-        return mat;
-    }
-
-    /// <summary>Tiling/offset para que una textura llene un quad sin deformarse (recorta lo que sobra, centrado).</summary>
-    private static Vector4 CropToFill(Texture texture, float quadAspect)
-    {
-        if (texture == null || texture.height == 0) return new Vector4(1f, 1f, 0f, 0f);
-        float texAspect = (float)texture.width / texture.height;
-        if (texAspect > quadAspect)
-        {
-            float s = quadAspect / texAspect;
-            return new Vector4(s, 1f, (1f - s) * 0.5f, 0f);
-        }
-        float v = texAspect / quadAspect;
-        return new Vector4(1f, v, 0f, (1f - v) * 0.5f);
-    }
-
-    private static float AspectOf(Texture texture, float fallback) =>
-        texture != null && texture.height > 0 ? (float)texture.width / texture.height : fallback;
 
     private static void SetLayerRecursive(GameObject go, int layer)
     {

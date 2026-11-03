@@ -3,27 +3,26 @@ using UnityEngine;
 using UnityEngine.SceneManagement;
 
 /// <summary>
-/// Dirige la escena del libro (INTRO.1): fundido, tapa, portadilla, 6 páginas con narrador y máquina de escribir,
-/// final con la cámara entrando en la última ilustración, y paso al Nivel 1 sin silencio (I11).
-/// DÓNDE VA: objeto "IntroDirector" de Intro.unity (lo arma Plomo y Paja → Intro → Construir escena del libro).
+/// Dirige el libro 2D de la intro (INTRO.1.1, enmienda A7): apertura con el libro cerrado, 6 páginas a pantalla completa
+/// con narrador y máquina de escribir, pase de página con rizo, final entrando en la última ilustración y paso al
+/// Nivel 1 sin silencio (I11). DÓNDE VA: objeto "IntroDirector" de Intro.unity (lo arma Plomo y Paja → Intro → Construir
+/// escena del libro).
 ///
-/// Ritmo (Fase-Intro.md, INTRO.1 paso 3): negro → Cam_Wide 0.8 s, espera 1.2 s → la tapa se abre (1.0 s,
-/// sfx_libro_abrir) mientras la cámara va a Cam_Spread → portadilla 2.0 s → por página: pasa la hoja (0.7 s,
-/// sfx_pagina al azar) → narrador + texto escrito en 0.85 × la duración del clip → 0.8 s después del clip, la siguiente.
-/// - Clic o toque de ESPACIO: completa el texto y pasa la hoja ya (I4). Mantener ESPACIO/Esc 1 s: salta al Nivel 1 (I5).
+/// Ritmo: negro → libro_cerrado en 0.8 s, espera 1.2 s → acercamiento lento 1 → 1.12 en 2 s → el libro se abre
+/// (pase con rizo, sfx_libro_abrir) a la página 1 → por página: narrador + texto escrito en 0.85 × la duración del clip
+/// → 0.8 s después del clip, pase de página (0.8 s, sfx_pagina al azar) a la siguiente.
+/// - Clic o toque de ESPACIO: completa el texto y pasa la página ya (I4). Mantener ESPACIO/Esc 1 s: salta al Nivel 1 (I5).
 /// - El Nivel 1 se empieza a cargar (async) al llegar a la página 5; la lluvia sube durante el fundido final y pasa
 ///   viva a la escena siguiente (CarryOverAudio), donde RainEmitter arranca la suya.
-/// - Música baja, con -6 dB mientras habla el narrador. Ambiente del cuarto en bucle. Leve temblor de cámara en mano.
-/// - Nunca toca el FOV (lo fija el builder). Todo en tiempo real (unscaled).
+/// - Música baja, con -6 dB mientras habla el narrador. Ambiente en bucle. Todo en tiempo real (unscaled).
 /// - Sin audio: el texto usa una duración estimada; sin la escena en Build Settings: usa el índice siguiente y avisa.
 /// </summary>
 public class StoryBookDirector : MonoBehaviour
 {
     [Header("Referencias (las pone el builder)")]
     [SerializeField] private IntroBookData data;
-    [SerializeField] private StoryBook book;
-    [SerializeField] private SpreadCompositor compositor;
-    [SerializeField] private Camera viewCamera;
+    [SerializeField] private PageCompositor compositor;
+    [SerializeField] private PageCurlView view;
     [SerializeField] private ScreenFade fade;
     [SerializeField] private HoldToSkip skip;
 
@@ -33,24 +32,32 @@ public class StoryBookDirector : MonoBehaviour
     [SerializeField] private AudioSource ambienceSource;
     [SerializeField] private AudioSource rainSource;
 
-    [Header("Tiempos (s)")]
+    [Header("Apertura (s)")]
     [SerializeField] private float fadeInSeconds = 0.8f;
-    [SerializeField] private float holdWideSeconds = 1.2f;
-    [SerializeField] private float coverSeconds = 1.0f;
-    [SerializeField] private float dollySeconds = 1.0f;
-    [SerializeField] private float titleSeconds = 2.0f;
-    [SerializeField] private float turnSeconds = 0.7f;
+    [SerializeField] private float holdCoverSeconds = 1.2f;
+    [SerializeField] private float pushInSeconds = 2f;
+    [Tooltip("Escala final del acercamiento al libro cerrado")]
+    [SerializeField] private float pushInScale = 1.12f;
+    [Tooltip("Duración del pase de la apertura a la página 1")]
+    [SerializeField] private float openSeconds = 1.0f;
+
+    [Header("Páginas (s)")]
+    [SerializeField] private float turnSeconds = 0.8f;
     [Tooltip("El texto se escribe en esta fracción de la duración del clip (I3)")]
     [SerializeField, Range(0.3f, 1f)] private float typeFraction = 0.85f;
-    [Tooltip("Pausa tras el final del clip antes de pasar la hoja (I4)")]
+    [Tooltip("Pausa tras el final del clip antes de pasar la página (I4)")]
     [SerializeField] private float afterClipSeconds = 0.8f;
-    [SerializeField] private float pushSeconds = 1.5f;
-    [SerializeField] private float fadeOutSeconds = 1.0f;
-    [SerializeField] private float skipFadeSeconds = 0.5f;
     [Tooltip("Sin clip del narrador: segundos por carácter (mínimo 3 s)")]
     [SerializeField] private float fallbackSecondsPerChar = 0.055f;
     [Tooltip("Página (1–6) en la que se empieza a cargar el Nivel 1")]
     [SerializeField] private int preloadAtPage = 5;
+
+    [Header("Final (s)")]
+    [SerializeField] private float pushSeconds = 1.5f;
+    [Tooltip("Acercamiento final hacia el centro de la ilustración (1 = página entera)")]
+    [SerializeField] private float pushZoom = 1.45f;
+    [SerializeField] private float fadeOutSeconds = 1.0f;
+    [SerializeField] private float skipFadeSeconds = 0.5f;
 
     [Header("Mezcla")]
     [SerializeField, Range(0f, 1f)] private float musicVolume = 0.35f;
@@ -62,17 +69,9 @@ public class StoryBookDirector : MonoBehaviour
     [Tooltip("Segundos en que la lluvia heredada se apaga ya dentro del Nivel 1")]
     [SerializeField] private float rainHandOffSeconds = 2.5f;
 
-    [Header("Cámara en mano")]
-    [Tooltip("Desvío máximo (grados), ≤ 0.3")]
-    [SerializeField, Range(0f, 0.3f)] private float driftDegrees = 0.25f;
-    [SerializeField] private float driftSpeed = 0.15f;
-
     [Header("Depuración")]
     [SerializeField] private bool debug = false;
 
-    private Vector3 _camPos;
-    private Quaternion _camRot = Quaternion.identity;
-    private float _driftSeed;
     private float _musicFade = 1f;
     private float _ambienceFade = 1f;
     private AsyncOperation _load;
@@ -81,19 +80,18 @@ public class StoryBookDirector : MonoBehaviour
 
     private void Start()
     {
-        _driftSeed = Random.value * 100f;
         if (fade != null) fade.Alpha = 1f;
-        if (book != null && book.CamWide != null) SetCameraPose(book.CamWide);
-        if (data == null || book == null || compositor == null)
+        if (data == null || compositor == null || view == null)
         {
             Debug.LogWarning("[Intro] Faltan referencias del libro (corre Plomo y Paja → Intro → Construir escena del libro). Se pasa al Nivel 1.");
             StartCoroutine(Leave(skipFadeSeconds));
             return;
         }
 
-        compositor.Initialize(book.SpreadAspect, data.paperTexture);
-        book.BindSpreads(compositor);
-        compositor.ShowTitle(0, data.titlePageTitle, data.titlePageSubtitle);
+        compositor.Initialize(data.paperTexture);
+        view.SetPaper(data.paperTexture);
+        compositor.ShowCover(0, data.closedBookTexture, data.coverTitle);
+        view.SetCurrent(compositor.Target(0));
 
         if (skip != null)
         {
@@ -120,39 +118,54 @@ public class StoryBookDirector : MonoBehaviour
     {
         Log("fundido de entrada");
         yield return fade != null ? fade.FadeTo(0f, fadeInSeconds) : null;
-        yield return Wait(holdWideSeconds, false);
+        yield return Wait(holdCoverSeconds);
 
-        Log("se abre la tapa");
-        AudioLibrary.PlaySfx2D(data.openSfx);
-        StartCoroutine(MoveCamera(book.CamSpread, dollySeconds));
-        yield return book.OpenCover(coverSeconds);
-        yield return Wait(titleSeconds, true);
+        Log("acercamiento al libro cerrado");
+        for (float t = 0f; t < pushInSeconds; t += Time.unscaledDeltaTime)
+        {
+            compositor.SetCoverZoom(0, Mathf.Lerp(1f, pushInScale, CinematicEase.InOut(t / pushInSeconds)));
+            yield return null;
+        }
+        compositor.SetCoverZoom(0, pushInScale);
 
-        int pages = Mathf.Min(data.pages.Length, book.LeafCount - 1);
+        int pages = data.pages != null ? data.pages.Length : 0;
         for (int i = 1; i <= pages; i++)
         {
             IntroBookData.Page page = data.pages[i - 1];
             if (i >= preloadAtPage) BeginPreload();
 
-            // La doble página nueva se compone (texto oculto) antes de que la hoja empiece a girar
+            // La página nueva se compone (texto oculto) en el otro RT antes de empezar el pase
             if (narratorSource != null) narratorSource.Stop();
-            compositor.ShowStory(i, page.illustration, page.illustrationLabel, page.text);
-            AudioLibrary.PlaySfx2D(data.pageSfx);
-            Log("pasa la hoja " + i);
-            yield return book.TurnLeaf(i - 1, turnSeconds);
+            compositor.ShowPage(i, page.illustration, page.illustrationLabel, page.text);
+            yield return null; // un cuadro para que su RT ya tenga la página nueva
+            AudioLibrary.PlaySfx2D(i == 1 ? data.openSfx : data.pageSfx);
+            Log(i == 1 ? "se abre el libro" : "pasa la página " + i);
+            yield return Turn(compositor.Target(i), i == 1 ? openSeconds : turnSeconds);
             yield return ReadPage(i, page);
         }
 
         BeginPreload();
-        Log("final: cámara a la ilustración");
+        Log("final: entra en la ilustración");
         yield return Leave(-1f);
     }
 
+    /// <summary>Pase de página con rizo de la actual a "next" (suavizado entra y sale).</summary>
+    private IEnumerator Turn(Texture next, float seconds)
+    {
+        view.BeginTurn(next);
+        for (float t = 0f; t < seconds; t += Time.unscaledDeltaTime)
+        {
+            view.SetProgress(CinematicEase.InOut(t / seconds));
+            yield return null;
+        }
+        view.EndTurn();
+    }
+
     /// <summary>Narrador + máquina de escribir; espera el fin del clip + la pausa, o un clic/toque.</summary>
-    private IEnumerator ReadPage(int spread, IntroBookData.Page page)
+    private IEnumerator ReadPage(int sheet, IntroBookData.Page page)
     {
         AudioClip clip = AudioLibrary.GetVoice(page.clipId);
-        int total = compositor.CharacterCount(spread);
+        int total = compositor.CharacterCount(sheet);
         float length = clip != null ? clip.length : Mathf.Max(3f, total * fallbackSecondsPerChar);
         if (clip != null && narratorSource != null)
         {
@@ -160,7 +173,7 @@ public class StoryBookDirector : MonoBehaviour
             narratorSource.volume = AudioLibrary.VoiceVolume;
             narratorSource.Play();
         }
-        if (skip != null) skip.ClearTap();
+        if (skip != null) skip.ClearTap(); // un toque hecho durante el pase no cuenta
 
         float typeTime = Mathf.Max(0.1f, length * typeFraction);
         float t = 0f;
@@ -168,14 +181,14 @@ public class StoryBookDirector : MonoBehaviour
         while (t < typeTime)
         {
             if (AdvancePressed()) { advanced = true; break; }
-            compositor.SetVisibleCharacters(spread, Mathf.CeilToInt(total * (t / typeTime)));
+            compositor.SetVisibleCharacters(sheet, Mathf.CeilToInt(total * (t / typeTime)));
             yield return null;
             t += Time.unscaledDeltaTime;
         }
-        compositor.SetVisibleCharacters(spread, total);
+        compositor.SetVisibleCharacters(sheet, total);
         if (advanced)
         {
-            yield return null; // un cuadro para que el RT tenga el texto completo antes de girar
+            yield return null; // un cuadro para que el RT tenga el texto completo antes de pasar
             yield break;
         }
 
@@ -188,7 +201,7 @@ public class StoryBookDirector : MonoBehaviour
         }
     }
 
-    /// <summary>Final o salto: cámara a Cam_Push (solo en el final), fundido a negro con la lluvia subiendo, y Nivel 1.</summary>
+    /// <summary>Final o salto: acercamiento a la ilustración (solo en el final), fundido a negro con la lluvia subiendo, y Nivel 1.</summary>
     private IEnumerator Leave(float fadeSeconds)
     {
         if (_leaving) yield break;
@@ -198,10 +211,10 @@ public class StoryBookDirector : MonoBehaviour
 
         bool ending = fadeSeconds < 0f;
         float total = ending ? Mathf.Max(pushSeconds, fadeOutSeconds) : fadeSeconds;
-        if (ending && book != null && book.CamPush != null) StartCoroutine(MoveCamera(book.CamPush, pushSeconds));
+        if (ending && view != null && compositor != null) StartCoroutine(PushIntoIllustration(pushSeconds));
         StartCoroutine(RampAudio(total));
 
-        if (ending) yield return Wait(Mathf.Max(0f, pushSeconds - fadeOutSeconds), false);
+        if (ending) yield return Wait(Mathf.Max(0f, pushSeconds - fadeOutSeconds));
         if (fade != null) yield return fade.FadeTo(1f, ending ? fadeOutSeconds : fadeSeconds);
         if (narratorSource != null) narratorSource.Stop();
 
@@ -213,6 +226,18 @@ public class StoryBookDirector : MonoBehaviour
         if (rainSource != null && rainSource.isPlaying) CarryOverAudio.Carry(rainSource, rainHandOffSeconds);
         Log("activa el Nivel 1");
         _load.allowSceneActivation = true;
+    }
+
+    private IEnumerator PushIntoIllustration(float seconds)
+    {
+        Vector2 center = compositor.IllustrationCenter;
+        for (float t = 0f; t < seconds; t += Time.unscaledDeltaTime)
+        {
+            float e = CinematicEase.InOut(t / seconds);
+            view.SetZoom(Vector2.Lerp(new Vector2(0.5f, 0.5f), center, e), Mathf.Lerp(1f, pushZoom, e));
+            yield return null;
+        }
+        view.SetZoom(center, pushZoom);
     }
 
     private void HandleSkip()
@@ -310,44 +335,6 @@ public class StoryBookDirector : MonoBehaviour
     }
 
     // ==================================================================
-    // Cámara (nunca toca el FOV)
-    // ==================================================================
-
-    private void SetCameraPose(Transform anchor)
-    {
-        _camPos = anchor.position;
-        _camRot = anchor.rotation;
-        ApplyCamera();
-    }
-
-    private IEnumerator MoveCamera(Transform target, float seconds)
-    {
-        if (target == null) yield break;
-        Vector3 fromPos = _camPos;
-        Quaternion fromRot = _camRot;
-        for (float t = 0f; t < seconds; t += Time.unscaledDeltaTime)
-        {
-            float e = CinematicEase.InOut(t / seconds);
-            _camPos = Vector3.Lerp(fromPos, target.position, e);
-            _camRot = Quaternion.Slerp(fromRot, target.rotation, e);
-            yield return null;
-        }
-        _camPos = target.position;
-        _camRot = target.rotation;
-    }
-
-    private void LateUpdate() => ApplyCamera();
-
-    private void ApplyCamera()
-    {
-        if (viewCamera == null) return;
-        float time = Time.unscaledTime * driftSpeed;
-        float pitch = (Mathf.PerlinNoise(time, _driftSeed) - 0.5f) * 2f * driftDegrees;
-        float yaw = (Mathf.PerlinNoise(_driftSeed, time + 17.3f) - 0.5f) * 2f * driftDegrees;
-        viewCamera.transform.SetPositionAndRotation(_camPos, _camRot * Quaternion.Euler(pitch, yaw, 0f));
-    }
-
-    // ==================================================================
     // Utilidades
     // ==================================================================
 
@@ -358,14 +345,9 @@ public class StoryBookDirector : MonoBehaviour
         return Input.GetMouseButtonDown(0) || tap;
     }
 
-    private IEnumerator Wait(float seconds, bool canAdvance)
+    private IEnumerator Wait(float seconds)
     {
-        if (canAdvance && skip != null) skip.ClearTap();
-        for (float t = 0f; t < seconds; t += Time.unscaledDeltaTime)
-        {
-            if (canAdvance && AdvancePressed()) yield break;
-            yield return null;
-        }
+        for (float t = 0f; t < seconds; t += Time.unscaledDeltaTime) yield return null;
     }
 
     private void Log(string message)
