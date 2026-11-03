@@ -21,7 +21,11 @@ public class CharacterSpriteImporter : AssetPostprocessor
     // Subir la versión obliga a Unity a reimportar los PNG con los ajustes nuevos.
     // 4: los .meta que llegan con PPU/pivote puestos a mano (p. ej. los del guardia de Edgar) se pisan aquí.
     // 6: contador a 500 px por metro (fase 3C.2, D12).
-    public override uint GetVersion() => 6;
+    // 7: también Art/Pickups/ (fase 3C.5.2: el revólver en el piso).
+    public override uint GetVersion() => 7;
+
+    /// <summary>Objetos recogibles dibujados (fase 3C.5.2): Art/Pickups/&lt;nombre&gt;.png, recortados con character_key.py --single.</summary>
+    public const string PickupsFolder = "Assets/_Game/Art/Pickups";
 
     /// <summary>Alpha mínimo (0..255) para considerar que un píxel es parte del personaje.</summary>
     private const byte FeetAlpha = 26; // 0.1
@@ -29,6 +33,11 @@ public class CharacterSpriteImporter : AssetPostprocessor
     private void OnPreprocessTexture()
     {
         string path = assetPath.Replace('\\', '/');
+        if (path.StartsWith(PickupsFolder + "/"))
+        {
+            ApplyPickup((TextureImporter)assetImporter);
+            return;
+        }
         if (!path.StartsWith(CharactersFolder + "/")) return;
 
         string characterId = CharacterSpriteSetBuilder.CharacterIdFromPath(path);
@@ -75,6 +84,30 @@ public class CharacterSpriteImporter : AssetPostprocessor
                 settings.spritePixelsPerUnit = 250f;
                 break;
         }
+        importer.SetTextureSettings(settings);
+    }
+
+    /// <summary>
+    /// Recogibles: Sprite con alpha real, pivote al centro, mipmaps (se ven chicos y lejos), 1000 px por metro. El tamaño en
+    /// el mundo lo fija WeaponPickup (visualLength), así que el PPU no importa.
+    /// </summary>
+    private static void ApplyPickup(TextureImporter importer)
+    {
+        importer.textureType = TextureImporterType.Sprite;
+        importer.textureShape = TextureImporterShape.Texture2D;
+        importer.spriteImportMode = SpriteImportMode.Single;
+        importer.mipmapEnabled = true;
+        importer.filterMode = FilterMode.Trilinear;
+        importer.textureCompression = TextureImporterCompression.Uncompressed;
+        importer.alphaIsTransparency = true;
+        importer.alphaSource = TextureImporterAlphaSource.FromInput;
+        importer.maxTextureSize = 2048;
+        var settings = new TextureImporterSettings();
+        importer.ReadTextureSettings(settings);
+        settings.spriteMode = (int)SpriteImportMode.Single;
+        settings.spriteMeshType = SpriteMeshType.FullRect;
+        settings.spriteAlignment = (int)SpriteAlignment.Center;
+        settings.spritePixelsPerUnit = 1000f;
         importer.SetTextureSettings(settings);
     }
 

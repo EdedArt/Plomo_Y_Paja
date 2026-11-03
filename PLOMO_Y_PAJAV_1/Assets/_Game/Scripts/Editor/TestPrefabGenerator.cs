@@ -281,12 +281,13 @@ public static class TestPrefabGenerator
             audio.spatialBlend = 0f;
         }
         revolver.enabled = false; // WeaponSwitcher lo enciende cuando es el arma activa
-        if (cam != null)
-        {
-            var revolverSo = new SerializedObject(revolver);
-            revolverSo.FindProperty("playerCamera").objectReferenceValue = cam;
-            revolverSo.ApplyModifiedPropertiesWithoutUndo();
-        }
+        var revolverSo = new SerializedObject(revolver);
+        if (cam != null) revolverSo.FindProperty("playerCamera").objectReferenceValue = cam;
+        // 3C.5.2: tambor de 5 + 15 de reserva. Solo se pisa si sigue con los valores de la 3C.5 (6 / 6 / 12)
+        MigrateInt(revolverSo, "magazineSize", 6, 5);
+        MigrateInt(revolverSo, "loadedRounds", 6, 5);
+        MigrateInt(revolverSo, "reserveRounds", 12, 15);
+        revolverSo.ApplyModifiedPropertiesWithoutUndo();
 
         WeaponSwitcher switcher = contents.GetComponent<WeaponSwitcher>();
         if (switcher == null) switcher = contents.AddComponent<WeaponSwitcher>();
@@ -295,7 +296,16 @@ public static class TestPrefabGenerator
         switcherSo.FindProperty("revolver").objectReferenceValue = revolver;
         switcherSo.FindProperty("shotgunProfile").objectReferenceValue = ViewmodelProfileBuilder.GetOrCreateShotgunProfile();
         switcherSo.FindProperty("revolverProfile").objectReferenceValue = ViewmodelProfileBuilder.GetOrCreateRevolverProfile();
+        MigrateInt(switcherSo, "revolverLoaded", 6, 5);
+        MigrateInt(switcherSo, "revolverReserve", 12, 15);
         switcherSo.ApplyModifiedPropertiesWithoutUndo();
+    }
+
+    /// <summary>Cambia un entero serializado solo si todavía tiene el valor viejo (un ajuste a mano no se pisa).</summary>
+    private static void MigrateInt(SerializedObject so, string property, int oldValue, int newValue)
+    {
+        SerializedProperty p = so.FindProperty(property);
+        if (p != null && p.intValue == oldValue) p.intValue = newValue;
     }
 
     /// <summary>

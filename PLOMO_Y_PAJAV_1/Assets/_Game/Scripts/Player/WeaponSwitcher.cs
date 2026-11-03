@@ -29,8 +29,8 @@ public class WeaponSwitcher : MonoBehaviour
     [SerializeField] private float switchTime = 0.35f;
 
     [Header("Revólver al recogerlo (D13)")]
-    [SerializeField] private int revolverLoaded = 6;
-    [SerializeField] private int revolverReserve = 12;
+    [SerializeField] private int revolverLoaded = 5;
+    [SerializeField] private int revolverReserve = 15;
 
     [Header("Depuración (apagada por defecto)")]
     [Tooltip("Empieza con el revólver (solo para probar sin pasar por Centavo)")]

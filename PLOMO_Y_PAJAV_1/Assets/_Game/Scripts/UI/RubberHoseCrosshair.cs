@@ -17,7 +17,7 @@ using UnityEngine.UI;
 ///   stretch" (se alargan y se adelgazan) y vuelven en 0.12 s (tiempo real).
 /// - Se oculta al apuntar (PlayerAim), en diálogo, pausa y muerte.
 /// - Marcador de impacto: las marcas se ponen rojas 0.1 s cuando un enemigo recibe daño (EnemyHealth.OnDamaged).
-/// - Munición (3C.5): debajo de la mira, una fila de puntos chicos = balas del arma activa (llenos = cargadas, tenues =
+/// - Munición (3C.5; 3C.5.2: abajo a la izquierda de la pantalla, lejos de las armas): una fila de puntos = balas del arma activa (llenos = cargadas, tenues =
 ///   vacías) y "+N" = reserva. No hay HUD de munición (3B parte 4 pendiente); esto es lo mínimo. Sigue visible al apuntar.
 /// - Avisos (3C.5): ShowNotice(texto) (ej: "Revólver de Centavo") y SetPrompt(texto) (ej: "[E] Recoger el revólver"),
 ///   en el mismo canvas porque el aviso de pistas y el prompt de UIManager no existen en las escenas.
@@ -59,9 +59,12 @@ public class RubberHoseCrosshair : MonoBehaviour
 
     [Header("Munición y avisos (3C.5)")]
     [SerializeField] private bool showAmmo = true;
-    [Tooltip("Distancia (px a 1080p) del centro a la fila de balas, hacia abajo")]
-    [SerializeField] private float ammoOffset = 34f;
-    [SerializeField] private float ammoSpacing = 11f;
+    [Tooltip("Posición de la fila de balas desde la esquina inferior IZQUIERDA (px a 1080p). 3C.5.2: ya no va bajo la mira, " +
+             "donde quedaba encima del arma")]
+    [SerializeField] private Vector2 ammoCorner = new Vector2(56f, 52f);
+    [SerializeField] private float ammoSpacing = 18f;
+    [Tooltip("Tamaño de cada punto respecto del punto central de la mira")]
+    [SerializeField] private float ammoDotScale = 1.5f;
     [SerializeField, Range(0f, 1f)] private float emptyRoundAlpha = 0.22f;
     [SerializeField] private float noticeSeconds = 2.5f;
 
@@ -190,9 +193,9 @@ public class RubberHoseCrosshair : MonoBehaviour
         var ammoGo = new GameObject("Ammo", typeof(RectTransform));
         ammoGo.transform.SetParent(canvasGo.transform, false);
         _ammoRoot = (RectTransform)ammoGo.transform;
-        _ammoRoot.anchorMin = _ammoRoot.anchorMax = _ammoRoot.pivot = new Vector2(0.5f, 0.5f);
-        _ammoRoot.anchoredPosition = new Vector2(0f, -ammoOffset);
-        _reserveText = CreateText("Reserve", _ammoRoot, 15f, TextAlignmentOptions.Left);
+        _ammoRoot.anchorMin = _ammoRoot.anchorMax = _ammoRoot.pivot = Vector2.zero;   // esquina inferior izquierda
+        _ammoRoot.anchoredPosition = ammoCorner;
+        _reserveText = CreateText("Reserve", _ammoRoot, 22f, TextAlignmentOptions.Left);
         _noticeText = CreateText("Notice", canvasGo.transform, 30f, TextAlignmentOptions.Center);
         _noticeText.rectTransform.anchoredPosition = new Vector2(0f, -120f);
         _noticeText.enabled = false;
@@ -265,17 +268,17 @@ public class RubberHoseCrosshair : MonoBehaviour
 
         if (magazine != _shownMagazine)
         {
-            float pip = ((DotWhiteRadius + OutlineThickness) * 2f + SpriteMargin) * 0.8f;
+            float pip = ((DotWhiteRadius + OutlineThickness) * 2f + SpriteMargin) * ammoDotScale;
             while (_rounds.Count < magazine)
                 _rounds.Add(CreateImage("Round" + _rounds.Count, _ammoRoot, _dotSprite, new Vector2(pip, pip)));
-            float start = -(magazine - 1) * ammoSpacing * 0.5f;
+            float start = pip * 0.5f; // la fila empieza en la esquina y crece hacia la derecha
             for (int i = 0; i < _rounds.Count; i++)
             {
                 bool used = i < magazine;
                 _rounds[i].gameObject.SetActive(used);
                 if (used) _rounds[i].rectTransform.anchoredPosition = new Vector2(start + i * ammoSpacing, 0f);
             }
-            _reserveText.rectTransform.anchoredPosition = new Vector2(-start + ammoSpacing * 0.9f, 0f);
+            _reserveText.rectTransform.anchoredPosition = new Vector2(start + (magazine - 1) * ammoSpacing + ammoSpacing * 0.9f, 0f);
         }
         for (int i = 0; i < magazine; i++)
             _rounds[i].color = new Color(1f, 1f, 1f, i < loaded ? 1f : emptyRoundAlpha);

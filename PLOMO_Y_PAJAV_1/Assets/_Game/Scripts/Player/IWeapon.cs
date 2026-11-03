@@ -28,6 +28,25 @@ public interface IWeapon
     /// <summary>Balas de reserva.</summary>
     int ReserveRounds { get; }
 
-    /// <summary>Corta una recarga en curso sin cargar nada (cambio de arma). No dispara OnReloadFinished.</summary>
+    /// <summary>Corta una recarga en curso (cambio de arma). Lo ya cargado se queda. No dispara OnReloadFinished.</summary>
     void CancelReload();
+}
+
+/// <summary>
+/// Recarga por etapas, bala por bala (fase 3C.5.2, VM2): abrir → meter una bala por cada una que falta → cerrar.
+/// La implementa RevolverController; FirstPersonViewmodel la usa para los cuadros de recarga y las balas visibles del tambor.
+/// Va entre OnReloadStarted y OnReloadFinished de IWeapon.
+/// </summary>
+public interface IStagedReloadWeapon
+{
+    /// <summary>El tambor se abrió (cuadro "abrir").</summary>
+    event System.Action OnReloadOpened;
+    /// <summary>Empieza a meter una bala (cuadro "meter"); dura RoundInsertSeconds.</summary>
+    event System.Action OnRoundInserting;
+    /// <summary>Entró una bala: balas cargadas ahora.</summary>
+    event System.Action<int> OnRoundLoaded;
+    /// <summary>Se cierra el tambor (cuadro "cerrar").</summary>
+    event System.Action OnReloadClosing;
+
+    float RoundInsertSeconds { get; }
 }

@@ -486,7 +486,7 @@ public class CentavoController : MonoBehaviour, IDamageable, IInterrogationTarge
         }
 
         droppedRevolver.transform.SetParent(null, true);
-        droppedRevolver.transform.position = start;
+        droppedRevolver.transform.SetPositionAndRotation(start, Quaternion.Euler(0f, UnityEngine.Random.Range(0f, 360f), 0f));
         if (droppedRevolver.TryGetComponent(out WeaponPickup pickup)) pickup.SetSafeSpot(landing + Vector3.up * 0.06f);
         droppedRevolver.SetActive(true);
         if (!droppedRevolver.TryGetComponent(out Rigidbody body)) body = droppedRevolver.AddComponent<Rigidbody>();
@@ -494,7 +494,7 @@ public class CentavoController : MonoBehaviour, IDamageable, IInterrogationTarge
         body.collisionDetectionMode = CollisionDetectionMode.ContinuousDynamic; // pieza fina: que no atraviese el piso
         body.interpolation = RigidbodyInterpolation.Interpolate;
         body.velocity = toPlayer * 0.4f + Vector3.up * 0.8f;
-        body.angularVelocity = UnityEngine.Random.insideUnitSphere * 9f;
+        body.constraints = RigidbodyConstraints.FreezeRotation; // 3C.5.2: el collider invisible cae plano; el dibujo es un billboard
     }
 
     // ---------- Herido ----------

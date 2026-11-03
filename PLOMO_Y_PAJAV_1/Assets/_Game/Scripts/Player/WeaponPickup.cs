@@ -26,6 +26,19 @@ public class WeaponPickup : MonoBehaviour
     [Tooltip("Si cae este tanto por debajo del punto seguro, se lo devuelve ahí (atravesó el piso)")]
     [SerializeField] private float fallRescueDepth = 1.5f;
 
+    [Header("Dibujo (3C.5.2)")]
+    [Tooltip("Hijo \"Visual\": SpriteRenderer + BillboardSprite (Art/Pickups/revolver_suelo.png) o el modelo de CartoonKit " +
+             "si falta el PNG. La raíz tiene la física y el collider invisible")]
+    [SerializeField] private Transform visual;
+    [Tooltip("Largo del dibujo en el mundo (m)")]
+    [SerializeField] private float visualLength = 0.35f;
+    [Tooltip("Altura del borde de abajo del dibujo sobre el piso (m)")]
+    [SerializeField] private float restHeight = 0.02f;
+    [Tooltip("Vaivén vertical (m, ±)")]
+    [SerializeField] private float bobAmplitude = 0.02f;
+    [Tooltip("Vaivenes por segundo")]
+    [SerializeField] private float bobFrequency = 0.8f;
+
     [Header("Brillo")]
     [SerializeField] private Color glintColor = new Color(1f, 0.85f, 0.55f);
     [SerializeField] private float glintRange = 1.8f;
@@ -60,6 +73,7 @@ public class WeaponPickup : MonoBehaviour
         _availableAt = Time.time + pickupDelay;
         _settledLogged = false;
         foreach (MeshRenderer r in GetComponentsInChildren<MeshRenderer>(true)) CharacterLook.ApplyPlaceholder(r);
+        SetupVisual();
         if (_glint == null)
         {
             var glintGo = new GameObject("Brillo");
@@ -77,6 +91,43 @@ public class WeaponPickup : MonoBehaviour
     private void OnDisable()
     {
         HidePrompt();
+    }
+
+    // ============ Dibujo: billboard apoyado en el piso con vaivén (3C.5.2) ============
+
+    private SpriteRenderer _sprite;
+    private Collider _collider;
+    private Vector3 _visualBaseLocal;
+    private float _bobPhase;
+
+    private void SetupVisual()
+    {
+        TryGetComponent(out _collider);
+        _bobPhase = Random.value * 10f;
+        if (visual == null) return;
+        _sprite = visual.GetComponent<SpriteRenderer>();
+        if (_sprite != null && _sprite.sprite != null)
+        {
+            float width = _sprite.sprite.bounds.size.x; // a escala 1 (la raíz no está escalada)
+            if (width > 0.0001f) visual.localScale = Vector3.one * (visualLength / width);
+        }
+        else _visualBaseLocal = visual.localPosition; // modelo de respaldo: su lugar local, más el vaivén
+    }
+
+    /// <summary>Después de la física: el dibujo queda sobre el piso (borde de abajo del collider) y se mece. El billboard
+    /// (BillboardSprite) solo lo gira hacia la cámara.</summary>
+    private void LateUpdate()
+    {
+        if (_taken || visual == null) return;
+        float bob = Time.time >= _availableAt ? Mathf.Sin((Time.time * bobFrequency + _bobPhase) * Mathf.PI * 2f) * bobAmplitude : 0f;
+        if (_sprite != null && _sprite.sprite != null)
+        {
+            float floor = _collider != null ? _collider.bounds.min.y : transform.position.y;
+            float half = _sprite.sprite.bounds.extents.y * visual.lossyScale.y;
+            Vector3 p = transform.position;
+            visual.position = new Vector3(p.x, floor + half + restHeight + bob, p.z);
+        }
+        else visual.position = transform.TransformPoint(_visualBaseLocal) + Vector3.up * bob;
     }
 
     private void Update()

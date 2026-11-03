@@ -2,8 +2,11 @@ using System.Collections;
 using UnityEngine;
 
 /// <summary>
-/// Revólver de Centavo, segunda arma de Wilbur (fase 3C.5, D13–D15). Mínimo de VM2: una bala hitscan, semiautomático,
-/// tambor de 6 y recarga completa (~2.2 s) con los 3 cuadros de VM_Revolver (abrir, meter, cerrar).
+/// Revólver de Centavo, segunda arma de Wilbur (fase 3C.5, D13–D15). Mínimo de VM2: una bala hitscan, semiautomático.
+/// 3C.5.2: tambor de 5 (los 5 huecos del dibujo reload_01) + 15 de reserva, y recarga BALA POR BALA (IStagedReloadWeapon):
+/// abrir (openSeconds) → una bala por cada una que falta, sin pasar de la reserva (insertSeconds cada una) → cerrar
+/// (closeSeconds). Disparar 1 → carga 1; disparar 2 → carga 2. Disparar durante la recarga: termina la bala actual, cierra
+/// y dispara. Cambiar de arma corta la recarga y las balas ya metidas se quedan.
 /// DÓNDE VA: GameObject "Revolver" hijo de la cámara del Player, junto a la escopeta (lo crea "Crear Prefabs de Prueba").
 /// Empieza SIN dueño: WeaponSwitcher.GiveRevolver (WeaponPickup, el revólver que suelta Centavo) lo entrega.
 ///
@@ -12,7 +15,7 @@ using UnityEngine;
 /// guardia 60 → 36 → 12 → muere al 3.er tiro; Colmillo (se rinde a ≤ 18) 60 → 36 → 12 = se rinde al 2.º.
 /// BLOQUEO: no dispara ni recarga en pausa, diálogo, interrogatorio (InterrogationDirector.IsActive) ni muerto.
 /// </summary>
-public class RevolverController : MonoBehaviour, IWeapon
+public class RevolverController : MonoBehaviour, IWeapon, IStagedReloadWeapon
 {
     [Header("Disparo (D14, D15)")]
     [Tooltip("Daño por bala. 24 = 40 % de la vida de un guardia (60)")]
@@ -27,16 +30,20 @@ public class RevolverController : MonoBehaviour, IWeapon
     [SerializeField] private float fireInterval = 0.45f;
 
     [Header("Munición")]
-    [Tooltip("Balas en el tambor (Centavo \"sabe contar hasta seis\")")]
-    [SerializeField] private int magazineSize = 6;
-    [SerializeField] private int loadedRounds = 6;
-    [SerializeField] private int reserveRounds = 12;
+    [Tooltip("Balas en el tambor: 5, los huecos que tiene el dibujo de la recarga (3C.5.2)")]
+    [SerializeField] private int magazineSize = 5;
+    [SerializeField] private int loadedRounds = 5;
+    [SerializeField] private int reserveRounds = 15;
     [Tooltip("Máximo de reserva")]
     [SerializeField] private int maxReserve = 24;
 
-    [Header("Recarga")]
-    [Tooltip("Segundos de la recarga completa (abrir, meter balas, cerrar)")]
-    [SerializeField] private float reloadTime = 2.2f;
+    [Header("Recarga bala por bala (3C.5.2)")]
+    [Tooltip("Segundos para abrir el tambor")]
+    [SerializeField] private float openSeconds = 0.35f;
+    [Tooltip("Segundos por cada bala que se mete")]
+    [SerializeField] private float insertSeconds = 0.3f;
+    [Tooltip("Segundos para cerrar el tambor")]
+    [SerializeField] private float closeSeconds = 0.35f;
 
     [Header("Audio (opcional; sin clip se usan los SFX de la escopeta de la librería, no hay de revólver)")]
     [SerializeField] private AudioClip fireSound;
@@ -56,6 +63,10 @@ public class RevolverController : MonoBehaviour, IWeapon
     public event System.Action OnReloadStarted;
     public event System.Action OnReloadFinished;
     public event System.Action OnDryFire;
+    public event System.Action OnReloadOpened;
+    public event System.Action OnRoundInserting;
+    public event System.Action<int> OnRoundLoaded;
+    public event System.Action OnReloadClosing;
 
     private AudioSource _audioSource;
     private PlayerAim _aim;
@@ -63,9 +74,13 @@ public class RevolverController : MonoBehaviour, IWeapon
     private float _nextFireTime;
     private bool _isReloading;
     private Coroutine _reloadRoutine;
+    private bool _fireQueued;
+    private float _plannedReload = 1f;
 
     public bool IsReloading => _isReloading;
-    public float ReloadDuration => reloadTime;
+    /// <summary>Lo que dura la recarga en curso (o la próxima): abrir + balas que faltan (sin pasar de la reserva) + cerrar.</summary>
+    public float ReloadDuration => _isReloading ? _plannedReload : PlanReload();
+    public float RoundInsertSeconds => insertSeconds;
     public int LoadedRounds => loadedRounds;
     public int MagazineSize => magazineSize;
     public int ReserveRounds => reserveRounds;
@@ -102,6 +117,9 @@ public class RevolverController : MonoBehaviour, IWeapon
     private void Update()
     {
         if (Blocked()) return;
+
+        // Disparar durante la recarga: termina la bala actual, cierra y dispara (VM2)
+        if (_isReloading && Input.GetButtonDown("Fire1")) _fireQueued = true;
 
         if (Input.GetButtonDown("Fire1") && !_isReloading && Time.time >= _nextFireTime)
         {
@@ -186,29 +204,57 @@ public class RevolverController : MonoBehaviour, IWeapon
 
     private void StartReload()
     {
-        if (_isReloading) return;
+        if (_isReloading || loadedRounds >= magazineSize || reserveRounds <= 0) return;
         _reloadRoutine = StartCoroutine(Reload());
+    }
+
+    private float PlanReload()
+    {
+        int missing = Mathf.Max(0, Mathf.Min(magazineSize - loadedRounds, reserveRounds));
+        return openSeconds + missing * insertSeconds + closeSeconds;
     }
 
     private IEnumerator Reload()
     {
         _isReloading = true;
+        _fireQueued = false;
+        _plannedReload = PlanReload();
         OnReloadStarted?.Invoke();
-        if (reloadSound != null) PlaySound(reloadSound); else AudioLibrary.PlaySfx2D("escopeta_cargar");
 
-        yield return new WaitForSeconds(reloadTime);
+        // Abrir
+        OnReloadOpened?.Invoke();
+        AudioLibrary.PlaySfx2D("escopeta_bombeo");
+        yield return new WaitForSeconds(openSeconds);
 
-        int load = Mathf.Min(magazineSize - loadedRounds, reserveRounds);
-        loadedRounds += load;
-        reserveRounds -= load;
+        // Una bala por cada una que falta, nunca más que la reserva. Cada bala cuenta al entrar (si se corta, se queda)
+        while (loadedRounds < magazineSize && reserveRounds > 0)
+        {
+            OnRoundInserting?.Invoke();
+            yield return new WaitForSeconds(insertSeconds);
+            loadedRounds++;
+            reserveRounds--;
+            if (reloadSound != null) PlaySound(reloadSound); else AudioLibrary.PlaySfx2D("escopeta_cargar");
+            OnRoundLoaded?.Invoke(loadedRounds);
+            if (_fireQueued) break; // termina esta bala, cierra y dispara
+        }
+
+        // Cerrar
+        OnReloadClosing?.Invoke();
+        yield return new WaitForSeconds(closeSeconds);
+
         _isReloading = false;
         _reloadRoutine = null;
         OnReloadFinished?.Invoke();
+
+        bool fire = _fireQueued;
+        _fireQueued = false;
+        if (fire && loadedRounds > 0 && !Blocked()) Fire();
     }
 
-    /// <summary>Cambio de arma: corta la recarga sin cargar balas. No avisa OnReloadFinished.</summary>
+    /// <summary>Cambio de arma: corta la recarga; las balas que ya entraron se quedan. No avisa OnReloadFinished.</summary>
     public void CancelReload()
     {
+        _fireQueued = false;
         if (!_isReloading) return;
         if (_reloadRoutine != null) StopCoroutine(_reloadRoutine);
         _reloadRoutine = null;

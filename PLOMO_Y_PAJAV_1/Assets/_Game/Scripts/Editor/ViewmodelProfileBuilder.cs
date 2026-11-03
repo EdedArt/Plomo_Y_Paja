@@ -177,15 +177,17 @@ public static class ViewmodelProfileBuilder
         return true;
     }
 
-    /// <summary>Versión de la medición del punto de mira (fase 1.4).</summary>
-    public const int SightVersion = 1;
+    /// <summary>Versión de la medición del punto de mira (fase 1.4). 2 (3C.5.2): VM_Revolver se marcó como medido cuando
+    /// todavía no tenía cuadros y se quedó con el valor por defecto (960.5, 575); ahora se vuelve a medir.</summary>
+    public const int SightVersion = 2;
 
     /// <summary>Mide aimSightPoint del PNG aimIdle del perfil (si aún no está medido). Mismo algoritmo que Tools/viewmodel_sight.py.</summary>
     public static bool ApplySight(ViewmodelProfile p)
     {
         if (p == null || p.sightVersion >= SightVersion) return false;
-        if (p.aimIdle != null && p.aimIdle.HasFrames && MeasureSightPoint(p.aimIdle.frames[0], out Vector2 point))
-            p.aimSightPoint = point;
+        // Sin dibujo de apuntar no se marca como medido: se mide cuando llegue el PNG (antes quedaba el valor por defecto)
+        if (p.aimIdle == null || !p.aimIdle.HasFrames || !MeasureSightPoint(p.aimIdle.frames[0], out Vector2 point)) return false;
+        p.aimSightPoint = point;
         p.sightVersion = SightVersion;
         EditorUtility.SetDirty(p);
         return true;
@@ -273,27 +275,252 @@ public static class ViewmodelProfileBuilder
             p.kickOffset = new Vector2(30f, -45f);
             p.kickRotation = 6f;
         });
-        ApplyRevolverReloadSequence(profile);
+        ApplyRevolverMeasurements(profile);
         return profile;
     }
 
-    /// <summary>Segundos de la recarga completa del revólver (RevolverController.reloadTime por defecto, fase 3C.5).</summary>
-    public const float RevolverReloadSeconds = 2.2f;
+    /// <summary>Versión de la medición de handsScale (3C.5.2). Solo se mide una vez: después manda el ajuste a mano.</summary>
+    public const int HandsScaleVersion = 1;
+    private const string RimSpritePath = ViewmodelArtImporter.ViewmodelFolder + "/FX/fx_round_rim_01.png";
 
     /// <summary>
-    /// Fase 3C.5: la recarga del revólver es completa (no bala por bala). Con los 3 cuadros (abrir, meter, cerrar) se arma la
-    /// secuencia abrir → meter → abrir → meter → abrir → meter → cerrar, repartida en RevolverReloadSeconds: se lee como
-    /// "meter balas" sin las balas visibles de VM2 (el arte tiene 5 huecos y el tambor de Centavo, 6).
-    /// ViewmodelAnimator la pasa una vez (el clip de recarga se repite, pero dura justo lo que la recarga).
+    /// Fase 3C.5.2, todo medido de los PNG (nada a mano):
+    /// - recarga por etapas: reload = los 3 cuadros tal cual (abrir, meter, cerrar); los cambia el arma con sus eventos;
+    /// - hipClearLeftArtX: borde izquierdo del arma en idle/fire (la mira no queda tapada);
+    /// - huecos del tambor en reload_01 / reload_02 (balas visibles) y el dibujo de la bala (fx_round_rim_01);
+    /// - handsScale (solo la primera vez): alto del guante de la escopeta / alto del guante del revólver, en idle.
     /// </summary>
-    private static void ApplyRevolverReloadSequence(ViewmodelProfile profile)
+    private static void ApplyRevolverMeasurements(ViewmodelProfile profile)
     {
-        Sprite[] r = profile.reload.frames;
-        if (r == null || r.Length != 3) return; // sin los 3 cuadros: queda lo que haya (o la bajada de manos)
-        profile.reload.frames = new[] { r[0], r[1], r[0], r[1], r[0], r[1], r[2] };
-        profile.reload.fps = profile.reload.frames.Length / RevolverReloadSeconds;
+        if (profile == null) return;
+        var log = new System.Text.StringBuilder("[Viewmodel] VM_Revolver medido:");
+        profile.reload.fps = 0f; // 3C.5 usaba una secuencia de 7 cuadros a 3.18 cps; ahora los cuadros los cambia el arma
+
+        float left = float.MaxValue;
+        foreach (ViewmodelProfile.Clip clip in new[] { profile.idle, profile.fire })
+            if (clip != null && clip.HasFrames && MeasureOpaqueLeft(clip.frames[0], out float x)) left = Mathf.Min(left, x);
+        profile.hipClearLeftArtX = left < float.MaxValue ? left : 0f;
+        log.Append(" borde izq. del arma en la cadera = ").Append(profile.hipClearLeftArtX.ToString("0")).Append(" px;");
+
+        Sprite[] reload = profile.reload.frames;
+        float diameter = 0f;
+        profile.chambersOpen = reload != null && reload.Length > 0 ? MeasureChambers(reload[0], out diameter) : new Vector2[0];
+        profile.chambersInsert = reload != null && reload.Length > 1 ? MeasureChambers(reload[1], out _) : new Vector2[0];
+        profile.chamberDiameter = profile.chambersOpen.Length > 0 ? diameter : 0f;
+        profile.chamberRim = AssetDatabase.LoadAssetAtPath<Sprite>(RimSpritePath);
+        log.Append(" huecos abrir ").Append(profile.chambersOpen.Length).Append(" / meter ").Append(profile.chambersInsert.Length)
+           .Append(", diámetro ").Append(profile.chamberDiameter.ToString("0")).Append(" px;");
+        if (profile.chambersOpen.Length != 5)
+            Debug.LogWarning("[Viewmodel] ✗ VM_Revolver: se esperaban 5 huecos en reload_01 y se midieron " + profile.chambersOpen.Length + ".");
+        if (profile.chamberRim == null) Debug.LogWarning("[Viewmodel] ✗ Falta " + RimSpritePath + ": no se ven las balas en el tambor.");
+
+        if (profile.handsScaleVersion < HandsScaleVersion)
+        {
+            var shotgun = AssetDatabase.LoadAssetAtPath<ViewmodelProfile>(ShotgunProfilePath);
+            if (shotgun != null && shotgun.idle.HasFrames && profile.idle.HasFrames
+                && MeasureGloveHeight(shotgun.idle.frames[0], out float shotgunGlove)
+                && MeasureGloveHeight(profile.idle.frames[0], out float revolverGlove) && revolverGlove > 0f)
+            {
+                profile.handsScale = Mathf.Clamp(Mathf.Round(shotgunGlove / revolverGlove * 100f) / 100f, 0.7f, 1.2f);
+                profile.handsScaleVersion = HandsScaleVersion;
+                log.Append(" guante escopeta ").Append(shotgunGlove.ToString("0")).Append(" px / revólver ")
+                   .Append(revolverGlove.ToString("0")).Append(" px → handsScale ").Append(profile.handsScale.ToString("0.00")).Append(';');
+            }
+        }
+        else log.Append(" handsScale ").Append(profile.handsScale.ToString("0.00")).Append(" (ajustado, no se vuelve a medir);");
+
         EditorUtility.SetDirty(profile);
         AssetDatabase.SaveAssets();
+        Debug.Log(log.ToString());
+    }
+
+    // ---------- Lectura de PNG (del disco, no depende de cómo esté importado) ----------
+
+    private static bool ReadPixels(Sprite sprite, out Color32[] px, out int w, out int h)
+    {
+        px = null;
+        w = h = 0;
+        if (sprite == null) return false;
+        string path = AssetDatabase.GetAssetPath(sprite);
+        if (string.IsNullOrEmpty(path) || !File.Exists(path)) return false;
+        var tex = new Texture2D(2, 2, TextureFormat.RGBA32, false);
+        try
+        {
+            if (!ImageConversion.LoadImage(tex, File.ReadAllBytes(path), false)) return false;
+            w = tex.width;
+            h = tex.height;
+            px = tex.GetPixels32(); // fila 0 = abajo
+            return true;
+        }
+        finally { Object.DestroyImmediate(tex); }
+    }
+
+    /// <summary>Columna opaca (alpha ≥ 128) más a la izquierda, en px del arte 1920.</summary>
+    public static bool MeasureOpaqueLeft(Sprite sprite, out float x)
+    {
+        x = 0f;
+        if (!ReadPixels(sprite, out Color32[] px, out int w, out int h)) return false;
+        for (int c = 0; c < w; c++)
+            for (int r = 0; r < h; r++)
+                if (px[r * w + c].a >= 128) { x = c * 1920f / w; return true; }
+        return false;
+    }
+
+    /// <summary>
+    /// Huecos del tambor abierto: píxeles opacos muy oscuros (máx(R,G,B) &lt; 45) erosionados con un cuadrado de 15 px (borra los
+    /// contornos finos), componentes redondas (lados en proporción 0.7–1.43, área ≥ 400) de tamaño parecido (0.55–1.6 × la
+    /// mediana de las 5 más grandes). Hasta 5, en el sentido de las agujas del reloj empezando por el que sigue al de arriba
+    /// (el de arriba, donde el dibujo "meter" pone la bala, se llena el último). Px del arte, origen abajo-izquierda.
+    /// Mismo algoritmo que el script de medición de la auditoría 3C.5.2.
+    /// </summary>
+    public static Vector2[] MeasureChambers(Sprite sprite, out float diameter)
+    {
+        diameter = 0f;
+        if (!ReadPixels(sprite, out Color32[] px, out int w, out int h)) return new Vector2[0];
+        const int k = 7;
+        var dark = new bool[w * h];
+        for (int i = 0; i < px.Length; i++)
+        {
+            Color32 c = px[i];
+            dark[i] = c.a >= 200 && Mathf.Max(c.r, Mathf.Max(c.g, c.b)) < 45;
+        }
+        var horizontal = new bool[w * h];
+        for (int y = 0; y < h; y++)
+        {
+            int run = 0;
+            for (int x = 0; x < w; x++)
+            {
+                run = dark[y * w + x] ? run + 1 : 0;
+                if (run >= 2 * k + 1) horizontal[y * w + x - k] = true;
+            }
+        }
+        var eroded = new bool[w * h];
+        for (int x = 0; x < w; x++)
+        {
+            int run = 0;
+            for (int y = 0; y < h; y++)
+            {
+                run = horizontal[y * w + x] ? run + 1 : 0;
+                if (run >= 2 * k + 1) eroded[(y - k) * w + x] = true;
+            }
+        }
+
+        var candidates = new List<Chamber>();
+        foreach (Blob b in Blobs(eroded, w, h))
+        {
+            float bw = b.MaxX - b.MinX + 1 + 2 * k, bh = b.MaxY - b.MinY + 1 + 2 * k;
+            float aspect = bw / bh;
+            if (b.Area < 400 || aspect < 0.7f || aspect > 1.43f) continue;
+            candidates.Add(new Chamber
+            {
+                Center = new Vector2(b.SumX / b.Area + 0.5f, b.SumY / b.Area + 0.5f),
+                Area = b.Area,
+                Size = (bw + bh) * 0.5f,
+            });
+        }
+        if (candidates.Count < 3) return new Vector2[0];
+        candidates.Sort((a, b) => b.Area.CompareTo(a.Area));
+        var areas = new List<int>();
+        for (int i = 0; i < Mathf.Min(5, candidates.Count); i++) areas.Add(candidates[i].Area);
+        areas.Sort();
+        float median = areas[areas.Count / 2];
+        var chosen = new List<Chamber>();
+        foreach (Chamber c in candidates)
+            if (c.Area >= 0.55f * median && c.Area <= 1.6f * median && chosen.Count < 5) chosen.Add(c);
+        if (chosen.Count < 3) return new Vector2[0];
+
+        Vector2 mid = Vector2.zero;
+        float sizeSum = 0f;
+        foreach (Chamber c in chosen) { mid += c.Center; sizeSum += c.Size; }
+        mid /= chosen.Count;
+        diameter = sizeSum / chosen.Count * 1920f / w;
+
+        // Ángulo en el sentido de las agujas del reloj desde arriba (y hacia arriba): atan2(dx, dy)
+        foreach (Chamber c in chosen)
+            c.Angle = Mathf.Repeat(Mathf.Atan2(c.Center.x - mid.x, c.Center.y - mid.y) * Mathf.Rad2Deg, 360f);
+        chosen.Sort((a, b) => a.Angle.CompareTo(b.Angle));
+        int topIndex = 0;
+        for (int i = 1; i < chosen.Count; i++)
+            if (chosen[i].Center.y > chosen[topIndex].Center.y) topIndex = i;
+        var result = new Vector2[chosen.Count];
+        for (int i = 0; i < chosen.Count; i++)
+        {
+            Vector2 c = chosen[(topIndex + 1 + i) % chosen.Count].Center;
+            result[i] = new Vector2(c.x * 1920f / w, c.y * 1080f / h);
+        }
+        return result;
+    }
+
+    private class Chamber
+    {
+        public Vector2 Center;
+        public int Area;
+        public float Size;
+        public float Angle;
+    }
+
+    /// <summary>
+    /// Alto (px del arte 1080) del guante más grande: píxeles opacos casi blancos (mín(R,G,B) &gt; 195, poco color), el
+    /// componente más grande medido a la mitad de resolución. En idle es la mano que sostiene el arma.
+    /// </summary>
+    public static bool MeasureGloveHeight(Sprite sprite, out float height)
+    {
+        height = 0f;
+        if (!ReadPixels(sprite, out Color32[] px, out int w, out int h)) return false;
+        int sw = w / 2, sh = h / 2;
+        var white = new bool[sw * sh];
+        for (int y = 0; y < sh; y++)
+            for (int x = 0; x < sw; x++)
+            {
+                Color32 c = px[(y * 2) * w + x * 2];
+                int mn = Mathf.Min(c.r, Mathf.Min(c.g, c.b)), mx = Mathf.Max(c.r, Mathf.Max(c.g, c.b));
+                white[y * sw + x] = c.a > 200 && mn > 195 && mx - mn < 45;
+            }
+        Blob best = null;
+        foreach (Blob b in Blobs(white, sw, sh))
+            if (best == null || b.Area > best.Area) best = b;
+        if (best == null) return false;
+        height = (best.MaxY - best.MinY + 1) * 2f * 1080f / h;
+        return true;
+    }
+
+    private class Blob
+    {
+        public int Area, MinX = int.MaxValue, MaxX = -1, MinY = int.MaxValue, MaxY = -1;
+        public float SumX, SumY;
+    }
+
+    /// <summary>Componentes conexas (4 vecinos) de una máscara.</summary>
+    private static List<Blob> Blobs(bool[] mask, int w, int h)
+    {
+        var blobs = new List<Blob>();
+        var seen = new bool[w * h];
+        var queue = new Queue<int>();
+        for (int start = 0; start < mask.Length; start++)
+        {
+            if (!mask[start] || seen[start]) continue;
+            var b = new Blob();
+            seen[start] = true;
+            queue.Enqueue(start);
+            while (queue.Count > 0)
+            {
+                int i = queue.Dequeue();
+                int x = i % w, y = i / w;
+                b.Area++;
+                b.SumX += x;
+                b.SumY += y;
+                if (x < b.MinX) b.MinX = x;
+                if (x > b.MaxX) b.MaxX = x;
+                if (y < b.MinY) b.MinY = y;
+                if (y > b.MaxY) b.MaxY = y;
+                if (x > 0 && mask[i - 1] && !seen[i - 1]) { seen[i - 1] = true; queue.Enqueue(i - 1); }
+                if (x < w - 1 && mask[i + 1] && !seen[i + 1]) { seen[i + 1] = true; queue.Enqueue(i + 1); }
+                if (y > 0 && mask[i - w] && !seen[i - w]) { seen[i - w] = true; queue.Enqueue(i - w); }
+                if (y < h - 1 && mask[i + w] && !seen[i + w]) { seen[i + w] = true; queue.Enqueue(i + w); }
+            }
+            blobs.Add(b);
+        }
+        return blobs;
     }
 
     public static ViewmodelProfile BuildProfile(string weaponId, string weaponFolder, string assetName, string flashPrefix,
