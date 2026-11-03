@@ -21,6 +21,8 @@ using UnityEngine;
 ///
 /// DAÑO: IDamageable (ShotgunController lo busca solo si no hay EnemyHealth: los guardias no cambian).
 /// TODAS las posiciones salen de ContadorShed (anclas del prefab del cuarto), nunca de coordenadas fijas.
+/// TAMAÑO (3C.6): la raíz del prefab tiene escala 1.15 (ContadorCentavoBuilder.CentavoRootScale). Dibujo, cápsula, seatedScale y
+/// coverSink crecen con ella; las alturas fijas de este código (ojos, mano, sangre, revólver) se multiplican por WorldScale.
 /// </summary>
 public class CentavoController : MonoBehaviour, IDamageable, IInterrogationTarget
 {
@@ -56,14 +58,17 @@ public class CentavoController : MonoBehaviour, IDamageable, IInterrogationTarge
     [SerializeField] private Light muzzleFlash;
     [Tooltip("Revolver suelto (apagado) que cae al recibir el golpe")]
     [SerializeField] private GameObject droppedRevolver;
-    [Tooltip("Metros a la derecha (del ancla sentado) donde cae el revólver, delante del banco (3C.5.1)")]
+    [Tooltip("Metros a la derecha (del ancla sentado) donde cae el revólver, delante del banco (3C.5.1). A escala 1: " +
+             "se multiplica por la escala de la raíz (×1.15 → 0.69 m), así sigue fuera del cuerpo sentado (3C.6)")]
     [SerializeField] private float revolverDropSide = 0.6f;
 
     [Header("Tamaño en el mundo (D12)")]
-    [Tooltip("Escala de los cuadros sentados (llenan el lienzo de 2.05 m). 0.52 ≈ 1.06 m de alto, apoyado en el banco de 1 m")]
+    [Tooltip("Escala de los cuadros sentados respecto a la raíz (llenan el lienzo de 2.05 m). 0.52 × raíz 1.15 ≈ 1.23 m de alto, " +
+             "apoyado en el banco de 1 m")]
     [SerializeField, Range(0.3f, 1f)] private float seatedScale = 0.52f;
 
-    [Tooltip("Metros que baja el dibujo al cubrirse (cover_01 mide 1.78 m: así solo asoma la cabeza sobre el banco)")]
+    [Tooltip("Metros (a escala 1) que baja el dibujo al cubrirse. cover_01 mide 1.78 m ×1.15 = 2.05 m: con 0.4 (×1.15 = 0.46 m) " +
+             "asoma la cabeza y los hombros sobre el banco de 1 m")]
     [SerializeField, Min(0f)] private float coverSink = 0.4f;
 
     [Header("Combate")]
@@ -107,16 +112,12 @@ public class CentavoController : MonoBehaviour, IDamageable, IInterrogationTarge
     [SerializeField, Min(0.1f)] private float fleeSpeed = 1.2f;
     [SerializeField, Min(0.5f)] private float limpFps = 4f;
 
-    [Header("Hitbox (cápsula en la capa Default: la escopeta la toca)")]
+    [Header("Hitbox (cápsula en la capa Default: la escopeta la toca). Medidas a escala 1: la raíz (×1.15) las agranda")]
     [SerializeField, Min(0.1f)] private float hitboxRadius = 0.3f;
     [SerializeField, Min(0.2f)] private float standingHeight = 1.8f;
     [Tooltip("Cubierto: más bajo que el banco (1.0 m) para que los perdigones choquen con el banco")]
     [SerializeField, Min(0.2f)] private float coverHeight = 0.7f;
     [SerializeField, Min(0.2f)] private float seatedHeight = 1.0f;
-
-    [Header("Debug (apagado en el juego)")]
-    [Tooltip("F9 = matar (como el final de la escena), F10 = perdonar y huir. Solo herido. Hasta que exista 3C.3")]
-    [SerializeField] private bool debug = false;
 
     /// <summary>Herido y el jugador llegó a ≤ 3 m con línea de vista (se dispara una vez por acercamiento).</summary>
     public event Action OnInterrogationRequested;
@@ -180,6 +181,9 @@ public class CentavoController : MonoBehaviour, IDamageable, IInterrogationTarge
     private SpriteRenderer _spriteRenderer;
     private float _flashSpriteUntil;
 
+    /// <summary>Escala del mundo de la raíz (3C.6: ×1.15). Las alturas y distancias fijas del código se multiplican por ella.</summary>
+    private float WorldScale => Mathf.Max(0.01f, transform.lossyScale.y);
+
     // ==================================================================
     // Ciclo de vida
     // ==================================================================
@@ -236,7 +240,6 @@ public class CentavoController : MonoBehaviour, IDamageable, IInterrogationTarge
         }
 
         UpdateShotEffects();
-        UpdateDebugKeys();
     }
 
     private void OnDisable()
@@ -439,7 +442,7 @@ public class CentavoController : MonoBehaviour, IDamageable, IInterrogationTarge
         Say(LineHit, true);
 
         Vector3 away = AwayFromPlayer();
-        Vector3 chest = transform.position + Vector3.up * 1.2f;
+        Vector3 chest = transform.position + Vector3.up * (1.2f * WorldScale);
         CartoonFx.BloodBurst(chest, away);
         CartoonFx.HitStop(0.04f);
         AudioLibrary.PlaySfx("impacto_carne", chest);
@@ -475,7 +478,7 @@ public class CentavoController : MonoBehaviour, IDamageable, IInterrogationTarge
         if (shed != null && shed.SeatedAnchor != null)
         {
             Transform seat = shed.SeatedAnchor;
-            landing = seat.position + seat.right * revolverDropSide + seat.forward * 0.15f;
+            landing = seat.position + seat.right * (revolverDropSide * WorldScale) + seat.forward * 0.15f;
             float top = shed.BenchCover != null ? shed.BenchCover.bounds.max.y : seat.position.y + 1f;
             start = new Vector3(landing.x, top + 0.25f, landing.z);
         }
@@ -486,6 +489,7 @@ public class CentavoController : MonoBehaviour, IDamageable, IInterrogationTarge
         }
 
         droppedRevolver.transform.SetParent(null, true);
+        droppedRevolver.transform.localScale = Vector3.one; // la raíz de Centavo está a ×1.15: el revólver conserva su tamaño real (0.35 m)
         droppedRevolver.transform.SetPositionAndRotation(start, Quaternion.Euler(0f, UnityEngine.Random.Range(0f, 360f), 0f));
         if (droppedRevolver.TryGetComponent(out WeaponPickup pickup)) pickup.SetSafeSpot(landing + Vector3.up * 0.06f);
         droppedRevolver.SetActive(true);
@@ -544,7 +548,8 @@ public class CentavoController : MonoBehaviour, IDamageable, IInterrogationTarge
         _nextDrip = Time.time + RandomRange(dripSeconds);
         // Al costado (fuera de la cápsula, para que la gota no caiga sobre ella), del lado de la cámara
         Vector3 side = Vector3.Cross(Vector3.up, AwayFromPlayer()).normalized;
-        Vector3 at = transform.position + side * (hitboxRadius + 0.12f) - AwayFromPlayer() * 0.1f + Vector3.up * 0.45f;
+        float s = WorldScale;
+        Vector3 at = transform.position + side * ((hitboxRadius + 0.12f) * s) - AwayFromPlayer() * (0.1f * s) + Vector3.up * (0.45f * s);
         CartoonFx.BloodDrip(at);
     }
 
@@ -560,7 +565,7 @@ public class CentavoController : MonoBehaviour, IDamageable, IInterrogationTarge
         SeatedPose();
         if (billboard != null) billboard.PlayDeath();
 
-        Vector3 chest = transform.position + Vector3.up * 0.6f;
+        Vector3 chest = transform.position + Vector3.up * (0.6f * WorldScale);
         CartoonFx.BloodBurst(chest, AwayFromPlayer());
         AudioLibrary.PlaySfx("impacto_carne", chest);
         FlashSprite();
@@ -712,14 +717,6 @@ public class CentavoController : MonoBehaviour, IDamageable, IInterrogationTarge
         if (billboard != null) billboard.SetVisible(visible);
     }
 
-    private void UpdateDebugKeys()
-    {
-        if (!debug) return;
-        if (_state != State.Wounded && _state != State.Interrogation) return;
-        if (Input.GetKeyDown(KeyCode.F9)) ResolveKilled();
-        else if (Input.GetKeyDown(KeyCode.F10)) ResolvePardoned();
-    }
-
     // ==================================================================
     // Poses, hitbox y escala
     // ==================================================================
@@ -813,16 +810,16 @@ public class CentavoController : MonoBehaviour, IDamageable, IInterrogationTarge
 
     private Vector3 PlayerChest() => PlayerEye() - Vector3.up * 0.45f;
 
-    private Vector3 StandingEye() => transform.position + Vector3.up * 1.6f;
+    private Vector3 StandingEye() => transform.position + Vector3.up * (1.6f * WorldScale);
 
-    private Vector3 SeatedEye() => transform.position + Vector3.up * 0.8f;
+    private Vector3 SeatedEye() => transform.position + Vector3.up * (0.8f * WorldScale);
 
     private Vector3 MuzzlePosition()
     {
         Vector3 toPlayer = _player != null ? _player.position - transform.position : transform.forward;
         toPlayer.y = 0f;
         toPlayer = toPlayer.sqrMagnitude > 0.001f ? toPlayer.normalized : transform.forward;
-        return transform.position + Vector3.up * 1.35f + toPlayer * 0.35f;
+        return transform.position + (Vector3.up * 1.35f + toPlayer * 0.35f) * WorldScale;
     }
 
     private Vector3 AwayFromPlayer()

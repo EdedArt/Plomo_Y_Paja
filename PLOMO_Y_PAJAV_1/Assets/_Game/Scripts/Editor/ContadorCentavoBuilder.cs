@@ -13,6 +13,9 @@ using UnityEngine.SceneManagement;
 /// También lo llaman "Construir patio y cuarto" y "Generar Nivel Porky" (vía ContadorYardBuilder.BuildInto),
 /// así que regenerar el nivel no lo pierde.
 ///
+/// TAMAÑO (3C.6): la raíz del prefab se escribe con escala uniforme CentavoRootScale (1.15, "un poco más grande", David).
+/// Todo lo de adentro (dibujo, cápsula, fogonazo, seatedScale 0.52, coverSink) crece con la raíz; regenerar el prefab la conserva.
+///
 /// PREFAB:
 ///   Centavo (CentavoController, AudioSource de voz 3D, LipSyncDriver)
 ///   ├── Visual
@@ -30,6 +33,9 @@ public static class ContadorCentavoBuilder
     private const string InstanceName = "Centavo";
     private const string ActorsRoot = "--- ACTORS ---";
     private const string SpriteSetId = "contador";
+
+    /// <summary>Escala uniforme de la raíz del prefab (3C.6). Ya incluye el "un poco más grande" de David (era 1.0).</summary>
+    public const float CentavoRootScale = 1.15f;
 
     /// <summary>Guardias del patio que tienen que caer antes de que Centavo despierte (D2). Nombres de BuildActors.</summary>
     private static readonly string[] YardGuardNames = { "Guard_Patrulla_A", "Guard_Centinela" };
@@ -90,6 +96,7 @@ public static class ContadorCentavoBuilder
         CharacterSpriteSet set = CharacterSpriteSetBuilder.GetOrCreateSet(SpriteSetId);
 
         var root = new GameObject(InstanceName);
+        root.transform.localScale = Vector3.one * CentavoRootScale; // 3C.6: ver CentavoRootScale
         try
         {
             // Voz 3D propia: el lip-sync la lee (GetOutputData) y suena con el juego en pausa (D5)
@@ -184,7 +191,7 @@ public static class ContadorCentavoBuilder
                 report.AppendLine("⚠ Falta InterrogationCanvas: correr Plomo y Paja → Contador → Crear UI de interrogatorio.");
 
             GameObject prefab = PrefabUtility.SaveAsPrefabAsset(root, PrefabPath);
-            report.AppendLine(prefab != null ? $"✓ Prefab {PrefabPath}" : $"✗ No se pudo guardar {PrefabPath}");
+            report.AppendLine(prefab != null ? $"✓ Prefab {PrefabPath} (escala de la raíz ×{CentavoRootScale:0.00})" : $"✗ No se pudo guardar {PrefabPath}");
             if (!set.HasAnyFrames)
                 report.AppendLine("⚠ El set de sprites 'contador' está vacío: correr Plomo y Paja → Reconstruir Sets de Sprites (mientras, se ve la cápsula).");
             return prefab;

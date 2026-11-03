@@ -19,7 +19,7 @@ using UnityEngine.Rendering.Universal;
 ///     Las voces de la escena tienen ignoreListenerPause (D5).
 ///  4. Desenfoque: Volume global propio (prioridad 100) de 0 → 1 en 0.35 s: DoF Gaussian (0 → 1 m, radio 1.5),
 ///     viñeta +0.15 y exposición −0.6 sobre lo que haya. El canvas va en Overlay: el retrato queda nítido.
-///  5. Oculta el dibujo del mundo y muestra el retrato. Después corre flow(this) (el contenido: 3C.3 demo, 3C.4 entero).
+///  5. Oculta el dibujo del mundo y muestra el retrato. Después corre flow(this) (el contenido: el flujo de CentavoInterrogation, hecho con InterrogationData).
 /// EXIT(outcome): lo inverso. El flujo lo llama al final; si el flujo termina sin llamarlo, sale como Cancelled.
 ///
 /// PAUSA: GameManager no deja pausar con Escape mientras IsActive (la escena ya congela el tiempo).

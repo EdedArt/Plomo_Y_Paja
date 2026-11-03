@@ -257,6 +257,7 @@ public static class TestPrefabGenerator
     /// Fase 3C.5 (idempotente): GameObject "Revolver" (RevolverController + AudioSource, componente apagado: sin dueño hasta
     /// recoger el de Centavo) junto a la escopeta, WeaponSwitcher en el Player con los dos perfiles, y la dispersión de la
     /// escopeta × 1.5 (D14) solo si sigue en el valor viejo (5): un ajuste a mano en el Inspector no se pisa.
+    /// 3C.6: la reserva de la escopeta pasa de 18 a 24 con la misma regla (solo si sigue en 18).
     /// </summary>
     private static void EnsureRevolverAndSwitcher(GameObject contents, Camera cam, ShotgunController shotgun)
     {
@@ -265,6 +266,7 @@ public static class TestPrefabGenerator
             var shotgunSo = new SerializedObject(shotgun);
             SerializedProperty spread = shotgunSo.FindProperty("spreadAngle");
             if (Mathf.Approximately(spread.floatValue, 5f)) spread.floatValue = 7.5f;
+            MigrateInt(shotgunSo, "reserveAmmo", 18, 24); // 3C.6: AUDIT_contador_3C5, opción (a)
             shotgunSo.ApplyModifiedPropertiesWithoutUndo();
         }
 
@@ -320,9 +322,13 @@ public static class TestPrefabGenerator
             if (contents.GetComponent<PlayerHealth>() == null)
                 contents.AddComponent<PlayerHealth>();
 
-            // HUD.1 (H4): la reserva de munición vive en un solo lugar (escopeta 18 / tope 30, revólver 0 / tope 24)
-            if (contents.GetComponent<PlayerAmmo>() == null)
-                contents.AddComponent<PlayerAmmo>();
+            // HUD.1 (H4): la reserva de munición vive en un solo lugar (escopeta 24 / tope 30, revólver 0 / tope 24)
+            PlayerAmmo playerAmmo = contents.GetComponent<PlayerAmmo>();
+            if (playerAmmo == null)
+                playerAmmo = contents.AddComponent<PlayerAmmo>();
+            var ammoSo = new SerializedObject(playerAmmo);
+            MigrateInt(ammoSo, "shotgunReserve", 18, 24); // 3C.6: reserva de la escopeta 18 → 24 (solo si sigue en 18)
+            ammoSo.ApplyModifiedPropertiesWithoutUndo();
 
             // Apuntar con clic derecho (viewmodel, dispersión, velocidad, FOV y mira)
             if (contents.GetComponent<PlayerAim>() == null)

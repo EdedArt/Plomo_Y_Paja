@@ -5,7 +5,7 @@ using UnityEngine;
 /// La reserva de munición de Wilbur, en UN solo lugar (fase HUD.1, H4). Las armas guardan solo lo cargado.
 /// DÓNDE VA: GameObject "Player" (lo añade "Crear Prefabs de Prueba").
 ///
-/// - Reserva y tope por AmmoType. Escopeta: 18 al empezar (lo que tenía ShotgunController), tope 30 (el de su AddAmmo).
+/// - Reserva y tope por AmmoType. Escopeta: 24 al empezar (3C.6: antes 18, AUDIT_contador_3C5 opción a), tope 30 (el de su AddAmmo).
 ///   Revólver: 0 al empezar (no se tiene el revólver, D13), tope 24. La de revólver se puede juntar sin tener el arma (H14).
 /// - TryAdd(type, amount, out added): suma hasta el tope; false si ya estaba lleno (HUD.3: el objeto no se gasta).
 /// - Take(type, amount): saca hasta lo que haya; devuelve cuánto sacó (las armas al recargar).
@@ -15,7 +15,7 @@ using UnityEngine;
 public class PlayerAmmo : MonoBehaviour
 {
     [Header("Escopeta")]
-    [SerializeField, Min(0)] private int shotgunReserve = 18;
+    [SerializeField, Min(0)] private int shotgunReserve = 24;
     [SerializeField, Min(0)] private int shotgunCap = 30;
 
     [Header("Revólver")]

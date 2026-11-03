@@ -119,7 +119,7 @@ Wilbur lo entiende todo. El Lobo y Wilbur confrontan a Porky juntos. Max (el her
   - Enemigos que pelean hasta morir: 6. Calle: 1 patrullero. Sala: 1 centinela. Dormitorio: 1 patrullero.
     Cocina: 1 centinela. Patio: 1 patrullero que cruza el portón y 1 centinela que lo custodia.
   - Interrogables: Colmillo (cocina, se rinde) y Centavo, el contador (cuarto de herramientas del patio, fase 3C).
-  - Munición: la de la escopeta (6 + 18), sin recogibles (alcanza: ver AUDIT_contador_3C4_2).
+  - Munición: la de la escopeta (6 + 24, subió de 18 en la 3C.6), sin recogibles (ver AUDIT_contador_3C5 y AUDIT_contador_3C6). El revólver de Centavo trae 5 + 15.
 - Salida: puerta trasera que lleva al campamento
 - Duración estimada: 8-12 min
 

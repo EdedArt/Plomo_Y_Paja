@@ -64,7 +64,8 @@ public class AICompanion : MonoBehaviour
     [SerializeField] private float fadeDuration = 0.5f;
 
     [Header("Debug")]
-    [SerializeField] private bool logRequests = true;
+    [Tooltip("Escribe en la consola cada línea que devuelve la IA. Apagado por defecto (3C.6).")]
+    [SerializeField] private bool logRequests = false;
 
     private const string Endpoint = "https://api.openai.com/v1/chat/completions";
     private const string KeyFileName = "openai_key.txt";

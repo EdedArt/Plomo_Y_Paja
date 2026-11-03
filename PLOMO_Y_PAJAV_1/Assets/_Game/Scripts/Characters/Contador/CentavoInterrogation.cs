@@ -210,7 +210,7 @@ public class CentavoInterrogation : MonoBehaviour
     {
         Transform centavo = _centavo.transform;
         Vector3 eye = d.PlayerEyePosition;
-        Func<Quaternion> lookAtHim = () => InterrogationDirector.LookFrom(eye, centavo.position + Vector3.up * spareLookHeight);
+        Func<Quaternion> lookAtHim = () => InterrogationDirector.LookFrom(eye, centavo.position + Vector3.up * (spareLookHeight * centavo.lossyScale.y)); // 3C.6: sigue la escala ×1.15 de Centavo
 
         // De agachado a la altura de los ojos, siguiéndolo; luego lo sigue cojear hacia el portón
         yield return d.MoveCamera(() => eye, lookAtHim, spareRiseSeconds);
@@ -231,7 +231,7 @@ public class CentavoInterrogation : MonoBehaviour
     private IEnumerator KillOutro(InterrogationDirector d, Func<string> thought)
     {
         Vector3 eye = d.PlayerEyePosition;
-        Vector3 body = _centavo.transform.position + Vector3.up * bodyLookHeight;
+        Vector3 body = _centavo.transform.position + Vector3.up * (bodyLookHeight * _centavo.transform.lossyScale.y);
         yield return d.MoveCamera(() => eye, () => InterrogationDirector.LookFrom(eye, body), killRiseSeconds);
         yield return d.OutroThought(thought, outroThoughtMinSeconds, outroThoughtSecondsPerCharacter);
     }

@@ -52,8 +52,8 @@ public class ShotgunController : MonoBehaviour, IWeapon
     [Tooltip("Capacidad máxima del cargador")]
     [SerializeField] private int maxAmmoInMag = 6;
 
-    [Tooltip("Reserva SOLO si el Player no tiene PlayerAmmo (HUD.1, H4: la reserva vive en PlayerAmmo, que empieza con 18)")]
-    [SerializeField] private int reserveAmmo = 18;
+    [Tooltip("Reserva SOLO si el Player no tiene PlayerAmmo (HUD.1, H4: la reserva vive en PlayerAmmo, que empieza con 24 desde la 3C.6)")]
+    [SerializeField] private int reserveAmmo = 24;
 
     [Header("Tiempos")]
     [Tooltip("Segundos entre disparos")]
