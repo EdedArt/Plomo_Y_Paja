@@ -466,7 +466,7 @@ GameObject:
   - component: {fileID: 7145779748193337901}
   - component: {fileID: 3936613672936606328}
   - component: {fileID: 3940299618158744191}
-  - component: {fileID: 462706315708155823}
+  - component: {fileID: 122769869994602012}
   m_Layer: 0
   m_Name: Player
   m_TagString: Player
@@ -712,7 +712,7 @@ MonoBehaviour:
   shotgunCap: 30
   revolverReserve: 0
   revolverCap: 24
---- !u!114 &462706315708155823
+--- !u!114 &122769869994602012
 MonoBehaviour:
   m_ObjectHideFlags: 0
   m_CorrespondingSourceObject: {fileID: 0}

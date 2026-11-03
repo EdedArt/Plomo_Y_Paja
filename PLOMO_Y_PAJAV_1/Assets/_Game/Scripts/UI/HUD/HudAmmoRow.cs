@@ -11,6 +11,8 @@ using UnityEngine.UI;
 /// - Con 2 balas o menos, las llenas se tiñen de rojo. Encima: "¡RECARGA!" (vacía con reserva) o "SIN MUNICIÓN" (vacía y sin
 ///   reserva), titilando. Al lado: la reserva "×18".
 /// - Cambio de arma: la fila entra deslizándose en 0.2 s.
+/// - HUD.1.1: medallón de la escopeta (hud_medallon_balas de Edgar: tres cartuchos en el mismo marco redondo que la cara) a
+///   la izquierda de la fila, solo con la escopeta (Shells). Sin ese dibujo, la fila empieza en x = 0 como antes.
 /// Sin basura por frame: los textos se rehacen solo cuando cambia el valor.
 /// </summary>
 public class HudAmmoRow : MonoBehaviour
@@ -21,6 +23,8 @@ public class HudAmmoRow : MonoBehaviour
     private const float CascadeStep = 0.04f;
     private const float SlideSeconds = 0.2f;
     private const float SlideDistance = 50f;
+    private const float MedallionSize = 58f;
+    private const float MedallionGap = 8f;
 
     public const string ReloadText = "¡RECARGA!";
     public const string EmptyText = "SIN MUNICIÓN";
@@ -33,6 +37,7 @@ public class HudAmmoRow : MonoBehaviour
     private readonly Image[] _icons = new Image[MaxIcons];
     private TextMeshProUGUI _reserve;
     private TextMeshProUGUI _state;
+    private Image _medallion;
 
     private Sprite _shellFull, _shellEmpty, _bulletFull, _bulletEmpty;
     private IWeapon _weapon;
@@ -47,7 +52,8 @@ public class HudAmmoRow : MonoBehaviour
     private int _stateShown; // 0 nada, 1 recarga, 2 sin munición
     private Vector2 _basePos;
 
-    public void Init(Sprite shellFull, Sprite shellEmpty, Sprite bulletFull, Sprite bulletEmpty, TMP_FontAsset font)
+    public void Init(Sprite shellFull, Sprite shellEmpty, Sprite bulletFull, Sprite bulletEmpty, TMP_FontAsset font,
+                     Sprite shellMedallion = null)
     {
         _root = (RectTransform)transform;
         _basePos = _root.anchoredPosition;
@@ -58,6 +64,16 @@ public class HudAmmoRow : MonoBehaviour
         _shellEmpty = shellEmpty;
         _bulletFull = bulletFull;
         _bulletEmpty = bulletEmpty;
+
+        if (shellMedallion != null)
+        {
+            _medallion = HudUi.Image("Medallon", _root, shellMedallion, new Vector2(MedallionSize, MedallionSize));
+            RectTransform mrt = _medallion.rectTransform;
+            mrt.anchorMin = mrt.anchorMax = mrt.pivot = Vector2.zero;
+            mrt.anchoredPosition = new Vector2(0f, -8f); // centrado con los cartuchos (46 px); el borde de arriba no pisa "¡RECARGA!" (y 50)
+            _medallion.preserveAspect = true;
+            _medallion.gameObject.SetActive(false);
+        }
 
         _iconsRoot = HudUi.Rect("Iconos", _root, Vector2.zero);
         _iconsRoot.anchorMin = _iconsRoot.anchorMax = _iconsRoot.pivot = Vector2.zero;
@@ -95,6 +111,7 @@ public class HudAmmoRow : MonoBehaviour
         if (weapon == null)
         {
             for (int i = 0; i < MaxIcons; i++) _icons[i].gameObject.SetActive(false);
+            if (_medallion != null) _medallion.gameObject.SetActive(false);
             _reserve.text = "";
             _state.enabled = false;
             return;
@@ -104,6 +121,9 @@ public class HudAmmoRow : MonoBehaviour
         _magazine = Mathf.Clamp(weapon.MagazineSize, 0, MaxIcons);
         Vector2 size = cylinder ? new Vector2(22f, 42f) : new Vector2(26f, 46f);
         float spacing = cylinder ? 26f : 32f;
+        bool medallion = _medallion != null && !cylinder;
+        if (_medallion != null) _medallion.gameObject.SetActive(medallion);
+        _iconsRoot.anchoredPosition = new Vector2(medallion ? MedallionSize + MedallionGap : 0f, 0f);
         for (int i = 0; i < MaxIcons; i++)
         {
             bool used = i < _magazine;
@@ -114,7 +134,7 @@ public class HudAmmoRow : MonoBehaviour
             rt.anchoredPosition = new Vector2(size.x * 0.5f + i * spacing, 0f);
             rt.localScale = Vector3.one;
         }
-        _reserve.rectTransform.anchoredPosition = new Vector2(_magazine * spacing + 10f, 0f);
+        _reserve.rectTransform.anchoredPosition = new Vector2(_iconsRoot.anchoredPosition.x + _magazine * spacing + 10f, 0f);
         _shownLoaded = _targetLoaded = weapon.LoadedRounds;
         RefreshIcons();
         Refresh();

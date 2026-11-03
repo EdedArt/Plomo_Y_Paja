@@ -207,16 +207,17 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: 
   faces:
-  - {fileID: 0}
-  - {fileID: 0}
-  - {fileID: 0}
-  - {fileID: 0}
-  faceHurt: {fileID: 0}
+  - {fileID: 21300000, guid: 61d83955561458c48b95a5249a256fbb, type: 3}
+  - {fileID: 21300000, guid: 61d83955561458c48b95a5249a256fbb, type: 3}
+  - {fileID: 21300000, guid: 31098082b063f894db3a57f17389acff, type: 3}
+  - {fileID: 21300000, guid: 31098082b063f894db3a57f17389acff, type: 3}
+  faceHurt: {fileID: 21300000, guid: 31098082b063f894db3a57f17389acff, type: 3}
   shellFull: {fileID: 0}
   shellEmpty: {fileID: 0}
   bulletFull: {fileID: 0}
   bulletEmpty: {fileID: 0}
   barFrame: {fileID: 0}
+  ammoMedallion: {fileID: 21300000, guid: d5808370ca9111b41978f970a54725b5, type: 3}
   font: {fileID: 11400000, guid: 42b9b384a4ba40b469ab4199a39f8134, type: 2}
   heartbeat: {fileID: 5326306381577037090}
   margin: {x: 40, y: 34}

@@ -88,8 +88,12 @@ public static class LevelBuilder_NivelPorky
         // Fase 3C.1: cuarto de herramientas de Centavo, cerca y portón del rincón (traen sus propios flags estáticos)
         ContadorYardBuilder.BuildInto(environment, lighting);
 
-        // Fase HUD.1 (H1): HUD de Wilbur (vida y munición); regenerar el nivel lo conserva
-        HudBuilder.PlaceInOpenScene(null);
+        // Fase HUD.1 (H1): HUD de Wilbur (vida y munición); regenerar el nivel lo conserva.
+        // HUD.1.1: primero se rearma el prefab, así toma el arte nuevo de Art/UI/HUD (antes solo lo colocaba tal como estaba)
+        var hudReport = new System.Text.StringBuilder();
+        HudBuilder.BuildPrefab(hudReport);
+        HudBuilder.PlaceInOpenScene(hudReport);
+        Debug.Log("[LevelBuilder] HUD:\n" + hudReport);
 
         // Fase INTRO.2: taxi, llegada y camión estacionado (antes de hornear: el camión cuenta para el NavMesh)
         var introReport = new System.Text.StringBuilder();
@@ -795,9 +799,9 @@ public static class LevelBuilder_NivelPorky
             Debug.LogWarning($"[LevelBuilder] Radio del agente = {radius}. Con puertas de {DoorWidth} m conviene 0.5 o menos.");
     }
 
-    /// <summary>INTRO.2: Intro, NivelPorky, el resto detrás; SampleScene fuera de la lista (la escena no se borra).</summary>
+    /// <summary>Orden compartido de Build Settings (ver BuildSceneOrder).</summary>
     private static void AddToBuildSettings()
     {
-        IntroTaxiBuilder.EnsureBuildOrder(null);
+        BuildSceneOrder.Ensure();
     }
 }
