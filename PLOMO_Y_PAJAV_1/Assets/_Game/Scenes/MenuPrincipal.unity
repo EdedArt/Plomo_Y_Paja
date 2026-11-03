@@ -1035,7 +1035,7 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 5a3cc449ec8ff654db1af9a77235f525, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
-  escenaJuego: NivelPorky
+  escenaJuego: Intro
   panelPrincipal: {fileID: 226744135}
   panelOpciones: {fileID: 1662863040}
   panelCreditos: {fileID: 0}
