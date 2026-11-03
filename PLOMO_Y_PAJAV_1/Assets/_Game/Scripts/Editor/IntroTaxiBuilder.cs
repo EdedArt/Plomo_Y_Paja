@@ -696,20 +696,10 @@ public static class IntroTaxiBuilder
         report.AppendLine($"✓ Guard_Patrulla_A arranca en Patrol_A_{YardPatrolFirstPoint} (detrás de la casa)");
     }
 
-    /// <summary>Build Settings: Intro (si existe), NivelPorky, el resto detrás. SampleScene fuera de la lista (no se borra).</summary>
+    /// <summary>Build Settings con el orden compartido (MenuPrincipal 0, Intro 1, NivelPorky 2). Ver BuildSceneOrder.</summary>
     public static void EnsureBuildOrder(StringBuilder report)
     {
-        var list = new List<EditorBuildSettingsScene>();
-        foreach (EditorBuildSettingsScene s in EditorBuildSettings.scenes)
-            if (s.path != IntroScenePath && s.path != LevelBuilder_NivelPorky.ScenePath && s.path != SampleScenePath) list.Add(s);
-        int at = 0;
-        if (File.Exists(IntroScenePath)) list.Insert(at++, new EditorBuildSettingsScene(IntroScenePath, true));
-        if (File.Exists(LevelBuilder_NivelPorky.ScenePath)) list.Insert(at, new EditorBuildSettingsScene(LevelBuilder_NivelPorky.ScenePath, true));
-        EditorBuildSettings.scenes = list.ToArray();
-        if (report == null) return;
-        var sb = new StringBuilder();
-        for (int i = 0; i < list.Count; i++) sb.Append(i > 0 ? ", " : "").Append(i).Append('=').Append(Path.GetFileNameWithoutExtension(list[i].path));
-        report.AppendLine("✓ Build Settings: " + sb + " (SampleScene fuera)");
+        BuildSceneOrder.Ensure(report);
     }
 
     private static void CheckAudio(List<string> missing)

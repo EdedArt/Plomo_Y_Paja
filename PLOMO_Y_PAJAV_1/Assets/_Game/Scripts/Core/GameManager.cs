@@ -80,7 +80,9 @@ public class GameManager : MonoBehaviour
         gameIsOver = false;
         if (GameStateTracker.Instance != null) GameStateTracker.Instance.ResetState();
         Time.timeScale = 1f;
-        SceneManager.LoadScene(0); // MainMenu
+        // Por nombre (no por índice). Si MenuPrincipal aún no está en Build Settings, cae al índice 0.
+        if (Application.CanStreamedLevelBeLoaded("MenuPrincipal")) SceneManager.LoadScene("MenuPrincipal");
+        else SceneManager.LoadScene(0);
     }
 
     /// <summary>

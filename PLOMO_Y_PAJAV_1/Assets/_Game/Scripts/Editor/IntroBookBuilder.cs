@@ -502,21 +502,9 @@ public static class IntroBookBuilder
 
     private static void UpdateBuildSettings(StringBuilder report)
     {
-        var before = new List<EditorBuildSettingsScene>(EditorBuildSettings.scenes);
-        report.AppendLine("Build Settings antes: " + Describe(before));
-
-        var list = new List<EditorBuildSettingsScene>();
-        foreach (EditorBuildSettingsScene s in before)
-            if (s.path != ScenePath && s.path != LevelBuilder_NivelPorky.ScenePath && s.path != SampleScenePath) list.Add(s);
-
-        list.Insert(0, new EditorBuildSettingsScene(ScenePath, true));
-        if (File.Exists(LevelBuilder_NivelPorky.ScenePath))
-            list.Insert(1, new EditorBuildSettingsScene(LevelBuilder_NivelPorky.ScenePath, true));
-        else
-            report.AppendLine("⚠ No existe " + LevelBuilder_NivelPorky.ScenePath + ": el libro usará el índice 1 de Build Settings.");
-
-        EditorBuildSettings.scenes = list.ToArray();
-        report.AppendLine("Build Settings después: " + Describe(list) + " (SampleScene fuera de la lista, no borrada)");
+        report.AppendLine("Build Settings antes: " + Describe(new List<EditorBuildSettingsScene>(EditorBuildSettings.scenes)));
+        BuildSceneOrder.Ensure(report);
+        report.AppendLine("Build Settings después: " + Describe(new List<EditorBuildSettingsScene>(EditorBuildSettings.scenes)));
     }
 
     private static string Describe(List<EditorBuildSettingsScene> scenes)

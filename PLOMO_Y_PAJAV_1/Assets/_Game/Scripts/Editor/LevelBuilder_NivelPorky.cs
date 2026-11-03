@@ -799,9 +799,9 @@ public static class LevelBuilder_NivelPorky
             Debug.LogWarning($"[LevelBuilder] Radio del agente = {radius}. Con puertas de {DoorWidth} m conviene 0.5 o menos.");
     }
 
-    /// <summary>INTRO.2: Intro, NivelPorky, el resto detrás; SampleScene fuera de la lista (la escena no se borra).</summary>
+    /// <summary>Orden compartido de Build Settings (ver BuildSceneOrder).</summary>
     private static void AddToBuildSettings()
     {
-        IntroTaxiBuilder.EnsureBuildOrder(null);
+        BuildSceneOrder.Ensure();
     }
 }
