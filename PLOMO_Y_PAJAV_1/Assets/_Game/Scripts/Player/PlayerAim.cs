@@ -92,6 +92,7 @@ public class PlayerAim : MonoBehaviour
         GameManager gm = GameManager.Instance;
         if (gm != null && (gm.IsGamePaused || gm.IsGameOver)) return true;
         if (InterrogationDirector.IsActive) return true;    // escena de interrogatorio (fase 3C.3)
+        if (CinematicState.IsPlaying) return true;          // taxi y llegada (INTRO.2)
         // Sin Time.timeScale: CartoonFx lo pone en 0 un instante en cada golpe (hitstop)
         return DialogueUI.Exists && DialogueUI.Instance.IsOpen;
     }

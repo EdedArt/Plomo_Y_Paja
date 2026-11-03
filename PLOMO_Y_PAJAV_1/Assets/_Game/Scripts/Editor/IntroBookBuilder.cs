@@ -364,7 +364,7 @@ public static class IntroBookBuilder
     // Pantalla: la página (con el rizo) a 16:9, fundido, película, aviso de saltar
     // ------------------------------------------------------------------
 
-    private static Canvas OverlayCanvas(string name, int order)
+    internal static Canvas OverlayCanvas(string name, int order)
     {
         var go = new GameObject(name);
         Canvas canvas = go.AddComponent<Canvas>();
@@ -394,7 +394,7 @@ public static class IntroBookBuilder
         return view;
     }
 
-    private static ScreenFade BuildFade()
+    internal static ScreenFade BuildFade()
     {
         Canvas canvas = OverlayCanvas("UI_Fundido", 50);
         RectTransform black = UiChild("Fundido", canvas.transform, Vector2.zero, Vector2.one, Vector2.zero, Vector2.zero);
@@ -419,7 +419,7 @@ public static class IntroBookBuilder
     }
 
     /// <summary>Aviso "Mantén ESPACIO para saltar" con anillo radial (igual que INTRO.1), encima de la película.</summary>
-    private static void BuildSkipHint(TMP_FontAsset font, out CanvasGroup hint, out Image radial)
+    internal static void BuildSkipHint(TMP_FontAsset font, out CanvasGroup hint, out Image radial)
     {
         Canvas canvas = OverlayCanvas("UI_Saltar", 70);
         RectTransform skip = UiChild("Saltar", canvas.transform, new Vector2(1f, 0f), new Vector2(1f, 0f),
@@ -535,7 +535,7 @@ public static class IntroBookBuilder
     // Utilidades
     // ==================================================================
 
-    private static RectTransform UiChild(string name, Transform parent, Vector2 anchorMin, Vector2 anchorMax,
+    internal static RectTransform UiChild(string name, Transform parent, Vector2 anchorMin, Vector2 anchorMax,
         Vector2 offsetMin, Vector2 offsetMax)
     {
         var go = new GameObject(name, typeof(RectTransform));
@@ -556,7 +556,7 @@ public static class IntroBookBuilder
         return image;
     }
 
-    private static TMP_Text Label(string name, Transform parent, Vector2 anchorMin, Vector2 anchorMax, TMP_FontAsset font,
+    internal static TMP_Text Label(string name, Transform parent, Vector2 anchorMin, Vector2 anchorMax, TMP_FontAsset font,
         float size, Color color)
     {
         RectTransform rt = UiChild(name, parent, anchorMin, anchorMax, Vector2.zero, Vector2.zero);
@@ -569,7 +569,7 @@ public static class IntroBookBuilder
         return text;
     }
 
-    private static void SetRef(Object target, string property, Object value)
+    internal static void SetRef(Object target, string property, Object value)
     {
         var so = new SerializedObject(target);
         so.FindProperty(property).objectReferenceValue = value;

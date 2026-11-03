@@ -25,7 +25,8 @@ public class CharacterSpriteImporter : AssetPostprocessor
     // 8: también Art/UI/HUD/ (fase HUD.1: caras e íconos del HUD).
     // 9: también Art/FX/ (fase HUD.2: polvo de impacto y agujero de bala).
     // 10: Art/Intro/ (fase INTRO.0: texturas del libro, no son sprites de personaje).
-    public override uint GetVersion() => 10;
+    // 11: taxista a 500 px por metro, pivote abajo al centro, mipmaps (fase INTRO.2).
+    public override uint GetVersion() => 11;
 
     /// <summary>Texturas del libro de la intro (fase INTRO): Art/Intro/ilus_intro_NN, libro_portada, libro_guardas, libro_papel.</summary>
     public const string IntroFolder = "Assets/_Game/Art/Intro";
@@ -98,6 +99,13 @@ public class CharacterSpriteImporter : AssetPostprocessor
                 // lienzo 1024x1024 con los pies pegados al borde inferior: pivote Bottom Center, mipmaps activos.
                 // 500 px por metro (D12): el lienzo mide 2.05 m, igual que el lienzo de 512 del guardia a 250.
                 // Los cuadros sentados llenan el lienzo: CentavoController los achica con seatedScale.
+                importer.mipmapEnabled = true;
+                settings.spriteAlignment = (int)SpriteAlignment.BottomCenter;
+                settings.spritePixelsPerUnit = 500f;
+                break;
+            case "taxista":
+                // INTRO.2: lienzo 1024x1024 (conduce_01, habla_01/02) como el contador: 500 px por metro, pivote abajo al
+                // centro y mipmaps (se ve de cerca dentro del taxi)
                 importer.mipmapEnabled = true;
                 settings.spriteAlignment = (int)SpriteAlignment.BottomCenter;
                 settings.spritePixelsPerUnit = 500f;

@@ -55,6 +55,9 @@ public class EnemyAI : MonoBehaviour
     [Tooltip("Tiempo de espera en cada punto de patrulla")]
     [SerializeField] private float waitTimeAtPoint = 2f;        // Segundos quieto en cada punto
 
+    [Tooltip("Punto de la ruta donde arranca (INTRO.2: el patrullero del patio empieza detrás de la casa). 0 = el primero")]
+    [SerializeField] private int firstPatrolPoint = 0;
+
     [Header("Detección")]
     [Tooltip("Radio de visión — si el jugador entra a este rango, el enemigo alerta")]
     [SerializeField] private float sightRange = 12f;            // Metros que alcanza a ver
@@ -118,6 +121,7 @@ public class EnemyAI : MonoBehaviour
     private bool _playerInAttackRange = false;      // ¿Está al alcance del golpe?
     private bool _hasPatrolDestination = false;     // Ya se le dio el destino del punto actual
     private Vector3 _homePosition;                  // Puesto del centinela (donde empezó)
+    private bool _frozenByCinematic;                // INTRO.2 (I7): quieto mientras corre una cinemática
     private Quaternion _homeRotation;               // Hacia dónde mira el centinela en su puesto
     private bool _returningHome = false;            // true mientras el centinela camina de vuelta a su puesto
     private EnemyGunfire _gunfire;                  // HUD.2: el disparo sale del arma
@@ -186,6 +190,14 @@ public class EnemyAI : MonoBehaviour
 
     private void Start()
     {
+        // INTRO.2: arranca en otro punto de la ruta (se planta ahí antes de guardar su puesto)
+        if (enemyType == EnemyType.Patrullero && patrolPoints != null && firstPatrolPoint > 0 &&
+            firstPatrolPoint < patrolPoints.Length && patrolPoints[firstPatrolPoint] != null)
+        {
+            _currentPatrolIndex = firstPatrolPoint;
+            if (AgentReady()) _agent.Warp(patrolPoints[firstPatrolPoint].position);
+            else transform.position = patrolPoints[firstPatrolPoint].position;
+        }
         _homePosition = transform.position;                     // El centinela volverá a este puesto...
         _homeRotation = transform.rotation;                     // ...y a mirar hacia aquí
         if (enemyType == EnemyType.Centinela)
@@ -203,6 +215,18 @@ public class EnemyAI : MonoBehaviour
     {
         // Rendido o muerto: no piensa, no se mueve, no ataca
         if (currentState == EnemyState.Dead || currentState == EnemyState.Surrender) return;
+
+        // INTRO.2 (I7): durante la cinemática nadie ve, oye, camina ni ataca; al terminar sigue donde estaba
+        if (CinematicState.IsPlaying)
+        {
+            if (!_frozenByCinematic) { _frozenByCinematic = true; SetAgentStopped(true); }
+            return;
+        }
+        if (_frozenByCinematic)
+        {
+            _frozenByCinematic = false;
+            if (!_waitingAtPoint && currentState != EnemyState.Idle) SetAgentStopped(false);
+        }
 
         CheckPlayerDetection();                                 // 1) ¿Ve u oye al jugador?
 
