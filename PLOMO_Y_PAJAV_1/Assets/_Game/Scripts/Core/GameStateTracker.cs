@@ -62,6 +62,9 @@ public class GameStateTracker : MonoBehaviour
     public int InterrogationsCompleted => npcsInterrogated.Count;
     public bool WolfKilled => wolfKilled;
     public bool WolfSpared => wolfSpared;
+    /// <summary>Qué pasó con Don Lobo (N2.2). Sale de wolfKilled/wolfSpared, que ya están en la foto de entrada al nivel.</summary>
+    public LoboState Lobo => wolfKilled ? LoboState.Dead : wolfSpared ? LoboState.Pardoned : LoboState.None;
+    public event System.Action<LoboState> OnLoboStateChanged;
     public string AIContext => string.Join(". ", aiContextLog);
     public ContadorState Contador => contadorState;
     public ContadorInterrogation ContadorInterrogationResult => contadorInterrogation;
@@ -263,6 +266,14 @@ public class GameStateTracker : MonoBehaviour
         Debug.Log($"[GameState] Decisión sobre Don Lobo: {(killed ? "MUERTO" : "PERDONADO")}");
     }
 
+    /// <summary>Don Lobo muerto o perdonado (N2.2). None no hace nada: el estado se vuelve a None solo con la foto o una partida nueva.</summary>
+    public void RegisterLoboState(LoboState state)
+    {
+        if (state == LoboState.None || state == Lobo) return;
+        RegisterWolfDecision(state == LoboState.Dead);
+        OnLoboStateChanged?.Invoke(state);
+    }
+
     /// <summary>
     /// Qué pasó con Centavo (fase 3C). Muerto por un disparo antes del interrogatorio (D4), muerto al final de la
     /// escena o perdonado. No cuenta interrogatorios: eso lo hace RegisterInterrogation (3C.4, D10).
@@ -354,8 +365,12 @@ public class GameStateTracker : MonoBehaviour
     public string GetStatusSummary()
     {
         return $"Pistas: {cluesCollected.Count}. Interrogados: {npcsInterrogated.Count}. " +
-               $"Enemigos eliminados: {enemiesKilled}. {ContadorSummary()}Acciones recientes: {AIContext}";
+               $"Enemigos eliminados: {enemiesKilled}. {ContadorSummary()}{LoboSummary()}Acciones recientes: {AIContext}";
     }
+
+    /// <summary>Don Lobo en el contexto de la IA; vacío mientras no esté resuelto.</summary>
+    private string LoboSummary() =>
+        Lobo == LoboState.Dead ? "Don Lobo está muerto. " : Lobo == LoboState.Pardoned ? "Wilbur perdonó a Don Lobo. " : "";
 
     /// <summary>Centavo en el contexto de la IA; vacío si Wilbur todavía no lo encontró.</summary>
     private string ContadorSummary()
@@ -369,6 +384,14 @@ public class GameStateTracker : MonoBehaviour
         string lied = contadorLied ? ", mintió al menos una vez" : "";
         return $"Centavo, el contador de Don Lobo: {fate}; {talk}{lied}. ";
     }
+}
+
+/// <summary>Qué pasó con Don Lobo (N2.2, decisión L6).</summary>
+public enum LoboState
+{
+    None,       // sigue en pie o no se ha decidido
+    Dead,       // rematado de rodillas o "Jalar el gatillo"
+    Pardoned    // "Bajar el arma"
 }
 
 /// <summary>Qué pasó con Centavo, el contador (fase 3C).</summary>
