@@ -11,7 +11,7 @@ using Debug = UnityEngine.Debug;
 /// La importación (Sprite de UI, sin mipmaps, 2048, compresión HQ, Clamp) la fija CharacterSpriteImporter por carpeta.
 /// MENÚ: Plomo y Paja → Nivel 1 → Importar tarjetas de tutorial (idempotente; también lo corre Colocar tutorial / Generar Nivel Porky,
 /// y TutorialBuilder asigna los sprites al TutorialDirector). Un archivo que falte es un aviso, nunca un bloqueo: ese paso conserva
-/// las etiquetas de texto de antes. Si el PNG ya está recortado y más nuevo que el original, no se vuelve a recortar.
+/// las etiquetas de texto de antes. Si el PNG ya existe en Art/UI/Tutorial/ no se llama a Python.
 /// </summary>
 public static class TutorialCardImporter
 {
@@ -43,36 +43,52 @@ public static class TutorialCardImporter
         }
     }
 
-    /// <summary>Recorta e importa todo lo que haya. Nunca lanza ni bloquea.</summary>
+    /// <summary>
+    /// Importa lo que haya y deja un resumen. Nunca lanza ni bloquea. Python solo se llama para los PNG que NO existen ya en
+    /// Art/UI/Tutorial/ (para volver a recortar uno, bórralo y corre el menú). Sin Python o si falla: UN error con el comando a mano.
+    /// </summary>
     public static void ImportAll(StringBuilder report)
     {
         string root = Path.GetFullPath(Path.Combine(Application.dataPath, ".."));
         Directory.CreateDirectory(Path.Combine(root, DestFolder));
-        int ok = 0, missing = 0;
+        bool pythonFailed = false;
+        string manual = null;
+        var absent = new System.Collections.Generic.List<string>();
         foreach (string name in AllNames())
         {
             string dest = DestFolder + "/" + name + ".png";
             string destFull = Path.Combine(root, dest);
-            string src = FindSource(root, name);
-            if (src != null && (!File.Exists(destFull) || File.GetLastWriteTimeUtc(src) > File.GetLastWriteTimeUtc(destFull)))
+            if (!File.Exists(destFull))
             {
-                if (!Key(root, src, destFull, report)) { if (!File.Exists(destFull)) { missing++; continue; } }
+                string src = FindSource(root, name);
+                if (src != null && !pythonFailed)
+                {
+                    if (Key(root, src, destFull, out string error)) AssetDatabase.ImportAsset(dest, ImportAssetOptions.ForceUpdate);
+                    else
+                    {
+                        pythonFailed = true;
+                        manual = $"cd PLOMO_Y_PAJAV_1 && for %f in (_entrante_ui\\tutorial\\tut_*.png) do python Tools/character_key.py --single %f --out Assets/_Game/Art/UI/Tutorial/%~nxf --crop 2 --defringe";
+                        string msg = $"[Tutorial] No se pudo recortar las tarjetas con Python ({error}). Córrelo a mano desde PLOMO_Y_PAJAV_1/: {manual}";
+                        report.AppendLine("✗ " + msg);
+                        Debug.LogError(msg);
+                    }
+                }
+            }
+            if (File.Exists(destFull) && AssetDatabase.LoadAssetAtPath<Sprite>(dest) == null)
                 AssetDatabase.ImportAsset(dest, ImportAssetOptions.ForceUpdate);
-            }
-            if (File.Exists(destFull))
-            {
-                ok++;
-                if (AssetDatabase.LoadAssetAtPath<Sprite>(dest) == null) AssetDatabase.ImportAsset(dest, ImportAssetOptions.ForceUpdate);
-            }
-            else
-            {
-                missing++;
-                string optional = name == Sello ? " (opcional: se dibuja un sello rojo)" : " (ese paso conserva las etiquetas de texto)";
-                report.AppendLine($"⚠ Falta {name} en {IncomingFolder}/{optional}");
-                Debug.LogWarning($"[Tutorial] Falta {name}{optional}");
-            }
+            if (!File.Exists(destFull)) absent.Add(name);
         }
-        report.AppendLine($"✓ Tarjetas de tutorial: {ok} listas, {missing} faltan");
+
+        var cards = new System.Collections.Generic.List<string>(AllNames());
+        cards.Remove(Sello); // el sello es opcional: sin él se dibuja un visto rojo
+        var missingCards = new System.Collections.Generic.List<string>();
+        foreach (string name in cards) if (absent.Contains(name)) missingCards.Add(name);
+        string summary = $"Tutorial: {cards.Count - missingCards.Count}/{cards.Count} tarjetas asignadas" +
+                         (missingCards.Count > 0 ? $" (faltan: {string.Join(", ", missingCards)})" : "");
+        if (absent.Contains(Sello)) summary += " · sello: dibujado (falta " + Sello + ")";
+        report.AppendLine((missingCards.Count > 0 ? "⚠ " : "✓ ") + summary);
+        if (missingCards.Count > 0) Debug.LogWarning("[Tutorial] " + summary + ": esos pasos conservan las etiquetas de texto.");
+        else Debug.Log("[Tutorial] " + summary);
     }
 
     public static Sprite Load(string name) => AssetDatabase.LoadAssetAtPath<Sprite>(DestFolder + "/" + name + ".png");
@@ -104,8 +120,9 @@ public static class TutorialCardImporter
         return null;
     }
 
-    private static bool Key(string root, string src, string dest, StringBuilder report)
+    private static bool Key(string root, string src, string dest, out string error)
     {
+        error = "no hay Python en el PATH";
         string args = $"Tools/character_key.py --single \"{src}\" --out \"{dest}\" --crop 2 --defringe";
         foreach (string exe in new[] { "python", "py" })
         {
@@ -122,15 +139,12 @@ public static class TutorialCardImporter
                     string err = p.StandardError.ReadToEnd();
                     p.WaitForExit(120000);
                     if (p.ExitCode == 0) return true;
-                    report.AppendLine($"⚠ El recorte de {Path.GetFileName(src)} falló: {err}");
-                    Debug.LogWarning($"[Tutorial] Recorte de {Path.GetFileName(src)} falló: {err}");
+                    error = $"{Path.GetFileName(src)}: {err.Trim()}";
                     return false;
                 }
             }
             catch (System.ComponentModel.Win32Exception) { /* este ejecutable no existe: prueba el siguiente */ }
         }
-        report.AppendLine("⚠ No hay Python en el PATH: no se pueden recortar las tarjetas nuevas (corre Tools/character_key.py a mano).");
-        Debug.LogWarning("[Tutorial] No hay Python en el PATH.");
         return false;
     }
 }
