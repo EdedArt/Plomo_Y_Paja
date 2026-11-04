@@ -126,6 +126,9 @@ public class CentavoController : MonoBehaviour, IDamageable, IInterrogationTarge
     public event Action<State> OnStateChanged;
 
     public State CurrentState => _state;
+
+    /// <summary>N1.4: al rematarlo sin escucharlo todavía falta su pensamiento: ese es su epílogo. La escena de las huellas lo espera.</summary>
+    public bool FinishedOffThoughtPending { get; private set; }
     public ContadorShed Shed => shed;
     public BillboardSprite Billboard => billboard;
     public AudioSource VoiceSource => voiceSource;
@@ -254,6 +257,7 @@ public class CentavoController : MonoBehaviour, IDamageable, IInterrogationTarge
 
     private void OnDisable()
     {
+        FinishedOffThoughtPending = false; // la corrutina se corta al apagarlo: que no deje esperando a las huellas
         if (muzzleFlash != null) muzzleFlash.enabled = false;
         if (_spriteRenderer != null) CharacterLook.SetFlash(_spriteRenderer, 0f);
     }
@@ -580,6 +584,7 @@ public class CentavoController : MonoBehaviour, IDamageable, IInterrogationTarge
         AICompanion ai = AICompanion.Instance;
         if (ai == null) yield break; // sin AICompanion no hay dónde mostrarlo
 
+        FinishedOffThoughtPending = true;
         InterrogationData data = TryGetComponent(out CentavoInterrogation scene) ? scene.Data : null;
         string fallback = PickFinishedOffFallback(data);
         string situation = data != null && !string.IsNullOrEmpty(data.finishedOffSituation)
@@ -596,6 +601,7 @@ public class CentavoController : MonoBehaviour, IDamageable, IInterrogationTarge
 
         bool fromAi = done && !string.IsNullOrEmpty(aiLine);
         if (ai != null) ai.ShowCustomLine(fromAi ? aiLine : fallback, !fromAi); // la de la IA ya entró al historial
+        FinishedOffThoughtPending = false;
     }
 
     private static string PickFinishedOffFallback(InterrogationData data)

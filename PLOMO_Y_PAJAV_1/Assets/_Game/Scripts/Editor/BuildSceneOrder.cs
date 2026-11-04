@@ -6,7 +6,7 @@ using UnityEngine;
 
 /// <summary>
 /// Orden canónico de Build Settings, compartido por todos los generadores de escenas:
-/// 0 MenuPrincipal, 1 Intro, 2 NivelPorky, luego el resto de escenas de juego.
+/// 0 MenuPrincipal, 1 Intro, 2 NivelPorky, 3 Campamento, luego el resto de escenas de juego.
 /// Idempotente. Nunca quita una escena que otra persona haya añadido. SampleScene queda fuera.
 /// </summary>
 public static class BuildSceneOrder
@@ -14,14 +14,16 @@ public static class BuildSceneOrder
     public const string MenuPath = "Assets/_Game/Scenes/MenuPrincipal.unity";
     public const string IntroPath = "Assets/Scenes/Intro.unity";
     public const string NivelPorkyPath = "Assets/Scenes/NivelPorky.unity";
+    public const string CampamentoPath = "Assets/Scenes/Campamento.unity";
     public const string SampleScenePath = "Assets/Scenes/SampleScene.unity";
 
-    /// <summary>Escenas con posición fija. Las siguientes (p. ej. Nivel 2) se añaden aquí cuando existan.</summary>
+    /// <summary>Escenas con posición fija. Una canónica que aún no existe en disco se omite con aviso.</summary>
     private static readonly string[] Canonical =
     {
         MenuPath,
         IntroPath,
         NivelPorkyPath,
+        CampamentoPath,
     };
 
     /// <summary>Aplica el orden. Devuelve la lista final; si <paramref name="report"/> no es null añade una línea.</summary>

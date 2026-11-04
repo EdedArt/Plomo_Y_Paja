@@ -24,7 +24,8 @@ using static LevelBuilderUtils;
 /// "Generar Nivel Porky" también lo construye (llama a BuildInto), así regenerar el nivel no lo borra.
 ///
 /// PLANO (mundo, mismo sistema que LevelBuilder_NivelPorky): patio trasero x -10..10, z 6..21.
-///   Rincón del cuarto: x -10..-3.6, z 13.5..21. Portón en la cerca z = 13.5, x -8..-6.
+///   Rincón del cuarto: x -10..-2.8, z 13.5..25.5 (N1.1: sigue detrás del cuarto hasta el portón del bosque, Nivel1MapBuilder).
+///   Portón en la cerca z = 13.5, x -8..-6.
 ///   Cuarto 4 x 3 m: x -9..-5, z 17.5..20.5, puerta en z = 17.5 mirando a -Z (al portón).
 /// </summary>
 public static class ContadorYardBuilder
@@ -47,7 +48,8 @@ public static class ContadorYardBuilder
     public const float ShedYaw = 180f;
 
     public const float YardFenceZ = 13.5f;     // cerca que cruza el patio (de la valla izquierda a YardFenceX)
-    public const float YardFenceX = -3.6f;     // cerca que baja hasta la valla del fondo
+    public const float YardFenceX = -2.8f;     // cerca que baja hasta el fondo del rincón (N1.1: antes -3.6, ahora se pasa por el lado del cuarto)
+    public const float RinconBackZ = 25.5f;    // N1.1: fondo del rincón, detrás del cuarto, donde está el portón del bosque
     public const float GateX = -7f;            // centro del portón (alineado con la puerta del cuarto)
     public const float GateWidth = 2f;
     private const float FenceHeight = 1.6f;    // igual que el resto de vallas del nivel
@@ -67,7 +69,7 @@ public static class ContadorYardBuilder
     public const float SentinelYaw = 180f;
 
     // Accesorios del patio que caían dentro del cuarto: se corren (mismo nombre, otra posición)
-    public static readonly Vector3 FardoPatioPosition = new Vector3(-4.3f, 0f, 19.4f);
+    public static readonly Vector3 FardoPatioPosition = new Vector3(-3.5f, 0f, 15f);      // N1.1: antes tapaba el paso al lado del cuarto
     public const float FardoPatioYaw = -5f;
     public static readonly Vector3 Escombro09Position = new Vector3(-9.35f, 0f, 16.8f);   // y la pone Rubble (se conserva)
 
@@ -89,6 +91,10 @@ public static class ContadorYardBuilder
     private static readonly Vector3 BenchPosition = new Vector3(0f, FloorTop, 0.4f);   // base del banco
     private static readonly Vector3 BenchSize = new Vector3(1.9f, BenchHeight, 0.62f);
     private const float ActivationRadius = 12f;
+
+    // N1.2 (PickupBuilder): las superficies del premio. Banco: en la punta sin morsa ni lata. Caja: la que cierra el lado del banco
+    public static Vector3 WorkbenchSpot => ShedToWorld(BenchPosition + new Vector3(0.62f, BenchHeight, 0f));
+    public static Vector3 CrateSpot => ShedToWorld(new Vector3(1.45f, FloorTop + 0.78f, 0.38f));
 
     private static readonly Color LampColor = new Color(1f, 0.58f, 0.24f);
     private static readonly Color MoonColor = new Color32(0x9E, 0xBD, 0xFF, 0xFF);
@@ -151,6 +157,13 @@ public static class ContadorYardBuilder
         var centavo = new StringBuilder();
         if (ContadorCentavoBuilder.BuildAndPlace(centavo)) Debug.Log("[Contador] Centavo:\n" + centavo);
         else Debug.LogWarning("[Contador] Centavo:\n" + centavo);
+    }
+
+    /// <summary>N1.1 ("Ampliar mapa" sobre una escena vieja): rehace las cercas del rincón y corre el fardo, sin tocar el cuarto ni a Centavo.</summary>
+    public static void RefreshYardForMap(Transform environment, Transform lighting)
+    {
+        BuildYard(environment, lighting);
+        MoveYardProps();
     }
 
     // ==================================================================
@@ -589,10 +602,10 @@ public static class ContadorYardBuilder
         float baseY = -FenceSink, height = FenceHeight + FenceSink;
         const float leftFence = -10.1f;   // pasa la valla izquierda (x = -10) para que las colisiones se toquen
 
-        // Cerca de frente con el portón, y cerca lateral hasta la valla del fondo (z = 21)
+        // Cerca de frente con el portón, y cerca lateral hasta el fondo del rincón (N1.1: z = 25.5, detrás del cuarto)
         CartoonKit.Fence("Valla_Cuarto_Frente", new Vector3(leftFence, baseY, YardFenceZ), new Vector3(YardFenceX + 0.1f, baseY, YardFenceZ),
             height, yard, new WallOpening(GateX - leftFence, GateWidth, height));
-        CartoonKit.Fence("Valla_Cuarto_Lado", new Vector3(YardFenceX, baseY, YardFenceZ - 0.1f), new Vector3(YardFenceX, baseY, 21.1f),
+        CartoonKit.Fence("Valla_Cuarto_Lado", new Vector3(YardFenceX, baseY, YardFenceZ - 0.1f), new Vector3(YardFenceX, baseY, RinconBackZ + 0.1f),
             height, yard);
 
         // Portón: dos postes gruesos, viga chueca arriba y la hoja abierta hacia adentro (decorativa)
@@ -778,7 +791,7 @@ public static class ContadorYardBuilder
         bool ok = true;
         var sources = new (string label, Vector3 pos)[]
         {
-            ("puerta trasera", new Vector3(-4f, 0f, 7.5f)), ("callejón", new Vector3(0f, 0f, 26f)),
+            ("puerta trasera", new Vector3(-4f, 0f, 7.5f)), ("callejón lateral", new Vector3(-11.8f, 0f, 0f)),
             ("pasillo derecho", new Vector3(9f, 0f, 0f)), ("calle", new Vector3(0f, 0f, -15f)),
         };
         foreach (var (label, pos) in sources)
@@ -845,7 +858,7 @@ public static class ContadorYardBuilder
             if ((p.x - YardFenceX) * (q.x - YardFenceX) < 0f)
             {
                 float z = Mathf.Lerp(p.z, q.z, (YardFenceX - p.x) / (q.x - p.x));
-                if (z > YardFenceZ && z < 21f) { why = $"cruza la cerca lateral en z = {z:0.0}."; return false; }
+                if (z > YardFenceZ && z < RinconBackZ) { why = $"cruza la cerca lateral en z = {z:0.0}."; return false; }
             }
         }
         why = throughGate ? "" : "no pasa por el portón.";

@@ -57,14 +57,14 @@ public static class IntroTaxiBuilder
     };
     /// <summary>
     /// INTRO.2.1: salida recta al oeste (hacia donde ya mira el taxi), a espaldas de la cámara de la llegada: el giro hacia la
-    /// casa va de yaw 20° a 62° y el taxi queda siempre ≥ 31° fuera del borde del cuadro (16:9 y 21:9, FOV vertical 60°).
-    /// Pasa el muro del extremo oeste (x -20.1) fuera de cuadro y sigue hasta 46 m: el motor (3D, maxDistance 45) ya no se oye
-    /// cuando el director lo apaga. Antes: vuelta en U y salida al este por el carril sur, cruzando el cuadro.
+    /// casa va de yaw 20° a 62° y el taxi queda siempre fuera del borde del cuadro (FOV vertical 60°).
+    /// N1.3: termina en x -37 (la trompa en -39.4): el director lo apaga ANTES de x -40, sin llegar a la barricada de Don Lobo
+    /// (x -44). A esa distancia el motor todavía se oye, así que el director lo baja antes de apagarlo.
+    /// Una vuelta hacia el este no sirve: al final del giro la cámara mira a yaw 62° y el taxi entraría en cuadro.
     /// </summary>
     private static readonly Vector3[] ExitPoints =
     {
-        TaxiStopPosition, new Vector3(-20f, 0f, -12.45f), new Vector3(-30f, 0f, -12.45f), new Vector3(-45f, 0f, -12.45f),
-        new Vector3(-60f, 0f, -12.45f),
+        TaxiStopPosition, new Vector3(-20f, 0f, -12.45f), new Vector3(-30f, 0f, -12.45f), new Vector3(-37f, 0f, -12.45f),
     };
 
     /// <summary>Hacia dónde mira Wilbur al bajarse del taxi (yaw del mundo): la cerca de la acera, a la izquierda de la casa.</summary>
@@ -216,43 +216,7 @@ public static class IntroTaxiBuilder
             float R(float a) => CartoonKit.Range(rng, -a, a);
 
             // Carrocería (primer hijo: su Renderer decide si el taxi "se ve")
-            Mesh bodyMesh = CartoonKit.GetMesh("Taxi_Intro_Carroceria", b =>
-            {
-                b.Submesh = 0; // amarillo
-                CartoonKit.AddBox(b, new Vector3(0f, 0.62f, -0.1f), new Vector3(1.72f, 0.42f, 3.9f), Quaternion.Euler(R(1f), 0f, R(1f)), 0.12f, 2);
-                CartoonKit.AddBox(b, new Vector3(0f, 0.98f, 1.42f), new Vector3(1.12f, 0.46f, 1.55f), Quaternion.Euler(2.5f, R(1.5f), R(1.5f)), 0.16f, 2); // capó largo
-                CartoonKit.AddBox(b, new Vector3(0f, 0.86f, -1.86f), new Vector3(1.55f, 0.5f, 0.75f), Quaternion.Euler(-4f, 0f, R(1f)), 0.18f, 2);  // baúl
-                // puertas: de 0.81 al alféizar (INTRO.2.1: antes hasta 1.23)
-                float doorH = WindowSill - 0.81f;
-                CartoonKit.AddBox(b, new Vector3(0.84f, 0.81f + doorH * 0.5f, -0.35f), new Vector3(0.07f, doorH, 2.2f), Quaternion.Euler(0f, 0f, -3f), 0.03f, 1);
-                CartoonKit.AddBox(b, new Vector3(-0.84f, 0.81f + doorH * 0.5f, -0.35f), new Vector3(0.07f, doorH, 2.2f), Quaternion.Euler(0f, 0f, 3f), 0.03f, 1);
-                CartoonKit.AddBox(b, new Vector3(0f, 1.74f, -0.38f), new Vector3(1.62f, 0.09f, 2.3f), Quaternion.Euler(R(1.5f), 0f, R(2f)), 0.04f, 1); // techo
-                CartoonKit.AddBox(b, new Vector3(0f, 1.95f, 0.25f), new Vector3(0.56f, 0.2f, 0.14f), Quaternion.Euler(0f, R(4f), R(3f)), 0.05f, 1);    // letrero
-                b.Submesh = 1; // negro: guardabarros, estribos, parantes, paragolpes
-                foreach (float sx in new[] { -1f, 1f })
-                {
-                    foreach (float sz in new[] { -1f, 1f })
-                        CartoonKit.AddBox(b, new Vector3(sx * 0.86f, 0.74f, sz * 1.4f + (sz > 0 ? 0.05f : -0.05f)), new Vector3(0.42f, 0.34f, 1.05f),
-                            Quaternion.Euler(sz * 6f + R(2f), 0f, sx * -4f), 0.16f, 2);
-                    CartoonKit.AddBox(b, new Vector3(sx * 0.95f, 0.42f, 0f), new Vector3(0.26f, 0.05f, 1.75f), Quaternion.Euler(0f, 0f, sx * 3f), 0.02f, 1);
-                    foreach (float pz in new[] { 0.72f, -0.38f, -1.46f })
-                        CartoonKit.AddBox(b, new Vector3(sx * 0.79f, (WindowSill + WindowTop) * 0.5f, pz), new Vector3(0.08f, WindowTop - WindowSill + 0.02f, 0.08f),
-                            Quaternion.Euler(pz > 0 ? -12f : 0f, 0f, sx * 4f), 0.03f, 1); // parantes hasta el alféizar nuevo
-                }
-                CartoonKit.AddBox(b, new Vector3(0f, 0.55f, 2.3f), new Vector3(1.8f, 0.12f, 0.12f), Quaternion.Euler(0f, 0f, R(2f)), 0.05f, 1);
-                CartoonKit.AddBox(b, new Vector3(0f, 0.55f, -2.3f), new Vector3(1.8f, 0.12f, 0.12f), Quaternion.Euler(0f, 0f, R(2f)), 0.05f, 1);
-                b.Submesh = 2; // franja a cuadros (blanco; los negros salen del submesh 1 en los huecos)
-                foreach (float sx in new[] { -1f, 1f })
-                    for (int i = 0; i < 11; i++)
-                    {
-                        if (i % 2 == 1) continue;
-                        CartoonKit.AddBox(b, new Vector3(sx * 0.88f, 1.0f, -1.4f + i * 0.2f), new Vector3(0.02f, 0.1f, 0.2f), Quaternion.identity, 0.005f, 1);
-                    }
-                b.Submesh = 3; // cromo: parrilla y faros
-                CartoonKit.AddBox(b, new Vector3(0f, 0.98f, 2.2f), new Vector3(0.92f, 0.5f, 0.08f), Quaternion.Euler(4f, 0f, 0f), 0.04f, 1);
-                foreach (float sx in new[] { -0.62f, 0.62f })
-                    CartoonKit.AddLathe(b, new Vector3(sx, 1.08f, 2.12f), Quaternion.Euler(90f, 0f, 0f), new[] { -0.08f, 0.02f, 0.08f }, new[] { 0.14f, 0.16f, 0.1f }, 12);
-            });
+            Mesh bodyMesh = CartoonKit.GetMesh("Taxi_Intro_Carroceria", b => AddCarBody(b, rng, true));
             CartoonKit.MeshObject("Carroceria", bodyMesh, new[] { yellow, black, white, chrome }, root.transform, Vector3.zero, Quaternion.identity);
             // Fondo negro detrás de la franja: una banda fina un poco más adentro
             CartoonKit.MeshObject("Franja_Fondo", CartoonKit.GetMesh("Taxi_Intro_FranjaFondo", b =>
@@ -395,6 +359,53 @@ public static class IntroTaxiBuilder
         {
             Object.DestroyImmediate(root);
         }
+    }
+
+    /// <summary>
+    /// Carrocería de auto de los años 30 (local: +z adelante, origen en el piso). Submallas: 0 pintura, 1 negro, 2 blanco, 3 cromo.
+    /// taxiTrim = letrero y franja a cuadros del taxi. N1.1: también la usan Car_Parked_30s y Car_Crashed_30s del kit de bordes.
+    /// El orden de los números al azar no se cambia: el taxi sale idéntico.
+    /// </summary>
+    public static void AddCarBody(CartoonKit.KitMesh b, System.Random rng, bool taxiTrim)
+    {
+        float R(float a) => CartoonKit.Range(rng, -a, a);
+
+        b.Submesh = 0; // pintura
+        CartoonKit.AddBox(b, new Vector3(0f, 0.62f, -0.1f), new Vector3(1.72f, 0.42f, 3.9f), Quaternion.Euler(R(1f), 0f, R(1f)), 0.12f, 2);
+        CartoonKit.AddBox(b, new Vector3(0f, 0.98f, 1.42f), new Vector3(1.12f, 0.46f, 1.55f), Quaternion.Euler(2.5f, R(1.5f), R(1.5f)), 0.16f, 2); // capó largo
+        CartoonKit.AddBox(b, new Vector3(0f, 0.86f, -1.86f), new Vector3(1.55f, 0.5f, 0.75f), Quaternion.Euler(-4f, 0f, R(1f)), 0.18f, 2);  // baúl
+        // puertas: de 0.81 al alféizar (INTRO.2.1: antes hasta 1.23)
+        float doorH = WindowSill - 0.81f;
+        CartoonKit.AddBox(b, new Vector3(0.84f, 0.81f + doorH * 0.5f, -0.35f), new Vector3(0.07f, doorH, 2.2f), Quaternion.Euler(0f, 0f, -3f), 0.03f, 1);
+        CartoonKit.AddBox(b, new Vector3(-0.84f, 0.81f + doorH * 0.5f, -0.35f), new Vector3(0.07f, doorH, 2.2f), Quaternion.Euler(0f, 0f, 3f), 0.03f, 1);
+        CartoonKit.AddBox(b, new Vector3(0f, 1.74f, -0.38f), new Vector3(1.62f, 0.09f, 2.3f), Quaternion.Euler(R(1.5f), 0f, R(2f)), 0.04f, 1); // techo
+        if (taxiTrim)
+            CartoonKit.AddBox(b, new Vector3(0f, 1.95f, 0.25f), new Vector3(0.56f, 0.2f, 0.14f), Quaternion.Euler(0f, R(4f), R(3f)), 0.05f, 1); // letrero
+        b.Submesh = 1; // negro: guardabarros, estribos, parantes, paragolpes
+        foreach (float sx in new[] { -1f, 1f })
+        {
+            foreach (float sz in new[] { -1f, 1f })
+                CartoonKit.AddBox(b, new Vector3(sx * 0.86f, 0.74f, sz * 1.4f + (sz > 0 ? 0.05f : -0.05f)), new Vector3(0.42f, 0.34f, 1.05f),
+                    Quaternion.Euler(sz * 6f + R(2f), 0f, sx * -4f), 0.16f, 2);
+            CartoonKit.AddBox(b, new Vector3(sx * 0.95f, 0.42f, 0f), new Vector3(0.26f, 0.05f, 1.75f), Quaternion.Euler(0f, 0f, sx * 3f), 0.02f, 1);
+            foreach (float pz in new[] { 0.72f, -0.38f, -1.46f })
+                CartoonKit.AddBox(b, new Vector3(sx * 0.79f, (WindowSill + WindowTop) * 0.5f, pz), new Vector3(0.08f, WindowTop - WindowSill + 0.02f, 0.08f),
+                    Quaternion.Euler(pz > 0 ? -12f : 0f, 0f, sx * 4f), 0.03f, 1); // parantes hasta el alféizar nuevo
+        }
+        CartoonKit.AddBox(b, new Vector3(0f, 0.55f, 2.3f), new Vector3(1.8f, 0.12f, 0.12f), Quaternion.Euler(0f, 0f, R(2f)), 0.05f, 1);
+        CartoonKit.AddBox(b, new Vector3(0f, 0.55f, -2.3f), new Vector3(1.8f, 0.12f, 0.12f), Quaternion.Euler(0f, 0f, R(2f)), 0.05f, 1);
+        b.Submesh = 2; // franja a cuadros (blanco; los negros salen del submesh 1 en los huecos)
+        if (taxiTrim)
+            foreach (float sx in new[] { -1f, 1f })
+                for (int i = 0; i < 11; i++)
+                {
+                    if (i % 2 == 1) continue;
+                    CartoonKit.AddBox(b, new Vector3(sx * 0.88f, 1.0f, -1.4f + i * 0.2f), new Vector3(0.02f, 0.1f, 0.2f), Quaternion.identity, 0.005f, 1);
+                }
+        b.Submesh = 3; // cromo: parrilla y faros
+        CartoonKit.AddBox(b, new Vector3(0f, 0.98f, 2.2f), new Vector3(0.92f, 0.5f, 0.08f), Quaternion.Euler(4f, 0f, 0f), 0.04f, 1);
+        foreach (float sx in new[] { -0.62f, 0.62f })
+            CartoonKit.AddLathe(b, new Vector3(sx, 1.08f, 2.12f), Quaternion.Euler(90f, 0f, 0f), new[] { -0.08f, 0.02f, 0.08f }, new[] { 0.14f, 0.16f, 0.1f }, 12);
     }
 
     private static void Window(string name, Transform parent, Vector3 localPos, Quaternion localRot, Vector2 size, Material mat)

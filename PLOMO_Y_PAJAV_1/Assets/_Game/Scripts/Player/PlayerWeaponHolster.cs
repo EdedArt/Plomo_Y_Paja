@@ -244,4 +244,7 @@ public class PlayerWeaponHolster : MonoBehaviour
     {
         if (debug) Debug.Log("[Arma] " + message);
     }
+
+    /// <summary>Partida nueva (N2.1.1): la escopeta vuelve a empezar enfundada. La bandera del tracker la limpia él.</summary>
+    public static void ResetSession() => _drawnThisSession = false;
 }

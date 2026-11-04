@@ -30,7 +30,8 @@ public static class MuzzlePointsBuilder
         ("guardia", new Vector2(0.46f, 0.49f)),     // 512: arma en (240, 255) desde arriba
         ("informante", new Vector2(0.46f, 0.50f)),  // mismo dibujo que el guardia
         ("contador", new Vector2(0.317f, 0.6f)),    // 1024: revólver en (325, 410) desde arriba
-        ("donlobo", new Vector2(0.55f, 0.55f)),     // sin IA todavía (Fase 4): solo el asset
+        ("donlobo", new Vector2(0.55f, 0.55f)),     // dibujos viejos: los usa Don Lobo solo mientras falta el set "lobo"
+        ("lobo", new Vector2(0.55f, 0.55f)),        // N2.2: a ojo hasta que llegue shoot_01 (ajustar con la ventana de puntos)
     };
 
     [MenuItem("Plomo y Paja/HUD/Crear puntos de cañón")]

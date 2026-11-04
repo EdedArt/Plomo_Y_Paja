@@ -219,6 +219,7 @@ public class MainMenu : MonoBehaviour
     private IEnumerator CargarJuego()
     {
         estado = Estado.Cargando; // ignora la entrada mientras carga
+        if (GameManager.Instance != null) GameManager.Instance.StartNewGame(); // N2.1.1: partida nueva, banderas incluidas
         if (botones != null)
         {
             for (int i = 0; i < botones.Length; i++)

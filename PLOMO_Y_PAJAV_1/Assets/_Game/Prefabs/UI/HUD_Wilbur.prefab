@@ -208,16 +208,16 @@ MonoBehaviour:
   m_EditorClassIdentifier: 
   faces:
   - {fileID: 21300000, guid: 61d83955561458c48b95a5249a256fbb, type: 3}
-  - {fileID: 21300000, guid: 61d83955561458c48b95a5249a256fbb, type: 3}
+  - {fileID: 21300000, guid: 797fcce3058d7dc499b339300a4a6b92, type: 3}
+  - {fileID: 21300000, guid: f1f5f9f3747e28842b881e0d9a8b7d02, type: 3}
   - {fileID: 21300000, guid: 31098082b063f894db3a57f17389acff, type: 3}
-  - {fileID: 21300000, guid: 31098082b063f894db3a57f17389acff, type: 3}
-  faceHurt: {fileID: 21300000, guid: 31098082b063f894db3a57f17389acff, type: 3}
-  shellFull: {fileID: 0}
-  shellEmpty: {fileID: 0}
-  bulletFull: {fileID: 0}
-  bulletEmpty: {fileID: 0}
+  faceHurt: {fileID: 21300000, guid: bb7a7629a3de1bf48a0bbff2ef06935d, type: 3}
+  shellFull: {fileID: 21300000, guid: cf28e1124ce49b74a94c07f71d4b381c, type: 3}
+  shellEmpty: {fileID: 21300000, guid: 40e145c3588e77843abc5de9ba970d2e, type: 3}
+  bulletFull: {fileID: 21300000, guid: 24cb50ce8320d25448e93f563481cf5f, type: 3}
+  bulletEmpty: {fileID: 21300000, guid: a0b63a7c987344640a043ba877e4af84, type: 3}
   barFrame: {fileID: 0}
-  ammoMedallion: {fileID: 21300000, guid: d5808370ca9111b41978f970a54725b5, type: 3}
+  ammoMedallion: {fileID: 0}
   font: {fileID: 11400000, guid: 42b9b384a4ba40b469ab4199a39f8134, type: 2}
   heartbeat: {fileID: 5326306381577037090}
   margin: {x: 40, y: 34}

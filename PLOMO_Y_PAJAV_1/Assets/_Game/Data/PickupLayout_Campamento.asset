@@ -1,0 +1,48 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 85bbccc980e52e54181d976e743642d4, type: 3}
+  m_Name: PickupLayout_Campamento
+  m_EditorClassIdentifier: 
+  entries:
+  - id: Cartuchos_Barracon
+    kind: 1
+    position: {x: -9.4, y: 1.05, z: 25.55}
+    container: "Barrac\xF3n A: repisa alta del estante"
+  - id: Botiquin_Carpa
+    kind: 0
+    position: {x: 13.5, y: 0.08, z: 9.3}
+    container: "Carpa A: caj\xF3n abierto de la entrada"
+  - id: Cartuchos_Aserradero
+    kind: 1
+    position: {x: 10.2, y: 0.9, z: 40.6}
+    container: 'Aserradero: banco de trabajo junto a la sierra'
+  - id: Cartuchos_Pasillo
+    kind: 1
+    position: {x: -1.12, y: 0.85, z: 56.2}
+    container: 'Pasillo: consola'
+  - id: Botiquin_Oficina
+    kind: 0
+    position: {x: 10.55, y: 1.05, z: 57}
+    container: 'Oficina: repisa alta del estante'
+  - id: Balas_Oficina
+    kind: 2
+    position: {x: 3, y: 0.08, z: 59}
+    container: "Oficina: caj\xF3n abierto"
+  - id: Cartuchos_Gabinete
+    kind: 1
+    position: {x: -8.55, y: 1.05, z: 61.6}
+    container: "Sal\xF3n: gabinete, muro oeste"
+  - id: Balas_Barra
+    kind: 2
+    position: {x: 8.6, y: 0.45, z: 62.6}
+    container: "Sal\xF3n: repisa baja detr\xE1s de la barra"
+  version: 0

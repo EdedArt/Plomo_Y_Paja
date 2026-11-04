@@ -616,6 +616,12 @@ public class EnemyAI : MonoBehaviour
         ChangeState(EnemyState.Surrender);
     }
 
+    /// <summary>Lo llaman a pelear (refuerzos de Don Lobo, N2.2): alerta y persecución directa. Sin efecto si ya pelea, se rindió o murió.</summary>
+    public void CallToFight()
+    {
+        if (currentState == EnemyState.Idle || currentState == EnemyState.Patrol) ChangeState(EnemyState.Alert);
+    }
+
     /// <summary>Llamado desde EnemyHealth cuando el enemigo muere.</summary>
     public void Die()
     {

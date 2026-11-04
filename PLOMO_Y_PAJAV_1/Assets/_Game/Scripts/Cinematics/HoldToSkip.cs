@@ -52,6 +52,14 @@ public class HoldToSkip : MonoBehaviour
         return tap;
     }
 
+    /// <summary>N1.4: otra cinemática usa este mismo aviso, aunque la anterior se haya saltado (SkipRequested queda en true).</summary>
+    public void Rearm()
+    {
+        SkipRequested = false;
+        _held = 0f;
+        _tapPending = false;
+    }
+
     /// <summary>Olvida un toque pendiente (ej: uno hecho mientras pasaba la hoja).</summary>
     public void ClearTap() => _tapPending = false;
 

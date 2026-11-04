@@ -1,6 +1,6 @@
 # AUDIT MENU.1.2 — Animación de espera, botones y cuadros sin marca de agua
 
-ESTADO: PENDIENTE DE PRUEBA EN UNITY
+ESTADO: LUZ VERDE (orquestador, 3 nov)
 
 **Fecha:** 3 nov 2026 · **Rama:** `integracion/dia4`. Se escribió en un worktree y entró por fast-forward: el bloqueo de edición del checkout compartido sigue activo (`bgIsolation` sin configurar).
 

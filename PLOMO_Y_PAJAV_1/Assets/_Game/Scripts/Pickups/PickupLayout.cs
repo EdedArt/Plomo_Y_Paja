@@ -20,9 +20,14 @@ public class PickupLayout : ScriptableObject
         [Tooltip("Nombre único en la escena: el objeto se llama Pickup_<id>")]
         public string id;
         public PickupKind kind;
-        [Tooltip("Posición de mundo; al colocarlo, la altura se ajusta al piso")]
+        [Tooltip("Posición de mundo; al colocarlo, la altura se ajusta a la superficie de abajo")]
         public Vector3 position;
+        [Tooltip("N1.2: mueble o contenedor (\"Cocina: mostrador\"). Con esto, position.y debe ser la altura de la superficie. Vacío = se ajusta al piso como antes")]
+        public string container;
     }
 
     public List<Entry> entries = new List<Entry>();
+
+    [Tooltip("N1.2: distribución de este asset. Si es vieja, PickupBuilder pone la del nivel (solo NivelPorky)")]
+    public int version;
 }

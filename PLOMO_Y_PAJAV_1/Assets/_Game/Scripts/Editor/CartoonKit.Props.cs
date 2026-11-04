@@ -844,6 +844,9 @@ public static partial class CartoonKit
                 if (f == 0 && c == cols / 2)
                 {
                     DoorLeaf($"{name}_Puerta{n}", new Vector3(wx, 1.1f, zFront + 0.04f), Quaternion.identity, 1.1f, 2.2f, M("Puerta"), root);
+                    // N1.1 (regla N2): escalón y alero, la fachada tiene relieve aunque sea un borde
+                    Box($"{name}_Escalon{n}", new Vector3(wx, 0.07f, zFront + 0.3f), new Vector3(1.7f, 0.14f, 0.55f), M("PiedraOscura"), root, default, 0.03f, false);
+                    Box($"{name}_Alero{n}", new Vector3(wx, 2.55f, zFront + 0.42f), new Vector3(1.9f, 0.1f, 0.85f), M("TechoEdificio"), root, new Vector3(-8f, 0f, 0f), 0.03f, false);
                     continue;
                 }
                 WindowFrame($"{name}_Ventana{n}_{f}_{c}", new Vector3(wx, wy, zFront + 0.07f), Quaternion.identity, 1f, 1.2f, root,

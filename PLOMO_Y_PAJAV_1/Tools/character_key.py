@@ -8,6 +8,7 @@ USO (desde PLOMO_Y_PAJAV_1/):
     python Tools/character_key.py --lo 20 --hi 90 --dilate 4
     python Tools/character_key.py --single ENTRADA.png --out SALIDA.png [--crop 4]   # un solo archivo (UI)
     python Tools/character_key.py --center [HUD] [--size 256]   # iconos del HUD, centrados (fase HUD.1)
+    python Tools/character_key.py Lobo                           # Don Lobo, mismo recorte que Contador (fase N2.2)
     python Tools/character_key.py Objetos [--size 512]          # objetos del mapa, alineados abajo (fase HUD.3)
 
 ENTRADA : _entrante_personajes/Contador/*.png   (si no existe, usa _entrante_viewmodel/_entrante_personajes_/contador/)
@@ -62,8 +63,15 @@ PAIRS = {  # frame -> referencia
     "plead_02": "plead_01", "relief_02": "relief_01", "blink_01": "talk_01", "idle_02": "idle_01",
 }
 
+# Don Lobo (fase N2.2, guion nivel2 §3): 16 cuadros. Los _02 de boca salen de su _01
+LOBO_SRC = os.path.join(ROOT, "_entrante_personajes", "Lobo")
+LOBO_DST = os.path.join(ROOT, "Assets", "_Game", "Art", "Characters", "lobo")
+LOBO_EXPECTED = ["idle_01", "idle_02", "peek_01", "cover_01", "shoot_01", "call_01", "hit_01", "rodillas_01", "rodillas_02",
+                 "talk_01", "talk_02", "angry_01", "angry_02", "laugh_01", "laugh_02", "death_01"]
+LOBO_PAIRS = {"idle_02": "idle_01", "rodillas_02": "rodillas_01", "talk_02": "talk_01", "angry_02": "angry_01", "laugh_02": "laugh_01"}
 
-def key_magenta(path, lo, hi, despill_all=False):
+
+def key_magenta(path, lo, hi, despill_all=False, edge_strength=0.5):
     a = np.asarray(Image.open(path).convert("RGB")).astype(np.float32)
     r, g, b = a[..., 0], a[..., 1], a[..., 2]
     m = np.minimum(r, b) - g
@@ -75,7 +83,7 @@ def key_magenta(path, lo, hi, despill_all=False):
         p = np.pad(near, 1)
         near = near | p[:-2, 1:-1] | p[2:, 1:-1] | p[1:-1, :-2] | p[1:-1, 2:]
     spill = (m > 0) & near
-    d = np.where(spill, m * 0.5, 0.0)
+    d = np.where(spill, m * edge_strength, 0.0)
     if despill_all:  # humo translúcido (fx_impacto_02): el magenta se transparenta en todo el dibujo; R y B bajan hasta G
         d = np.where(m > 0, m, 0.0)
     return np.dstack([r - d, g, b - d]), alpha
@@ -106,7 +114,7 @@ def bbox(alpha):
 
 
 def key_single(args):
-    rgb, alpha = key_magenta(args.single, args.lo, args.hi)
+    rgb, alpha = key_magenta(args.single, args.lo, args.hi, edge_strength=1.0 if args.defringe else 0.5)
     rgb = dilate(rgb, alpha, args.dilate)
     h, w = alpha.shape
     if args.crop >= 0:
@@ -175,6 +183,7 @@ def main():
     ap.add_argument("--dst", default=DST)
     ap.add_argument("--single", default=None, help="un solo PNG (sin escalar ni alinear)")
     ap.add_argument("--out", default=None, help="salida de --single (por defecto, sobrescribe la entrada)")
+    ap.add_argument("--defringe", action="store_true", help="--single: despill COMPLETO en la franja de borde (sin halo rosado en bordes crema)")
     ap.add_argument("--crop", type=int, default=-1, help="--single: recortar a lo opaco con este margen en px")
     ap.add_argument("--center", nargs="?", const="HUD", default=None,
                     help="iconos centrados: carpeta _entrante_hud/<NOMBRE> (por defecto HUD) -> Art/UI/HUD")
@@ -182,6 +191,12 @@ def main():
     ap.add_argument("--despill-all", action="store_true", help="--center/Objetos: quita el magenta de todo el dibujo (humo translúcido)")
     ap.add_argument("objects", nargs="?", default=None, help="carpeta de objetos del mapa, alineados abajo (Objetos)")
     args = ap.parse_args()
+    expected, pairs, default_src = EXPECTED, PAIRS, (SRC if os.path.isdir(SRC) else SRC_FALLBACK)
+    if args.objects and args.objects.lower() == "lobo":
+        expected, pairs, default_src = LOBO_EXPECTED, LOBO_PAIRS, LOBO_SRC
+        if args.dst == DST:
+            args.dst = LOBO_DST
+        args.objects = None
     if args.objects:
         args.center = args.objects
         args.size = args.size or 512
@@ -194,12 +209,15 @@ def main():
     if args.single:
         return key_single(args)
 
-    src = args.src or (SRC if os.path.isdir(SRC) else SRC_FALLBACK)
+    src = args.src or default_src
+    if not os.path.isdir(src):
+        print("No existe la carpeta de entrada:", src)
+        return 1
     print("Entrada:", src)
     found = {os.path.splitext(f)[0]: f for f in os.listdir(src) if f.lower().endswith(".png")}
-    print("Faltan:", sorted(set(EXPECTED) - set(found)) or "ninguno")
-    print("Sobran:", sorted(set(found) - set(EXPECTED)) or "ninguno")
-    names = [n for n in EXPECTED if n in found]
+    print("Faltan:", sorted(set(expected) - set(found)) or "ninguno")
+    print("Sobran:", sorted(set(found) - set(expected)) or "ninguno")
+    names = [n for n in expected if n in found]
 
     crops = {}
     for n in names:
@@ -225,7 +243,7 @@ def main():
         ca[oy:oy + size[1], ox:ox + size[0]] = al2
         frames[n] = (cr, ca)
 
-    for n, ref in PAIRS.items():
+    for n, ref in pairs.items():
         if n not in frames or ref not in frames:
             print("PAR OMITIDO %s -> %s (falta archivo)" % (n, ref))
             continue
@@ -233,12 +251,13 @@ def main():
         flag = "  ¡REVISAR: desplazamiento grande!" if max(abs(dy), abs(dx)) > 40 else ""
         print("ALIGN %-11s -> %-10s dy=%+d dx=%+d%s" % (n, ref, dy, dx, flag))
         frames[n] = (shift(frames[n][0], dy, dx), shift(frames[n][1], dy, dx))
-    print("limp_01 / limp_02: sin alinear entre sí (solo abajo + centrado)")
+    if expected is EXPECTED:
+        print("limp_01 / limp_02: sin alinear entre sí (solo abajo + centrado)")
 
     # grupos: referencia + sus pares; se bajan en bloque
     groups = {}
     for n in frames:
-        groups.setdefault(PAIRS.get(n, n), []).append(n)
+        groups.setdefault(pairs.get(n, n), []).append(n)
         # blink_01 cuelga de talk_01: ya está en el grupo de talk
     os.makedirs(args.dst, exist_ok=True)
     for ref, members in groups.items():
