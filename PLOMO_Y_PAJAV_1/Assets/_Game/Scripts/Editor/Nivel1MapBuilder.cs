@@ -26,6 +26,11 @@ public static class Nivel1MapBuilder
 {
     public static readonly Vector3 ForestGatePosition = new Vector3(-6.4f, 0f, ContadorYardBuilder.RinconBackZ);
     public static readonly Vector3 LevelExitPosition = new Vector3(-6.2f, 0f, 55f);
+    /// <summary>N1.4: el camino del bosque, del portón al fondo. Lo dibuja BuildForestPath; las huellas van por encima.</summary>
+    public static readonly Vector3[] ForestTrailPoints =
+    {
+        ForestGatePosition, new Vector3(-7.4f, 0f, 33f), new Vector3(-5f, 0f, 41f), new Vector3(-6.7f, 0f, 49f), new Vector3(-6.2f, 0f, 57f),
+    };
 
     // N1.2 (PickupBuilder): superficies de los objetos en lo que arma este builder
     private const float PorchTop = 0.24f;
@@ -98,6 +103,7 @@ public static class Nivel1MapBuilder
         BuildInto(environment, lighting, markers, report);
         PickupBuilder.BuildPrefabs(report); // N1.2: los objetos van sobre los muebles que se acaban de rehacer
         PickupBuilder.PlaceInOpenScene(report);
+        FootprintTrail.BuildInto(report); // N1.4: el portón se acaba de rehacer
 
         EditorSceneManager.MarkSceneDirty(scene);
         EditorSceneManager.SaveScene(scene);
@@ -555,7 +561,7 @@ public static class Nivel1MapBuilder
     {
         float z = ContadorYardBuilder.RinconBackZ;
         CartoonKit.Box("Suelo_Bosque", new Vector3(-6.4f, -0.1f, (z + 58.5f) * 0.5f), new Vector3(13f, 0.2f, 58.5f - z), CartoonKit.M("PastoLejano"), parent, default, 0f);
-        CartoonKit.DirtPath("Camino_Bosque", new[] { V(-6.4f, z), V(-7.4f, 33f), V(-5f, 41f), V(-6.7f, 49f), V(-6.2f, 57f) }, 2f, parent);
+        CartoonKit.DirtPath("Camino_Bosque", ForestTrailPoints, 2f, parent);
 
         int n = 0;
         Path(parent, "Bosque_Oeste", MixForest, false, 61, ref n, report, V(-9f, z + 0.2f), V(-10f, 33f), V(-7.5f, 41f), V(-9.2f, 49f), V(-9f, 58f));

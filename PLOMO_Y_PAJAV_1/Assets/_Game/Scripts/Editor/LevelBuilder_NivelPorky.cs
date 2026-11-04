@@ -111,6 +111,11 @@ public static class LevelBuilder_NivelPorky
         TutorialBuilder.BuildInto(tutorialReport);
         Debug.Log("[LevelBuilder] Tutorial:\n" + tutorialReport);
 
+        // Fase N1.4: huellas al bosque, escena del portón y salida a Campamento (después del mapa y del taxi: usa su portón y sus franjas)
+        var footprintsReport = new System.Text.StringBuilder();
+        FootprintTrail.BuildInto(footprintsReport);
+        Debug.Log("[LevelBuilder] Huellas:\n" + footprintsReport);
+
         // Fase HUD.3 (H15): objetos recogibles y drops, desde PickupLayout_NivelPorky (no son estáticos: el NavMesh no los ve)
         var pickupReport = new System.Text.StringBuilder();
         PickupBuilder.BuildPrefabs(pickupReport);

@@ -117,6 +117,25 @@ public class GameManager : MonoBehaviour
         SceneManager.LoadScene(currentIndex + 1);
     }
 
+    /// <summary>¿Esta escena se puede cargar? (está en Build Settings)</summary>
+    public static bool CanLoadLevel(string sceneName) => Application.CanStreamedLevelBeLoaded(sceneName);
+
+    /// <summary>
+    /// Pasar a otro nivel por nombre, en segundo plano (N1.4, salida del bosque). Por nombre porque el orden de Build Settings no es
+    /// de quien llama. Es carga Single: GameStateTracker saca la foto de entrada en sceneLoaded. Sin esa escena devuelve null y no cambia nada.
+    /// activateWhenReady = false: quien llama activa con allowSceneActivation al terminar su fundido.
+    /// </summary>
+    public AsyncOperation LoadLevelAsync(string sceneName, bool activateWhenReady = true)
+    {
+        if (!CanLoadLevel(sceneName)) return null;
+        gameIsOver = false;
+        if (gameIsPaused) TogglePause(); // este objeto sobrevive a la carga: no debe entrar pausado a la escena nueva
+        Time.timeScale = 1f;
+        AsyncOperation load = SceneManager.LoadSceneAsync(sceneName, LoadSceneMode.Single);
+        if (load != null) load.allowSceneActivation = activateWhenReady;
+        return load;
+    }
+
     /// <summary>
     /// Triggerear el final del juego basado en las decisiones del jugador.
     /// Llamar desde FinaleTrigger cuando el jugador completa el juego.
