@@ -19,7 +19,8 @@ using UnityEngine;
 /// COLA: nada aparece en interrogatorio, cinemática, diálogo, pausa o muerte: el paso espera; si ya estaba en pantalla, se oculta
 /// y su tiempo no corre. Si hay otro paso esperando, el que está en pantalla termina a los 4 s. Sin basura por frame.
 /// BANDERA: _shown, estática (dura toda la ejecución, como IntroCinematicDirector._playedThisSession). No está en
-/// GameStateTracker porque ese archivo es de la otra sesión.
+/// GameStateTracker porque ese archivo es de la otra sesión. "Jugar" la borra (GameStateTracker.NewGameStarted, N1.4);
+/// reiniciar tras morir no pasa por ahí, así que nada se repite.
 /// </summary>
 public class TutorialDirector : MonoBehaviour
 {
@@ -103,7 +104,15 @@ public class TutorialDirector : MonoBehaviour
     private static void MarkShown(Step step) => _shown |= (int)step;
 
     [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.SubsystemRegistration)]
-    private static void ResetStatics() => _shown = 0;
+    private static void ResetStatics()
+    {
+        _shown = 0;
+        GameStateTracker.NewGameStarted -= ResetSession;
+        GameStateTracker.NewGameStarted += ResetSession;
+    }
+
+    /// <summary>Partida nueva (N1.4): el tutorial vuelve a salir.</summary>
+    public static void ResetSession() => _shown = 0;
 
     private static bool Blocked() => PlayerAim.GameplayBlocked() || UiHideReasons.IsActive(UiHideReasons.Reason.Death);
 
