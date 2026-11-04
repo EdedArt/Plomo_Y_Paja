@@ -141,10 +141,10 @@ MonoBehaviour:
   standDistance: {x: 6, y: 14}
   aimTelegraph: 0.45
   aimSfx: escopeta_bombeo
-  shotInterval: {x: 1, y: 1.6}
-  rangedHitChance: 0.45
-  rangedHitChanceRunning: 0.25
-  rangedDamage: 10
+  shotInterval: {x: 0.8, y: 1.3}
+  rangedHitChance: 0.62
+  rangedHitChanceRunning: 0.38
+  rangedDamage: 15
   rangedSpread: 1.5
   shootPoseSeconds: 0.2
   muzzleFallback: {x: 0.46, y: 0.49}
@@ -222,7 +222,7 @@ MonoBehaviour:
   maxWidth: 1.2
   fontSize: 13
   textColor: {r: 0, g: 0, b: 0, a: 1}
-  textOutline: 0.28
+  textOutline: 0
   popSeconds: 0.25
   fadeSeconds: 0.3
 --- !u!1 &981479489710905233
