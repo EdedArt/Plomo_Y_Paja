@@ -466,12 +466,29 @@ public static class TestPrefabGenerator
         var so = new SerializedObject(fx);
         so.FindProperty("bloodMaterial").objectReferenceValue = FxMaterial("Fx_Sangre", CartoonFx.BloodColor, false);
         so.FindProperty("decalMaterial").objectReferenceValue = FxMaterial("Fx_Mancha", CartoonFx.BloodColor, true);
+        AssignDecalTextures(so.FindProperty("decalTextures"));
         so.FindProperty("smokeMaterial").objectReferenceValue = FxMaterial("Fx_Humo", new Color32(0xE6, 0xE6, 0xE6, 0xFF), false);
         so.FindProperty("starMaterial").objectReferenceValue = FxMaterial("Fx_Estrella", new Color32(0xFF, 0xD2, 0x3F, 0xFF), false);
         so.FindProperty("toothMaterial").objectReferenceValue = FxMaterial("Fx_Diente", new Color32(0xFF, 0xFA, 0xE8, 0xFF), false);
         so.FindProperty("flashMeshMaterial").objectReferenceValue = FxMaterial("Fx_DestelloMalla", Color.white, false);
         so.FindProperty("flashSpriteMaterial").objectReferenceValue = SpriteFlashMaterial();
         so.ApplyModifiedPropertiesWithoutUndo();
+    }
+
+    // Formas de mancha para CartoonFx: sangre_01..04 de Art/Characters/fx. Las que falten se saltan
+    // (sin ninguna, CartoonFx vuelve al quad de color plano).
+    private static void AssignDecalTextures(SerializedProperty prop)
+    {
+        if (prop == null) return;
+        var found = new System.Collections.Generic.List<Texture2D>();
+        for (int i = 1; i <= 4; i++)
+        {
+            var tex = AssetDatabase.LoadAssetAtPath<Texture2D>($"Assets/_Game/Art/Characters/fx/sangre_{i:00}.png");
+            if (tex != null) found.Add(tex);
+        }
+        prop.arraySize = found.Count;
+        for (int i = 0; i < found.Count; i++)
+            prop.GetArrayElementAtIndex(i).objectReferenceValue = found[i];
     }
 
     private static Material FxMaterial(string name, Color color, bool transparent)
