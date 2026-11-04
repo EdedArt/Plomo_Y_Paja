@@ -104,6 +104,11 @@ public static class LevelBuilder_NivelPorky
         IntroTaxiBuilder.BuildInto(introReport);
         Debug.Log("[LevelBuilder] Taxi y llegada:\n" + introReport);
 
+        // Fase N1.3: tarjeta "Pensamientos", etiquetas de teclas y TutorialDirector
+        var tutorialReport = new System.Text.StringBuilder();
+        TutorialBuilder.BuildInto(tutorialReport);
+        Debug.Log("[LevelBuilder] Tutorial:\n" + tutorialReport);
+
         // Fase HUD.3 (H15): objetos recogibles y drops, desde PickupLayout_NivelPorky (no son estáticos: el NavMesh no los ve)
         var pickupReport = new System.Text.StringBuilder();
         PickupBuilder.BuildPrefabs(pickupReport);

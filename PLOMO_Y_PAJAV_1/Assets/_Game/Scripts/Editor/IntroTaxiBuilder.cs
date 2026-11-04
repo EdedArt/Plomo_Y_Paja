@@ -57,14 +57,14 @@ public static class IntroTaxiBuilder
     };
     /// <summary>
     /// INTRO.2.1: salida recta al oeste (hacia donde ya mira el taxi), a espaldas de la cámara de la llegada: el giro hacia la
-    /// casa va de yaw 20° a 62° y el taxi queda siempre ≥ 31° fuera del borde del cuadro (16:9 y 21:9, FOV vertical 60°).
-    /// Pasa el muro del extremo oeste (x -20.1) fuera de cuadro y sigue hasta 46 m: el motor (3D, maxDistance 45) ya no se oye
-    /// cuando el director lo apaga. Antes: vuelta en U y salida al este por el carril sur, cruzando el cuadro.
+    /// casa va de yaw 20° a 62° y el taxi queda siempre fuera del borde del cuadro (FOV vertical 60°).
+    /// N1.3: termina en x -37 (la trompa en -39.4): el director lo apaga ANTES de x -40, sin llegar a la barricada de Don Lobo
+    /// (x -44). A esa distancia el motor todavía se oye, así que el director lo baja antes de apagarlo.
+    /// Una vuelta hacia el este no sirve: al final del giro la cámara mira a yaw 62° y el taxi entraría en cuadro.
     /// </summary>
     private static readonly Vector3[] ExitPoints =
     {
-        TaxiStopPosition, new Vector3(-20f, 0f, -12.45f), new Vector3(-30f, 0f, -12.45f), new Vector3(-45f, 0f, -12.45f),
-        new Vector3(-60f, 0f, -12.45f),
+        TaxiStopPosition, new Vector3(-20f, 0f, -12.45f), new Vector3(-30f, 0f, -12.45f), new Vector3(-37f, 0f, -12.45f),
     };
 
     /// <summary>Hacia dónde mira Wilbur al bajarse del taxi (yaw del mundo): la cerca de la acera, a la izquierda de la casa.</summary>
