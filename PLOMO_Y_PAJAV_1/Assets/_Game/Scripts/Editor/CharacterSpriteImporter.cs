@@ -32,7 +32,7 @@ public class CharacterSpriteImporter : AssetPostprocessor
     // 13: HUD.3: Art/Props/pickups/ (objetos del mapa: PPU 500, pivote abajo al centro, mipmaps).
     // 14: PISTAS.2: Art/Props/pistas/ (dibujos de las pistas: PPU 3333 ≈ 0.3 m, pivote abajo al centro, mipmaps; la imagen
     //     grande de la hoja, pista_foto_reunion_grande, como Sprite de UI sin compresión).
-    public override uint GetVersion() => 14;
+    public override uint GetVersion() => 15; // 15: Don Lobo (Art/Characters/lobo) a 500 px por metro (N2.2)
 
     /// <summary>Texturas del libro de la intro (fase INTRO): Art/Intro/ilus_intro_NN, libro_portada, libro_guardas, libro_papel.</summary>
     public const string IntroFolder = "Assets/_Game/Art/Intro";
@@ -139,6 +139,7 @@ public class CharacterSpriteImporter : AssetPostprocessor
                 settings.spriteAlignment = (int)SpriteAlignment.Center;
                 settings.spritePixelsPerUnit = 100f;
                 break;
+            case "lobo": // N2.2 (L11): mismo lienzo y regla que Centavo; la raíz del prefab lo agranda ×1.2
             case "contador":
                 // lienzo 1024x1024 con los pies pegados al borde inferior: pivote Bottom Center, mipmaps activos.
                 // 500 px por metro (D12): el lienzo mide 2.05 m, igual que el lienzo de 512 del guardia a 250.
@@ -280,7 +281,7 @@ public static class CharacterSpriteSetBuilder
     public const string SetsFolder = "Assets/_Game/Art/SpriteSets";
 
     public static readonly string[] CharacterIds =
-        { "guardia", "informante", "donlobo", "porky", "max", "contador", "wilbur_hands", "fx", "intro" };
+        { "guardia", "informante", "donlobo", "lobo", "porky", "max", "contador", "wilbur_hands", "fx", "intro" };
 
     private static readonly Dictionary<string, float> DefaultFps = new Dictionary<string, float>
     {

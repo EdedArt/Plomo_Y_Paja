@@ -158,6 +158,7 @@ public static partial class LevelBuilder_Campamento
         BuildMarkers(markers);
         PlaceClueAnchors(report);
         BuildActors(markers, report);
+        LoboBossBuilder.BuildAndPlace(report); // N2.2: Don Lobo y sus anclas
         BuildSceneSystems(report);
         PlacePickups(report);
 
