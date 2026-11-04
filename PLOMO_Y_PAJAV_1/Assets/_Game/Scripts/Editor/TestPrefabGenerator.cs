@@ -1,4 +1,5 @@
 using System.IO;
+using System.Text;
 using TMPro;
 using UnityEditor;
 using UnityEditor.SceneManagement;
@@ -25,6 +26,10 @@ public static class TestPrefabGenerator
     public const string PlayerPath = PrefabFolder + "/Player.prefab";
 
     private const string SampleScenePath = "Assets/Scenes/SampleScene.unity";
+
+    /// <summary>Fuente del globo de los guardias (EnemyBarks). Padding 10: deja sitio al contorno grueso.</summary>
+    public const string BarkFontPath = "Assets/_Game/Fonts/LuckiestGuy SDF.asset";
+    private static readonly string[] BarkFontSources = { "Assets/_Game/Fonts/LuckiestGuy-Regular.ttf" };
     private static readonly Color Cream = new Color32(0xE8, 0xE2, 0xD0, 0xFF);
 
     [MenuItem("Plomo y Paja/Crear Prefabs de Prueba")]
@@ -52,10 +57,108 @@ public static class TestPrefabGenerator
         if (regenerate || !File.Exists(AICompanionPath)) CreateAICompanionPrefab();
         if (regenerate || !File.Exists(GuardPath)) CreateGuardPrefab();
         if (regenerate || !File.Exists(InterrogablePath)) CreateInterrogablePrefab();
+        UpdateGuardPrefab(new StringBuilder());
         EnsurePlayerPrefab();
 
         AssetDatabase.SaveAssets();
         AssetDatabase.Refresh();
+    }
+
+    [MenuItem("Plomo y Paja/Enemigos/Actualizar guardias (combate y globo)")]
+    public static void UpdateGuardsMenu()
+    {
+        if (EditorMenuGuard.BlockedInPlayMode()) return;
+        var report = new StringBuilder();
+        UpdateGuardPrefab(report);
+        AssetDatabase.SaveAssets();
+        Debug.Log("[Prefabs] Guardias actualizados:\n" + report);
+        EditorUtility.DisplayDialog("Actualizar guardias", report.ToString(), "OK");
+    }
+
+    /// <summary>
+    /// Idempotente, sin regenerar el prefab: (1) dificultad del tiro de los guardias, cada valor solo si sigue en el
+    /// de antes (un ajuste a mano en el Inspector no se pisa); (2) globo: bubbleHeight 2.3 → 2.0 con la misma regla y la
+    /// fuente Luckiest Guy SDF (se crea si falta; sin el TTF el globo usa la fuente por defecto de TMP).
+    /// Enemy_Interrogable es variante de Enemy_Guard: lo hereda.
+    /// </summary>
+    private static void UpdateGuardPrefab(StringBuilder report)
+    {
+        if (!File.Exists(GuardPath))
+        {
+            report.AppendLine("✗ No existe " + GuardPath + " (Crear Prefabs de Prueba)");
+            return;
+        }
+        TMP_FontAsset barkFont = InterrogationUIBuilder.EnsureFont(report, BarkFontSources, BarkFontPath, "Luckiest Guy",
+            InterrogationUIBuilder.RequiredCharacters(), 56, 10, 1024);
+
+        GameObject contents = PrefabUtility.LoadPrefabContents(GuardPath);
+        try
+        {
+            EnemyAI ai = contents.GetComponent<EnemyAI>();
+            if (ai != null)
+            {
+                var so = new SerializedObject(ai);
+                MigrateFloat(so, "rangedHitChance", 0.3f, 0.45f, report);
+                MigrateFloat(so, "rangedHitChanceRunning", 0.15f, 0.25f, report);
+                MigrateFloat(so, "rangedDamage", 8f, 10f, report);
+                MigrateFloat(so, "aimTelegraph", 0.35f, 0.45f, report);
+                MigrateVector2(so, "shotInterval", new Vector2(1.4f, 2.2f), new Vector2(1f, 1.6f), report);
+                so.ApplyModifiedPropertiesWithoutUndo();
+            }
+            EnemyBarks barks = contents.GetComponent<EnemyBarks>();
+            if (barks != null)
+            {
+                var so = new SerializedObject(barks);
+                MigrateFloat(so, "bubbleHeight", 2.3f, 2f, report);
+                SerializedProperty fontProp = so.FindProperty("font");
+                if (fontProp != null && barkFont != null && barkFont != TMP_Settings.defaultFontAsset)
+                {
+                    fontProp.objectReferenceValue = barkFont;
+                    report.AppendLine("✓ Globo con Luckiest Guy");
+                }
+                else
+                {
+                    report.AppendLine("⚠ Globo sin Luckiest Guy: usa la fuente por defecto de TMP");
+                }
+                so.ApplyModifiedPropertiesWithoutUndo();
+            }
+            PrefabUtility.SaveAsPrefabAsset(contents, GuardPath);
+        }
+        finally
+        {
+            PrefabUtility.UnloadPrefabContents(contents);
+        }
+    }
+
+    /// <summary>Cambia un float serializado solo si todavía tiene el valor viejo (un ajuste a mano no se pisa).</summary>
+    private static void MigrateFloat(SerializedObject so, string property, float oldValue, float newValue, StringBuilder report)
+    {
+        SerializedProperty p = so.FindProperty(property);
+        if (p == null) return;
+        if (Mathf.Approximately(p.floatValue, oldValue))
+        {
+            p.floatValue = newValue;
+            report.AppendLine($"✓ {property}: {oldValue} → {newValue}");
+        }
+        else if (!Mathf.Approximately(p.floatValue, newValue))
+        {
+            report.AppendLine($"⚠ {property} = {p.floatValue} (ajustado a mano): no se toca");
+        }
+    }
+
+    private static void MigrateVector2(SerializedObject so, string property, Vector2 oldValue, Vector2 newValue, StringBuilder report)
+    {
+        SerializedProperty p = so.FindProperty(property);
+        if (p == null) return;
+        if ((p.vector2Value - oldValue).sqrMagnitude < 0.0001f)
+        {
+            p.vector2Value = newValue;
+            report.AppendLine($"✓ {property}: {oldValue} → {newValue}");
+        }
+        else if ((p.vector2Value - newValue).sqrMagnitude >= 0.0001f)
+        {
+            report.AppendLine($"⚠ {property} = {p.vector2Value} (ajustado a mano): no se toca");
+        }
     }
 
     // ==================================================================

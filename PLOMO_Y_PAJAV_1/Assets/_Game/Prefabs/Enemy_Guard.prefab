@@ -111,6 +111,7 @@ MonoBehaviour:
   onSurrender:
     m_PersistentCalls:
       m_Calls: []
+  dropsLoot: 1
   destroyDelay: 3
 --- !u!114 &352015180966304180
 MonoBehaviour:
@@ -128,6 +129,7 @@ MonoBehaviour:
   enemyType: 0
   patrolPoints: []
   waitTimeAtPoint: 2
+  firstPatrolPoint: 0
   sightRange: 12
   fieldOfView: 120
   hearingRange: 6
@@ -137,11 +139,12 @@ MonoBehaviour:
   rangedAttack: 1
   rangedRange: 18
   standDistance: {x: 6, y: 14}
-  aimTelegraph: 0.35
-  shotInterval: {x: 1.4, y: 2.2}
-  rangedHitChance: 0.3
-  rangedHitChanceRunning: 0.15
-  rangedDamage: 8
+  aimTelegraph: 0.45
+  aimSfx: escopeta_bombeo
+  shotInterval: {x: 1, y: 1.6}
+  rangedHitChance: 0.45
+  rangedHitChanceRunning: 0.25
+  rangedDamage: 10
   rangedSpread: 1.5
   shootPoseSeconds: 0.2
   muzzleFallback: {x: 0.46, y: 0.49}
@@ -211,10 +214,17 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: 
   voiceSet: guardia
-  bubbleHeight: 2.3
+  bubbleHeight: 2
   bubbleSeconds: 2
   patrolInterval: {x: 15, y: 30}
   patrolRange: 15
+  font: {fileID: 11400000, guid: f0323075cc21e794c96f7a2c7cea80ea, type: 2}
+  maxWidth: 1.2
+  fontSize: 13
+  textColor: {r: 0, g: 0, b: 0, a: 1}
+  textOutline: 0.28
+  popSeconds: 0.25
+  fadeSeconds: 0.3
 --- !u!1 &981479489710905233
 GameObject:
   m_ObjectHideFlags: 0

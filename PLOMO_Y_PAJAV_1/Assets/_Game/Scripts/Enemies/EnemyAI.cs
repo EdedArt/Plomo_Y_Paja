@@ -1,5 +1,6 @@
 using System;                    // Para Action (eventos de C#)
 using System.Collections;        // Para IEnumerator (corrutinas: esperar segundos sin congelar el juego)
+using System.Collections.Generic; // HashSet de tiradores (límite de guardias disparando a la vez)
 using UnityEngine;               // Tipos básicos de Unity
 using UnityEngine.AI;            // NavMesh: navegación automática por el nivel
 
@@ -85,13 +86,15 @@ public class EnemyAI : MonoBehaviour
     [SerializeField] private float rangedRange = 18f;
     [Tooltip("Se planta a una distancia al azar entre estos valores para disparar (m)")]
     [SerializeField] private Vector2 standDistance = new Vector2(6f, 14f);
-    [Tooltip("Segundos de aviso (pose de apuntar) antes del tiro")]
-    [SerializeField] private float aimTelegraph = 0.35f;
+    [Tooltip("Segundos de aviso (pose de apuntar + sonido) antes del tiro")]
+    [SerializeField] private float aimTelegraph = 0.45f;
+    [Tooltip("Sonido de aviso al empezar a apuntar (AudioLibrary). Vacío o sin clip = sin sonido")]
+    [SerializeField] private string aimSfx = "escopeta_bombeo";
     [Tooltip("Segundos entre tiros (al azar entre los dos)")]
-    [SerializeField] private Vector2 shotInterval = new Vector2(1.4f, 2.2f);
-    [SerializeField, Range(0f, 1f)] private float rangedHitChance = 0.3f;
-    [SerializeField, Range(0f, 1f)] private float rangedHitChanceRunning = 0.15f;
-    [SerializeField] private float rangedDamage = 8f;
+    [SerializeField] private Vector2 shotInterval = new Vector2(1f, 1.6f);
+    [SerializeField, Range(0f, 1f)] private float rangedHitChance = 0.45f;
+    [SerializeField, Range(0f, 1f)] private float rangedHitChanceRunning = 0.25f;
+    [SerializeField] private float rangedDamage = 10f;
     [Tooltip("Temblor del tiro acertado (grados)")]
     [SerializeField] private float rangedSpread = 1.5f;
     [Tooltip("Segundos que se ve el cuadro de disparo")]
@@ -129,6 +132,13 @@ public class EnemyAI : MonoBehaviour
     private float _nextShotTime;                    // Cuándo puede empezar a apuntar otra vez
     private float _aimUntil = -1f;                  // > 0: apuntando (aviso); al llegar, dispara
     private float _shootPoseUntil = -1f;            // Hasta cuándo se ve el cuadro de disparo
+
+    /// <summary>Máximo de guardias plantados disparando a la vez; el resto espera plantado su turno.</summary>
+    public const int MaxSimultaneousShooters = 2;
+    private static readonly HashSet<EnemyAI> Shooters = new HashSet<EnemyAI>();
+
+    [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.SubsystemRegistration)]
+    private static void ResetShooters() => Shooters.Clear();
 
     // ===================== API pública =====================
 
@@ -173,6 +183,7 @@ public class EnemyAI : MonoBehaviour
     private void OnDisable()
     {
         if (_health != null) _health.OnDamaged -= HandleDamaged;    // Dejar de escuchar (evita llamadas a un objeto apagado)
+        ReleaseShooterSlot();                                       // Apagado o destruido: libera su turno de tiro
     }
 
     /// <summary>Recibió un golpe: pose hit un instante y, si estaba tranquilo, alerta.</summary>
@@ -401,10 +412,12 @@ public class EnemyAI : MonoBehaviour
         {
             SetAgentStopped(true);
             FacePlayer();
-            UpdateRanged(distance);
+            if (TryTakeShooterSlot()) UpdateRanged(distance);                   // Tiene turno: apunta y dispara
+            else WaitForShooterSlot();                                          // Ya hay 2 disparando: espera plantado
             return;
         }
         _aimUntil = -1f;                                                        // Se movió: cancela el apuntado
+        ReleaseShooterSlot();                                                   // ...y deja el turno a otro
 
         _agent.isStopped = false;                                               // Correr
         _agent.speed = chaseSpeed;
@@ -468,7 +481,35 @@ public class EnemyAI : MonoBehaviour
             if (Time.time < _shootPoseUntil) billboardSprite.PlayAttack();      // El cuadro de disparo un instante
             else billboardSprite.PlayIdle();                                   // Entre tiros
         }
-        if (Time.time >= _nextShotTime) _aimUntil = Time.time + aimTelegraph;   // Empieza a apuntar
+        if (Time.time >= _nextShotTime)                                         // Empieza a apuntar
+        {
+            _aimUntil = Time.time + aimTelegraph;
+            if (!string.IsNullOrEmpty(aimSfx))                                  // Aviso que se oye aunque esté fuera de pantalla
+                AudioLibrary.PlaySfx(aimSfx, transform.position + Vector3.up * 1.3f);
+        }
+    }
+
+    /// <summary>¿Tiene (o consigue) uno de los MaxSimultaneousShooters turnos de tiro?</summary>
+    private bool TryTakeShooterSlot()
+    {
+        if (Shooters.Contains(this)) return true;
+        if (Shooters.Count >= MaxSimultaneousShooters) return false;
+        Shooters.Add(this);
+        // Recién le tocó el turno: un respiro antes de apuntar (no dispara en el mismo cuadro en que otro se fue)
+        _nextShotTime = Mathf.Max(_nextShotTime, Time.time + UnityEngine.Random.Range(0.3f, 0.7f));
+        return true;
+    }
+
+    private void ReleaseShooterSlot()
+    {
+        Shooters.Remove(this);
+    }
+
+    /// <summary>Plantado sin turno: mira al jugador con la pose de espera y no apunta.</summary>
+    private void WaitForShooterSlot()
+    {
+        _aimUntil = -1f;
+        if (billboardSprite != null) billboardSprite.PlayIdle();
     }
 
     private void FacePlayer()
@@ -498,6 +539,7 @@ public class EnemyAI : MonoBehaviour
 
         EnemyState previous = currentState;                                     // Guardar para el evento
         currentState = newState;
+        if (newState != EnemyState.Chase) ReleaseShooterSlot();                 // Solo se dispara desde Chase
 
         switch (newState)
         {
