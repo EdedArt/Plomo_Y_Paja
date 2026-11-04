@@ -29,6 +29,8 @@ public class CartoonFx : MonoBehaviour
     [Header("Manchas")]
     [SerializeField] private float decalLifetime = 30f;
     [SerializeField] private float decalFadeTime = 2f;
+    [Tooltip("Formas de mancha (sangre_01..04). Vacío = quad de color plano, como antes.")]
+    [SerializeField] private Texture2D[] decalTextures;
 
     private const int MaxParticles = 384;
     private const int MaxDecals = 40;
@@ -62,6 +64,7 @@ public class CartoonFx : MonoBehaviour
         public MeshRenderer renderer;
         public float spawnTime;
         public float baseAlpha;
+        public Texture2D texture;   // null = color plano
     }
 
     private readonly Decal[] _decals = new Decal[MaxDecals];
@@ -70,6 +73,7 @@ public class CartoonFx : MonoBehaviour
     private MaterialPropertyBlock _mpb;
     private static readonly int BaseColorId = Shader.PropertyToID("_BaseColor");
     private static readonly int ColorId = Shader.PropertyToID("_Color");
+    private static readonly int BaseMapId = Shader.PropertyToID("_BaseMap");
 
     private Mesh _sphere, _cube, _quad;
 
@@ -386,6 +390,9 @@ public class CartoonFx : MonoBehaviour
         decal.transform.localScale = new Vector3(size, size * Random.Range(0.7f, 1f), 1f);
         decal.spawnTime = Time.time;
         decal.baseAlpha = alpha;
+        decal.texture = decalTextures != null && decalTextures.Length > 0
+            ? decalTextures[Random.Range(0, decalTextures.Length)]
+            : null;
         decal.renderer.gameObject.SetActive(true);
         SetDecalAlpha(decal, alpha);
     }
@@ -409,10 +416,15 @@ public class CartoonFx : MonoBehaviour
 
     private void SetDecalAlpha(Decal decal, float alpha)
     {
-        Color c = BloodColor;
+        // _mpb es compartido entre manchas: se limpia para no arrastrar la textura de la anterior.
+        _mpb.Clear();
+        bool conTextura = decal.texture != null;
+        // Con textura el color ya viene en el PNG: blanco para no teñirlo (el property block pisa el color del material).
+        Color c = conTextura ? Color.white : BloodColor;
         c.a = alpha;
         _mpb.SetColor(BaseColorId, c);
         _mpb.SetColor(ColorId, c);
+        if (conTextura) _mpb.SetTexture(BaseMapId, decal.texture);
         decal.renderer.SetPropertyBlock(_mpb);
     }
 
