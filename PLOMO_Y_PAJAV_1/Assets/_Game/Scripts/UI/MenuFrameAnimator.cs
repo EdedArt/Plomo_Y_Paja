@@ -6,9 +6,11 @@ using UnityEngine.UI;
 //   bien si los frames son casi identicos.
 // Modo Fundido: mezcla suavemente entre frames. Sirve cuando los dibujos
 //   tienen diferencias grandes.
-// Dos grupos, cada uno con su modo: "frames" (espera, atardecer: libro animado lento,
-//   casi cortes secos con un micro-fundido, sin respiracion) y "framesTormenta" (tras el rayo: el campo "modo",
-//   fundido lento con respiracion). CutToStorm salta de uno a otro sin fundido.
+// Dos grupos, cada uno con su modo: "frames" (espera, atardecer) y "framesTormenta" (tras el
+//   rayo: el campo "modo"). Ambos con fundido lento y respiracion, porque los cuadros son
+//   redibujos, no casi identicos. CutToStorm salta de uno a otro sin fundido.
+// Movimiento de camara lento sobre todo el fondo: depende solo del tiempo, no del grupo, asi
+//   que el corte del rayo no lo hace saltar.
 // La imagen cubre la pantalla sin deformarse (16:9, 16:10, 21:9) y se mueve con
 //   el raton (parallax de todo el fondo).
 // Usa tiempo sin escala para seguir animando con Time.timeScale en 0.
@@ -22,14 +24,17 @@ public class MenuFrameAnimator : MonoBehaviour
     [Tooltip("Modo del grupo de tormenta")]
     [SerializeField] private Modo modo = Modo.Fundido;
 
-    [Header("Libro animado (grupo de espera)")]
-    [SerializeField] private Modo modoEspera = Modo.Hervido;
+    [Header("Grupo de espera")]
+    [SerializeField] private Modo modoEspera = Modo.Fundido;
+    [Tooltip("Segundos que cada cuadro se mantiene antes de mezclarse con el siguiente")]
+    [SerializeField, Range(0.2f, 8f)] private float mantenerEspera = 2f;
+    [SerializeField, Range(0.1f, 5f)] private float fundidoEspera = 1.2f;
+    [SerializeField] private bool respirarEspera = true;
+
+    [Header("Libro animado de la espera (sin usar: solo con modoEspera = Hervido)")]
     [SerializeField, Range(2f, 8f)] private float fpsEspera = 4f;
     [Tooltip("Variacion al azar en lo que dura cada cuadro (0.15 = +-15 %)")]
     [SerializeField, Range(0f, 0.5f)] private float variacionEspera = 0.15f;
-    [SerializeField] private bool respirarEspera = false;
-    [Tooltip("Mezcla entre cuadros regenerados para que no salten (s); 0 = corte seco")]
-    [SerializeField, Range(0f, 0.5f)] private float microFundidoEspera = 0.05f;
 
     [Header("Hervido")]
     [SerializeField, Range(1f, 24f)] private float fps = 12f;
@@ -51,6 +56,17 @@ public class MenuFrameAnimator : MonoBehaviour
     [Tooltip("Margen extra de la imagen para que la sacudida del rayo no deje ver el borde")]
     [SerializeField] private float margenSacudidaPx = 6f;
 
+    [Header("Movimiento de camara (espera y tormenta)")]
+    [SerializeField] private bool moverCamara = true;
+    [Tooltip("Zoom en el extremo del recorrido (1.04 = de 1.00 a 1.04)")]
+    [SerializeField, Range(1f, 1.2f)] private float zoomCamara = 1.04f;
+    [Tooltip("Desplazamiento +- esta fraccion del ancho de pantalla")]
+    [SerializeField, Range(0f, 0.1f)] private float recorridoX = 0.015f;
+    [Tooltip("Desplazamiento +- esta fraccion del alto de pantalla")]
+    [SerializeField, Range(0f, 0.1f)] private float recorridoY = 0.01f;
+    [Tooltip("Segundos de la ida y vuelta completa")]
+    [SerializeField, Range(2f, 120f)] private float periodoCamara = 20f;
+
     private Image imagenA;      // frame actual
     private Image imagenB;      // frame siguiente, solo en modo Fundido
     private RectTransform rt;
@@ -66,6 +82,8 @@ public class MenuFrameAnimator : MonoBehaviour
     private Vector2 tamanoPadre;
     private Vector2 parallaxActual;
     private Vector2 desplazamientoExtra;
+    private float inicioCamara;
+    private float avanceCamara;
 
     private void Awake()
     {
@@ -78,8 +96,9 @@ public class MenuFrameAnimator : MonoBehaviour
         framesTormenta = SinNulos(framesTormenta);
         activos = frames;
         modoActivo = modoEspera;
+        inicioCamara = Time.unscaledTime;
 
-        if (modo == Modo.Fundido || modoEspera == Modo.Fundido || microFundidoEspera > 0f) CrearCapaB();
+        if (modo == Modo.Fundido || modoEspera == Modo.Fundido) CrearCapaB();
         if (activos.Length > 0)
         {
             imagenA.sprite = activos[0];
@@ -145,7 +164,8 @@ public class MenuFrameAnimator : MonoBehaviour
 
     private float Intervalo()
     {
-        if (modoActivo == Modo.Fundido) return segundosPorFrame;
+        // En la espera el intervalo cuenta lo que se mantiene mas lo que dura la mezcla.
+        if (modoActivo == Modo.Fundido) return enEspera ? mantenerEspera + fundidoEspera : segundosPorFrame;
 
         // Pequena variacion para que no suene a metronomo.
         float baseT = 1f / Mathf.Max(enEspera ? fpsEspera : fps, 0.01f);
@@ -187,12 +207,13 @@ public class MenuFrameAnimator : MonoBehaviour
         if (rtB != null && imagenB.sprite != null) rtB.sizeDelta = TamanoCubierta(imagenB.sprite);
     }
 
-    // Tamano que cubre al padre (mas el margen de parallax y sacudida) sin deformar el sprite.
+    // Tamano que cubre al padre (mas el margen de parallax, sacudida y recorrido de camara) sin
+    // deformar el sprite. Con ese margen el fondo cubre aun con zoom 1.00 en el punto mas desplazado.
     private Vector2 TamanoCubierta(Sprite s)
     {
         float margen = 2f * (parallaxPx + margenSacudidaPx) + 2f;
-        float ancho = tamanoPadre.x + margen;
-        float alto = tamanoPadre.y + margen;
+        float ancho = tamanoPadre.x + margen + (moverCamara ? 2f * recorridoX * tamanoPadre.x : 0f);
+        float alto = tamanoPadre.y + margen + (moverCamara ? 2f * recorridoY * tamanoPadre.y : 0f);
         float aspecto = s.rect.width / Mathf.Max(1f, s.rect.height);
         return ancho / Mathf.Max(1f, alto) > aspecto
             ? new Vector2(ancho, ancho / aspecto)
@@ -206,13 +227,24 @@ public class MenuFrameAnimator : MonoBehaviour
         if (cubrirPantalla && padre != null && padre.rect.size != tamanoPadre) AjustarCobertura();
         if (activos != null && activos.Length >= 2) ActualizarCuadros(t);
 
+        bool camara = moverCamara && cubrirPantalla;
+        if (camara)
+        {
+            // Ida y vuelta 0 -> 1 -> 0, con ease in-out.
+            float ciclo = Mathf.Repeat((t - inicioCamara) / periodoCamara, 1f);
+            float tramo = 1f - Mathf.Abs(ciclo * 2f - 1f);
+            avanceCamara = tramo * tramo * (3f - 2f * tramo);
+        }
+
+        float s = 1f;
         if (enEspera ? respirarEspera : respirar)
         {
             float onda = Mathf.Sin(t * velocidadRespiracion * Mathf.PI * 2f) * amplitud;
             // Cubriendo, la escala nunca baja de 1: el borde no se asoma al "exhalar".
-            float s = 1f + onda + (cubrirPantalla ? amplitud : 0f);
-            rt.localScale = escalaBase * s;
+            s += onda + (cubrirPantalla ? amplitud : 0f);
         }
+        if (camara) s *= Mathf.Lerp(1f, zoomCamara, avanceCamara);
+        rt.localScale = escalaBase * s;
 
         if (cubrirPantalla) ActualizarPosicion();
     }
@@ -221,8 +253,8 @@ public class MenuFrameAnimator : MonoBehaviour
     private float DuracionMezcla()
     {
         if (imagenB == null) return 0f;
-        if (modoActivo == Modo.Fundido) return duracionFundido;
-        return enEspera ? microFundidoEspera : 0f;
+        if (modoActivo == Modo.Fundido) return enEspera ? fundidoEspera : duracionFundido;
+        return 0f;
     }
 
     private void ActualizarCuadros(float t)
@@ -276,6 +308,12 @@ public class MenuFrameAnimator : MonoBehaviour
         }
         float k = 1f - Mathf.Exp(-parallaxSuavizado * Time.unscaledDeltaTime);
         parallaxActual = Vector2.Lerp(parallaxActual, objetivo, k);
-        rt.anchoredPosition = parallaxActual + desplazamientoExtra;
+        Vector2 camara = Vector2.zero;
+        if (moverCamara)
+        {
+            camara.x = Mathf.Lerp(-recorridoX, recorridoX, avanceCamara) * tamanoPadre.x;
+            camara.y = Mathf.Lerp(-recorridoY, recorridoY, avanceCamara) * tamanoPadre.y;
+        }
+        rt.anchoredPosition = parallaxActual + desplazamientoExtra + camara;
     }
 }
