@@ -6,8 +6,8 @@ using UnityEngine.UI;
 //   bien si los frames son casi identicos.
 // Modo Fundido: mezcla suavemente entre frames. Sirve cuando los dibujos
 //   tienen diferencias grandes.
-// Dos grupos, cada uno con su modo: "frames" (espera, atardecer: libro animado con
-//   cortes secos y sin respiracion) y "framesTormenta" (tras el rayo: el campo "modo",
+// Dos grupos, cada uno con su modo: "frames" (espera, atardecer: libro animado lento,
+//   casi cortes secos con un micro-fundido, sin respiracion) y "framesTormenta" (tras el rayo: el campo "modo",
 //   fundido lento con respiracion). CutToStorm salta de uno a otro sin fundido.
 // La imagen cubre la pantalla sin deformarse (16:9, 16:10, 21:9) y se mueve con
 //   el raton (parallax de todo el fondo).
@@ -24,10 +24,12 @@ public class MenuFrameAnimator : MonoBehaviour
 
     [Header("Libro animado (grupo de espera)")]
     [SerializeField] private Modo modoEspera = Modo.Hervido;
-    [SerializeField, Range(6f, 12f)] private float fpsEspera = 8f;
+    [SerializeField, Range(2f, 8f)] private float fpsEspera = 4f;
     [Tooltip("Variacion al azar en lo que dura cada cuadro (0.15 = +-15 %)")]
     [SerializeField, Range(0f, 0.5f)] private float variacionEspera = 0.15f;
     [SerializeField] private bool respirarEspera = false;
+    [Tooltip("Mezcla entre cuadros regenerados para que no salten (s); 0 = corte seco")]
+    [SerializeField, Range(0f, 0.5f)] private float microFundidoEspera = 0.05f;
 
     [Header("Hervido")]
     [SerializeField, Range(1f, 24f)] private float fps = 12f;
@@ -77,7 +79,7 @@ public class MenuFrameAnimator : MonoBehaviour
         activos = frames;
         modoActivo = modoEspera;
 
-        if (modo == Modo.Fundido || modoEspera == Modo.Fundido) CrearCapaB();
+        if (modo == Modo.Fundido || modoEspera == Modo.Fundido || microFundidoEspera > 0f) CrearCapaB();
         if (activos.Length > 0)
         {
             imagenA.sprite = activos[0];
@@ -215,14 +217,24 @@ public class MenuFrameAnimator : MonoBehaviour
         if (cubrirPantalla) ActualizarPosicion();
     }
 
+    // Segundos de mezcla del grupo activo; 0 = corte seco.
+    private float DuracionMezcla()
+    {
+        if (imagenB == null) return 0f;
+        if (modoActivo == Modo.Fundido) return duracionFundido;
+        return enEspera ? microFundidoEspera : 0f;
+    }
+
     private void ActualizarCuadros(float t)
     {
+        float mezcla = DuracionMezcla();
+
         if (t >= siguienteCambio)
         {
             siguienteCambio = t + Intervalo();
             int sig = (indice + 1) % activos.Length;
 
-            if (modoActivo == Modo.Hervido)
+            if (mezcla <= 0f)
             {
                 indice = sig;
                 imagenA.sprite = activos[indice];
@@ -236,9 +248,9 @@ public class MenuFrameAnimator : MonoBehaviour
             }
         }
 
-        if (modoActivo == Modo.Fundido && inicioFundido >= 0f)
+        if (mezcla > 0f && inicioFundido >= 0f)
         {
-            float k = Mathf.Clamp01((t - inicioFundido) / duracionFundido);
+            float k = Mathf.Clamp01((t - inicioFundido) / mezcla);
             k = k * k * (3f - 2f * k);                     // suavizado
             imagenB.color = new Color(1f, 1f, 1f, k);
 

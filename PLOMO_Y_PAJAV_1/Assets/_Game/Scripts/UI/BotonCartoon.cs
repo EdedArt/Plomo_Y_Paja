@@ -79,9 +79,15 @@ public class BotonCartoon : MonoBehaviour, IPointerEnterHandler, IPointerExitHan
 
     private void CrearBorde()
     {
-        if (grosorBorde <= 0f) return;
-
         var hijo = transform.Find("Borde");
+        if (grosorBorde <= 0f)
+        {
+            // Es ExecuteAlways: al agregarse crea el borde con el grosor por defecto, antes de que el
+            // builder ponga 0. Como hijo se dibuja ENCIMA de la placa: una silueta casi negra.
+            if (hijo != null) hijo.gameObject.SetActive(false);
+            return;
+        }
+
         if (hijo == null)
         {
             var go = new GameObject("Borde", typeof(RectTransform), typeof(Image));
@@ -90,6 +96,7 @@ public class BotonCartoon : MonoBehaviour, IPointerEnterHandler, IPointerExitHan
             hijo = go.transform;
         }
 
+        hijo.gameObject.SetActive(true);
         borde = (RectTransform)hijo;
         borde.anchorMin = Vector2.zero;
         borde.anchorMax = Vector2.one;

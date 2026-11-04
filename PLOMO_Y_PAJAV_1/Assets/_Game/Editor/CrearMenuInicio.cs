@@ -29,6 +29,7 @@ public static class CrearMenuInicio
     private const string RutaTtfCursiva = "Assets/_Game/Fonts/IMFellEnglish-Italic.ttf";
     private const string RutaAtlasCursiva = "Assets/_Game/Fonts/IMFellEnglish-Italic Titulo SDF.asset";
     private const float TamanoTitulo = 128f;
+    private const float AltoBoton = 110f;
     private const string RutaMusica = "Assets/_Game/Audio/Music/musica_intro.wav";
     private const string RutaLibreria = "Assets/_Game/Audio/AudioLibrary.asset";
 
@@ -132,6 +133,7 @@ public static class CrearMenuInicio
         soRayo.ApplyModifiedPropertiesWithoutUndo();
 
         var placa = Cargar<Sprite>(RutaMenu + "boton_placa.png");
+        if (placa == null) faltantes.Add("boton_placa (botones color crema)");
 
         // ---------- Panel principal ----------
         var panel = NuevoPanel("PanelPrincipal", canvasGO.transform);
@@ -614,12 +616,15 @@ public static class CrearMenuInicio
                                      Sprite placa, float x, float y)
     {
         var img = NuevaImagen(nombre, padre);
-        Colocar(img.rectTransform, x, y, 420, 110);
+        // Con placa, el boton tiene la proporcion de la placa: toda el area clicable se ve.
+        float ancho = placa != null ? AltoBoton * placa.rect.width / placa.rect.height : 420f;
+        Colocar(img.rectTransform, x, y, ancho, AltoBoton);
 
         if (placa != null)
         {
             img.sprite = placa;
-            img.type = Image.Type.Sliced;
+            img.type = Image.Type.Simple;
+            img.preserveAspect = true;
             img.color = Color.white;
         }
         else
@@ -649,6 +654,10 @@ public static class CrearMenuInicio
         so.FindProperty("doradoEncima").colorValue = Color.white;
         so.FindProperty("grosorBorde").floatValue = placa != null ? 0f : 6f;
         so.ApplyModifiedPropertiesWithoutUndo();
+
+        // BotonCartoon ya creo su borde al agregarse: con placa no debe quedar en la escena.
+        var borde = img.transform.Find("Borde");
+        if (placa != null && borde != null) Object.DestroyImmediate(borde.gameObject);
 
         return btn;
     }
