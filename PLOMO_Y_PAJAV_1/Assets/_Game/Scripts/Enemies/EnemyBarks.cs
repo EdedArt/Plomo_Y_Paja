@@ -34,7 +34,7 @@ public class EnemyBarks : MonoBehaviour
     [SerializeField] private float maxWidth = 1.2f;
     [Tooltip("Tamaño de letra en cm")]
     [SerializeField] private float fontSize = 13f;
-    [SerializeField] private Color textColor = new Color32(0xFF, 0xD2, 0x3F, 0xFF);
+    [SerializeField] private Color textColor = Color.black;
     [Tooltip("Grosor del contorno negro del texto (unidades SDF de TMP, 0..0.5)")]
     [SerializeField, Range(0f, 0.5f)] private float textOutline = 0.28f;
     [Tooltip("Segundos del rebote de entrada")]
