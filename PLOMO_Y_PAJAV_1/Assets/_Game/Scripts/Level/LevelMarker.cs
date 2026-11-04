@@ -10,7 +10,8 @@ public enum MarkerType
     PatrolWaypoint,
     SentinelPoint,
     InterrogableGuard,
-    LevelExit
+    LevelExit,
+    Anchor          // Punto de escena (anclas de Centavo, camino de huida...). Siempre al final: se serializa como número
 }
 
 /// <summary>
@@ -69,6 +70,7 @@ public class LevelMarker : MonoBehaviour
             case MarkerType.SentinelPoint:     return new Color(1f, 0.5f, 0f);
             case MarkerType.InterrogableGuard: return Color.magenta;
             case MarkerType.LevelExit:         return Color.red;
+            case MarkerType.Anchor:            return new Color(0.6f, 1f, 0.3f);
             default:                           return Color.white;
         }
     }

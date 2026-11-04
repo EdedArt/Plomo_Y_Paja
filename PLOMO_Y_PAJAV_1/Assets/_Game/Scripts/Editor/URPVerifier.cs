@@ -15,6 +15,7 @@ public static class URPVerifier
     [MenuItem("Plomo y Paja/Verificar URP")]
     public static void Verify()
     {
+        if (EditorMenuGuard.BlockedInPlayMode()) return;
         UniversalRenderPipelineAsset fallback = FindFirstUrpAsset();
 
         // ----- Graphics Settings (pipeline por defecto) -----

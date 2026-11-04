@@ -37,19 +37,13 @@ public static class LevelBuilderUtils
     // ============ Geometría ============
 
     /// <summary>
-    /// Cubo con collider. center/size en metros, rotación en grados (euler).
+    /// Caja con collider. center/size en metros, rotación en grados (euler).
+    /// Fase 3A2: es una caja redondeada del kit caricaturesco (CartoonKit), no un cubo plano.
     /// </summary>
     public static GameObject CreateBox(string name, Vector3 center, Vector3 size, Material mat,
         Transform parent, Vector3 euler = default)
     {
-        GameObject box = GameObject.CreatePrimitive(PrimitiveType.Cube);
-        box.name = name;
-        if (parent != null) box.transform.SetParent(parent, false);
-        box.transform.position = center;
-        box.transform.rotation = Quaternion.Euler(euler);
-        box.transform.localScale = size;
-        if (mat != null) box.GetComponent<MeshRenderer>().sharedMaterial = mat;
-        return box;
+        return CartoonKit.Box(name, center, size, mat, parent, euler);
     }
 
     /// <summary>
@@ -81,32 +75,43 @@ public static class LevelBuilderUtils
         Vector3 dir = delta / length;
         Quaternion rot = Quaternion.LookRotation(dir, Vector3.up);
         Vector3 euler = rot.eulerAngles;
+        int index = 0;
 
+        foreach (Vector4 seg in WallSegments(length, height, openings))
+            AddSegment(wall, $"{name}_{(seg.z > 0f ? "Dintel" : "Tramo")}{index++}", start, dir, seg.x, seg.y, seg.z, seg.w,
+                thickness, mat, euler);
+
+        return wall;
+    }
+
+    /// <summary>
+    /// Tramos sólidos de una pared con huecos: (desde, hasta, abajo, arriba) en metros a lo largo de la pared.
+    /// Lo usan CreateWallWithOpenings y las paredes del kit (CartoonKit.Wall).
+    /// </summary>
+    public static List<Vector4> WallSegments(float length, float height, WallOpening[] openings)
+    {
+        var result = new List<Vector4>();
         var sorted = new List<WallOpening>(openings ?? new WallOpening[0]);
         sorted.Sort((a, b) => a.center.CompareTo(b.center));
 
         float cursor = 0f;
-        int index = 0;
         foreach (var opening in sorted)
         {
             float from = Mathf.Clamp(opening.center - opening.width * 0.5f, 0f, length);
             float to = Mathf.Clamp(opening.center + opening.width * 0.5f, 0f, length);
 
             // Tramo sólido antes del hueco
-            if (from - cursor > 0.01f)
-                AddSegment(wall, $"{name}_Tramo{index++}", start, dir, cursor, from, 0f, height, thickness, mat, euler);
+            if (from - cursor > 0.01f) result.Add(new Vector4(cursor, from, 0f, height));
 
             // Dintel sobre el hueco
             if (opening.height < height - 0.01f && to - from > 0.01f)
-                AddSegment(wall, $"{name}_Dintel{index++}", start, dir, from, to, opening.height, height, thickness, mat, euler);
+                result.Add(new Vector4(from, to, opening.height, height));
 
             cursor = Mathf.Max(cursor, to);
         }
 
-        if (length - cursor > 0.01f)
-            AddSegment(wall, $"{name}_Tramo{index}", start, dir, cursor, length, 0f, height, thickness, mat, euler);
-
-        return wall;
+        if (length - cursor > 0.01f) result.Add(new Vector4(cursor, length, 0f, height));
+        return result;
     }
 
     private static void AddSegment(Transform parent, string name, Vector3 start, Vector3 dir, float from, float to,
@@ -120,22 +125,46 @@ public static class LevelBuilderUtils
 
     // ============ Materiales ============
 
+    public const string EnvironmentShaderName = "PlomoYPaja/CartoonEnvironment";
+    private const string LitShaderName = "Universal Render Pipeline/Lit";
+
     /// <summary>
-    /// Carga Assets/Materials/Greybox/{name}.mat o lo crea (URP Lit) si no existe.
+    /// Carga Assets/Materials/Greybox/{name}.mat o lo crea con el shader pintado CartoonEnvironment
+    /// (fase 3A2). Los materiales viejos en URP Lit se convierten conservando color y emisión.
+    /// Con updateColor = true también repinta un material existente.
     /// </summary>
-    public static Material GetOrCreateMaterial(string name, Color color, float smoothness = 0.1f)
+    public static Material GetOrCreateMaterial(string name, Color color, float smoothness = 0.1f, bool updateColor = false)
     {
         EnsureFolder(MaterialFolder);
         string path = $"{MaterialFolder}/{name}.mat";
+        Shader env = Shader.Find(EnvironmentShaderName);
 
         Material mat = AssetDatabase.LoadAssetAtPath<Material>(path);
-        if (mat != null) return mat;
+        if (mat != null)
+        {
+            if (env != null && mat.shader != null && mat.shader.name == LitShaderName)
+            {
+                ConvertToEnvironment(mat, env);
+                EditorUtility.SetDirty(mat);
+            }
+            if (updateColor)
+            {
+                if (mat.HasProperty("_BaseColor")) mat.SetColor("_BaseColor", color);
+                if (mat.HasProperty("_Color")) mat.SetColor("_Color", color);
+                EditorUtility.SetDirty(mat);
+            }
+            return mat;
+        }
 
-        Shader shader = Shader.Find("Universal Render Pipeline/Lit");
+        Shader shader = env != null ? env : Shader.Find(LitShaderName);
         if (shader == null)
         {
-            Debug.LogWarning("[LevelBuilder] No se encontró 'Universal Render Pipeline/Lit'; se usa Standard.");
+            Debug.LogWarning("[LevelBuilder] No se encontró ni CartoonEnvironment ni URP Lit; se usa Standard.");
             shader = Shader.Find("Standard");
+        }
+        else if (env == null)
+        {
+            Debug.LogWarning("[LevelBuilder] No se encontró '" + EnvironmentShaderName + "'; se usa URP Lit.");
         }
 
         mat = new Material(shader) { name = name };
@@ -143,9 +172,30 @@ public static class LevelBuilderUtils
         if (mat.HasProperty("_Color")) mat.SetColor("_Color", color);
         if (mat.HasProperty("_Smoothness")) mat.SetFloat("_Smoothness", smoothness);
         if (mat.HasProperty("_Glossiness")) mat.SetFloat("_Glossiness", smoothness);
+        if (mat.HasProperty("_EmissionColor")) mat.SetColor("_EmissionColor", Color.black);
 
         AssetDatabase.CreateAsset(mat, path);
         return mat;
+    }
+
+    /// <summary>Material pintado con emisión (ventanas, faroles). Crea o actualiza.</summary>
+    public static Material GetOrCreateEmissiveMaterial(string name, Color color, Color emission)
+    {
+        Material mat = GetOrCreateMaterial(name, color, 0f, true);
+        if (mat.HasProperty("_EmissionColor")) mat.SetColor("_EmissionColor", emission);
+        mat.EnableKeyword("_EMISSION");
+        EditorUtility.SetDirty(mat);
+        return mat;
+    }
+
+    private static void ConvertToEnvironment(Material mat, Shader env)
+    {
+        Color color = mat.HasProperty("_BaseColor") ? mat.GetColor("_BaseColor") : Color.white;
+        bool emissive = mat.IsKeywordEnabled("_EMISSION");
+        Color emission = mat.HasProperty("_EmissionColor") ? mat.GetColor("_EmissionColor") : Color.black;
+        mat.shader = env;
+        mat.SetColor("_BaseColor", color);
+        mat.SetColor("_EmissionColor", emissive ? emission : Color.black);
     }
 
     /// <summary>Crea carpetas anidadas ("Assets/A/B") si faltan.</summary>

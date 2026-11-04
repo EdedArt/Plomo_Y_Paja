@@ -21,6 +21,9 @@ public class PlayerController : MonoBehaviour
     [Tooltip("Velocidad al correr (Shift)")]
     [SerializeField] private float runSpeed = 7f;
 
+    [Tooltip("Multiplicador de velocidad mientras se apunta (clic derecho, PlayerAim); apuntando no se corre")]
+    [SerializeField] private float aimSpeedMultiplier = 0.6f;
+
     [Tooltip("Fuerza del salto — ponlo en 0 si no quieres salto")]
     [SerializeField] private float jumpForce = 0f; // FPS noir: sin salto por defecto
 
@@ -50,14 +53,17 @@ public class PlayerController : MonoBehaviour
     private float _xRotation = 0f;    // Rotación vertical de la cámara
     private bool _isGrounded;
     private bool _canMove = true;      // Se desactiva durante diálogos
+    private PlayerAim _aim;
 
     // ============ Propiedades públicas ============
-    public bool IsRunning => Input.GetKey(KeyCode.LeftShift) && _canMove;
+    public bool IsRunning => Input.GetKey(KeyCode.LeftShift) && _canMove && !IsAimingNow;
+    private bool IsAimingNow => _aim != null && _aim.IsAiming;
     public bool IsMoving => _controller.velocity.magnitude > 0.1f;
 
     private void Awake()
     {
         _controller = GetComponent<CharacterController>();
+        TryGetComponent(out _aim);
     }
 
     private void Start()
@@ -81,8 +87,8 @@ public class PlayerController : MonoBehaviour
     {
         if (!_canMove) return;
 
-        float mouseX = Input.GetAxis("Mouse X") * mouseSensitivity;
-        float mouseY = Input.GetAxis("Mouse Y") * mouseSensitivity;
+        float mouseX = Input.GetAxis("Mouse X") * mouseSensitivity * OptionsPanel.Sensibilidad;
+        float mouseY = Input.GetAxis("Mouse Y") * mouseSensitivity * OptionsPanel.Sensibilidad;
 
         // Rotar el cuerpo del jugador horizontalmente
         transform.Rotate(Vector3.up * mouseX);
@@ -122,6 +128,7 @@ public class PlayerController : MonoBehaviour
 
         // Velocidad según si corre o camina
         float speed = IsRunning ? runSpeed : walkSpeed;
+        if (IsAimingNow) speed *= aimSpeedMultiplier;
         _controller.Move(move * speed * Time.deltaTime);
 
         // Salto (desactivado por defecto en este juego noir)
@@ -134,6 +141,23 @@ public class PlayerController : MonoBehaviour
         _velocity.y += gravity * Time.deltaTime;
         _controller.Move(_velocity * Time.deltaTime);
     }
+
+    /// <summary>Inclinación actual de la cámara (grados, + = abajo), la que lleva CameraHolder.</summary>
+    public float ViewPitch => _xRotation;
+
+    /// <summary>
+    /// Pone la mirada de golpe: el cuerpo gira a "yaw" (mundo) y la cámara a "pitch" (+ = abajo). La usa la cinemática de
+    /// la llegada (INTRO.2) para devolver el control desde donde quedó la vista, sin salto.
+    /// </summary>
+    public void SetViewAngles(float yaw, float pitch)
+    {
+        transform.rotation = Quaternion.Euler(0f, yaw, 0f);
+        _xRotation = Mathf.Clamp(pitch, maxLookDown, maxLookUp);
+        if (cameraHolder != null) cameraHolder.localRotation = Quaternion.Euler(_xRotation, 0f, 0f);
+    }
+
+    /// <summary>CameraHolder (la cámara cuelga de aquí).</summary>
+    public Transform CameraHolder => cameraHolder;
 
     /// <summary>
     /// Llamar esto desde DialogueSystem para que el jugador no se mueva durante diálogos.

@@ -313,8 +313,8 @@ public class DialogueUI : MonoBehaviour
         rect.sizeDelta = new Vector2(-60f, height);
     }
 
-    /// <summary>Los botones necesitan un EventSystem (input clásico) en la escena.</summary>
-    private static void EnsureEventSystem()
+    /// <summary>Los botones necesitan un EventSystem (input clásico) en la escena. También lo usa el interrogatorio.</summary>
+    public static void EnsureEventSystem()
     {
         if (FindObjectOfType<EventSystem>() != null) return;
         new GameObject("EventSystem", typeof(EventSystem), typeof(StandaloneInputModule));

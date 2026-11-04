@@ -1,10 +1,18 @@
 using System.Collections.Generic;
 using UnityEngine;
+using UnityEngine.SceneManagement;
 
 /// <summary>
 /// Singleton que lleva el registro de todas las decisiones del jugador.
 /// Determina qué final se desbloquea al final del juego.
-/// DÓNDE VA: GameObject vacío llamado "GameManagers" en la escena.
+/// DÓNDE VA: lo crea GameManagersBootstrap al arrancar el juego (N2.1.1), en cualquier escena. La copia que traiga una escena
+/// (Campamento) se destruye sola.
+///
+/// FOTO DE ENTRADA AL NIVEL (N2.1.1): al entrar a un nivel por progresión (la escena de juego cambia) se guarda el progreso.
+/// Reiniciar ese nivel (muerte o Pausa → Reiniciar) lo restaura: lo ganado en el intento fallido se pierde.
+/// Las banderas de una vez por sesión (taxi, escopeta sacada, tutorial, huellas) NO están en la foto: sobreviven a reiniciar.
+/// Solo "Jugar" en el menú (ResetForNewGame) borra todo, banderas incluidas.
+/// Un campo nuevo de progreso (ej. N2.2) se agrega también a LevelSnapshot, TakeLevelSnapshot, RestoreLevelSnapshot y ResetState.
 ///
 /// LÓGICA DE FINALES:
 /// - Final A "La bala fácil":       cluesFound < 2  AND wolfKilled
@@ -32,15 +40,87 @@ public class GameStateTracker : MonoBehaviour
     [SerializeField] private bool wolfKilled = false;
     [SerializeField] private bool wolfSpared = false;
 
+    // ===== Centavo, el contador de Don Lobo (fase 3C) =====
+    [SerializeField] private ContadorState contadorState = ContadorState.None;
+    [SerializeField] private ContadorInterrogation contadorInterrogation = ContadorInterrogation.None;
+    [SerializeField] private bool contadorLied = false;
+
+    // ===== Revólver de Centavo (fase 3C.5, D13): segunda arma de Wilbur =====
+    [Tooltip("Escena donde Wilbur recogió el revólver (vacío = no lo tiene). En otra escena lo lleva desde el principio; " +
+             "si se reinicia la misma escena, lo vuelve a recoger del piso")]
+    [SerializeField] private string revolverObtainedInScene = "";
+
     // ===== IA companion - para que recuerde el contexto =====
     [SerializeField] private List<string> aiContextLog = new List<string>(); // Últimas 5 acciones
 
     // ============ Getters públicos ============
     public int CluesFound => cluesCollected.Count;
+    /// <summary>¿Ya tiene esta pista? (ej: registro_01 antes de que Centavo la entregue, fase 3C.4)</summary>
+    public bool HasClue(string clueId) => cluesCollected.Contains(clueId);
+    /// <summary>Solo lectura y sin riesgo de nulos: ¿ya se recogió esta pista? (N2.1.1, para CluePickup)</summary>
+    public static bool IsClueCollected(string clueId) => Instance != null && Instance.HasClue(clueId);
     public int InterrogationsCompleted => npcsInterrogated.Count;
     public bool WolfKilled => wolfKilled;
     public bool WolfSpared => wolfSpared;
+    /// <summary>Qué pasó con Don Lobo (N2.2). Sale de wolfKilled/wolfSpared, que ya están en la foto de entrada al nivel.</summary>
+    public LoboState Lobo => wolfKilled ? LoboState.Dead : wolfSpared ? LoboState.Pardoned : LoboState.None;
+    public event System.Action<LoboState> OnLoboStateChanged;
     public string AIContext => string.Join(". ", aiContextLog);
+    public ContadorState Contador => contadorState;
+    public ContadorInterrogation ContadorInterrogationResult => contadorInterrogation;
+    public bool ContadorLied => contadorLied;
+
+    // ===== Cinemática del taxi y la llegada (INTRO.2, I6): una vez por sesión =====
+    [SerializeField] private bool introCinematicPlayed = false;
+    /// <summary>¿Ya se vio el taxi y la llegada en esta sesión? (el tracker sobrevive a recargar la escena)</summary>
+    public bool IntroCinematicPlayed => introCinematicPlayed;
+    public void MarkIntroCinematicPlayed() => introCinematicPlayed = true;
+
+    // ===== Escopeta sacada (INTRO.3, I8): una vez por sesión, igual que la bandera del taxi =====
+    // Reiniciar el nivel no la borra (no está en la foto): tras morir se empieza armado.
+    [SerializeField] private bool weaponDrawn = false;
+    /// <summary>¿Wilbur ya sacó la escopeta en esta sesión? (PlayerWeaponHolster)</summary>
+    public bool WeaponDrawn => weaponDrawn;
+    public void MarkWeaponDrawn() => weaponDrawn = true;
+    /// <summary>¿Wilbur ya tenía el revólver al entrar a esta escena? (lo recogió en OTRA escena antes).</summary>
+    public bool HasRevolverFromEarlierScene(string sceneName) =>
+        !string.IsNullOrEmpty(revolverObtainedInScene) && revolverObtainedInScene != sceneName;
+
+    /// <summary>Wilbur recogió el revólver de Centavo (WeaponSwitcher.GiveRevolver).</summary>
+    public void RegisterRevolverObtained(string sceneName)
+    {
+        if (!string.IsNullOrEmpty(revolverObtainedInScene)) return;
+        revolverObtainedInScene = sceneName;
+    }
+
+    /// <summary>Cambió qué pasó con Centavo (perdonado / muerto).</summary>
+    public event System.Action<ContadorState> OnContadorStateChanged;
+
+    /// <summary>Cambió el resultado del interrogatorio de Centavo (resultado, ¿mintió?).</summary>
+    public event System.Action<ContadorInterrogation, bool> OnContadorInterrogationChanged;
+
+    /// <summary>
+    /// "Jugar" en el menú: rearmar lo que dura una sesión. Para banderas que viven en otro sistema (tutorial, huellas).
+    /// Estático: quien tenga una bandera estática se suscribe sin depender de que el tracker ya exista.
+    /// </summary>
+    public static event System.Action NewGameStarted;
+
+    // ===== Foto de entrada al nivel (N2.1.1) =====
+    private sealed class LevelSnapshot
+    {
+        public List<string> clues, npcs, aiLog;
+        public int enemiesKilled;
+        public bool wolfKilled, wolfSpared, contadorLied;
+        public ContadorState contadorState;
+        public ContadorInterrogation contadorInterrogation;
+        public string revolverObtainedInScene;
+    }
+
+    private LevelSnapshot _levelSnapshot;
+    private string _snapshotScene = "";
+
+    /// <summary>Escena de juego de la última foto ("" = ninguna todavía).</summary>
+    public string SnapshotScene => _snapshotScene;
 
     private void Awake()
     {
@@ -52,6 +132,86 @@ public class GameStateTracker : MonoBehaviour
         }
         Instance = this;
         DontDestroyOnLoad(gameObject); // Sobrevive al cambio de escenas
+
+        // Contexto para la IA (AICompanion lo lee en cada pedido; no se modifica AICompanion)
+        AICompanion.ContextProvider = GetStatusSummary;
+
+        SceneManager.sceneLoaded += HandleSceneLoaded;
+    }
+
+    private void Start()
+    {
+        // Por si la primera escena cargó antes de suscribirse (idempotente: misma escena = sin foto nueva)
+        EnterScene(SceneManager.GetActiveScene().name);
+    }
+
+    private void OnDestroy()
+    {
+        if (Instance != this) return;
+        Instance = null;
+        AICompanion.ContextProvider = null;
+        SceneManager.sceneLoaded -= HandleSceneLoaded;
+    }
+
+    // ============ Foto de entrada al nivel ============
+
+    /// <summary>Las escenas donde se juega: ni el menú, ni el libro, ni los finales.</summary>
+    public static bool IsGameplayScene(string sceneName) =>
+        !string.IsNullOrEmpty(sceneName) && sceneName != "MenuPrincipal" && sceneName != "Intro" && !sceneName.StartsWith("Final");
+
+    private void HandleSceneLoaded(Scene scene, LoadSceneMode mode)
+    {
+        if (mode == LoadSceneMode.Single) EnterScene(scene.name);
+    }
+
+    /// <summary>Otra escena de juego = se entró por progresión. La misma = reinicio: la foto sigue siendo la de la entrada.</summary>
+    private void EnterScene(string sceneName)
+    {
+        if (!IsGameplayScene(sceneName) || sceneName == _snapshotScene) return;
+        TakeLevelSnapshot(sceneName);
+    }
+
+    private void TakeLevelSnapshot(string sceneName)
+    {
+        _snapshotScene = sceneName;
+        _levelSnapshot = new LevelSnapshot
+        {
+            clues = new List<string>(cluesCollected),
+            npcs = new List<string>(npcsInterrogated),
+            aiLog = new List<string>(aiContextLog),
+            enemiesKilled = enemiesKilled,
+            wolfKilled = wolfKilled,
+            wolfSpared = wolfSpared,
+            contadorState = contadorState,
+            contadorInterrogation = contadorInterrogation,
+            contadorLied = contadorLied,
+            revolverObtainedInScene = revolverObtainedInScene
+        };
+        Debug.Log($"[GameState] Foto de entrada a {sceneName}: {cluesCollected.Count} pistas, {npcsInterrogated.Count} interrogados, Centavo {contadorState}.");
+    }
+
+    /// <summary>
+    /// Vuelve al progreso con que se entró a este nivel. Sin eventos: la escena se recarga enseguida y todo lee el estado de nuevo.
+    /// Lo llama GameManager.RetryCurrentLevel, justo antes de recargar.
+    /// </summary>
+    public void RestoreLevelSnapshot()
+    {
+        if (_levelSnapshot == null)
+        {
+            Debug.LogWarning("[GameState] Reinicio sin foto de entrada: el estado se queda como está.");
+            return;
+        }
+        cluesCollected = new List<string>(_levelSnapshot.clues);
+        npcsInterrogated = new List<string>(_levelSnapshot.npcs);
+        aiContextLog = new List<string>(_levelSnapshot.aiLog);
+        enemiesKilled = _levelSnapshot.enemiesKilled;
+        wolfKilled = _levelSnapshot.wolfKilled;
+        wolfSpared = _levelSnapshot.wolfSpared;
+        contadorState = _levelSnapshot.contadorState;
+        contadorInterrogation = _levelSnapshot.contadorInterrogation;
+        contadorLied = _levelSnapshot.contadorLied;
+        revolverObtainedInScene = _levelSnapshot.revolverObtainedInScene;
+        Debug.Log($"[GameState] Foto de {_snapshotScene} restaurada: {cluesCollected.Count} pistas.");
     }
 
     // ============ Registro de acciones ============
@@ -106,6 +266,38 @@ public class GameStateTracker : MonoBehaviour
         Debug.Log($"[GameState] Decisión sobre Don Lobo: {(killed ? "MUERTO" : "PERDONADO")}");
     }
 
+    /// <summary>Don Lobo muerto o perdonado (N2.2). None no hace nada: el estado se vuelve a None solo con la foto o una partida nueva.</summary>
+    public void RegisterLoboState(LoboState state)
+    {
+        if (state == LoboState.None || state == Lobo) return;
+        RegisterWolfDecision(state == LoboState.Dead);
+        OnLoboStateChanged?.Invoke(state);
+    }
+
+    /// <summary>
+    /// Qué pasó con Centavo (fase 3C). Muerto por un disparo antes del interrogatorio (D4), muerto al final de la
+    /// escena o perdonado. No cuenta interrogatorios: eso lo hace RegisterInterrogation (3C.4, D10).
+    /// </summary>
+    public void RegisterContadorState(ContadorState state)
+    {
+        if (contadorState == state) return;
+        contadorState = state;
+        if (state == ContadorState.Dead) LogAction("Mató a Centavo, el contador de Don Lobo");
+        else if (state == ContadorState.Pardoned) LogAction("Dejó ir a Centavo, el contador de Don Lobo");
+        Debug.Log($"[GameState] Centavo: {state}");
+        OnContadorStateChanged?.Invoke(state);
+    }
+
+    /// <summary>Resultado del interrogatorio de Centavo y si mintió (fase 3C.4).</summary>
+    public void RegisterContadorInterrogation(ContadorInterrogation result, bool lied)
+    {
+        if (contadorInterrogation == result && contadorLied == lied) return;
+        contadorInterrogation = result;
+        contadorLied = lied;
+        Debug.Log($"[GameState] Interrogatorio de Centavo: {result}, mintió: {lied}");
+        OnContadorInterrogationChanged?.Invoke(result, lied);
+    }
+
     /// <summary>
     /// Determinar qué final corresponde según el estado actual.
     /// Llamar desde GameManager cuando se llega a la escena final.
@@ -135,7 +327,8 @@ public class GameStateTracker : MonoBehaviour
     }
 
     /// <summary>
-    /// Resetear todo el estado (para "Nuevo juego" o "Reintentar").
+    /// Borrar el progreso y la foto (al volver al menú). No toca las banderas de sesión. Reintentar NO pasa por aquí: usa
+    /// RestoreLevelSnapshot. La partida nueva usa ResetForNewGame.
     /// </summary>
     public void ResetState()
     {
@@ -145,6 +338,25 @@ public class GameStateTracker : MonoBehaviour
         enemiesKilled = 0;
         wolfKilled = false;
         wolfSpared = false;
+        contadorState = ContadorState.None;
+        contadorInterrogation = ContadorInterrogation.None;
+        contadorLied = false;
+        revolverObtainedInScene = "";
+        _levelSnapshot = null;
+        _snapshotScene = "";
+    }
+
+    /// <summary>"Jugar" en MenuPrincipal: progreso, foto y banderas de una vez por sesión, las de aquí y las estáticas.</summary>
+    public void ResetForNewGame()
+    {
+        ResetState();
+        introCinematicPlayed = false;
+        weaponDrawn = false;
+        IntroCinematicDirector.ResetSession();
+        PlayerWeaponHolster.ResetSession();
+        CampamentoLevelStart.ResetSession();
+        NewGameStarted?.Invoke();
+        Debug.Log("[GameState] Partida nueva: estado y banderas de sesión en cero.");
     }
 
     /// <summary>
@@ -153,8 +365,49 @@ public class GameStateTracker : MonoBehaviour
     public string GetStatusSummary()
     {
         return $"Pistas: {cluesCollected.Count}. Interrogados: {npcsInterrogated.Count}. " +
-               $"Enemigos eliminados: {enemiesKilled}. Acciones recientes: {AIContext}";
+               $"Enemigos eliminados: {enemiesKilled}. {ContadorSummary()}{LoboSummary()}Acciones recientes: {AIContext}";
     }
+
+    /// <summary>Don Lobo en el contexto de la IA; vacío mientras no esté resuelto.</summary>
+    private string LoboSummary() =>
+        Lobo == LoboState.Dead ? "Don Lobo está muerto. " : Lobo == LoboState.Pardoned ? "Wilbur perdonó a Don Lobo. " : "";
+
+    /// <summary>Centavo en el contexto de la IA; vacío si Wilbur todavía no lo encontró.</summary>
+    private string ContadorSummary()
+    {
+        if (contadorState == ContadorState.None && contadorInterrogation == ContadorInterrogation.None) return "";
+        string fate = contadorState == ContadorState.Dead ? "muerto"
+                    : contadorState == ContadorState.Pardoned ? "perdonado" : "todavía en el patio";
+        string talk = contadorInterrogation == ContadorInterrogation.Helpful ? "dijo la verdad"
+                    : contadorInterrogation == ContadorInterrogation.Misleading ? "dio datos falsos"
+                    : "no fue interrogado";
+        string lied = contadorLied ? ", mintió al menos una vez" : "";
+        return $"Centavo, el contador de Don Lobo: {fate}; {talk}{lied}. ";
+    }
+}
+
+/// <summary>Qué pasó con Don Lobo (N2.2, decisión L6).</summary>
+public enum LoboState
+{
+    None,       // sigue en pie o no se ha decidido
+    Dead,       // rematado de rodillas o "Jalar el gatillo"
+    Pardoned    // "Bajar el arma"
+}
+
+/// <summary>Qué pasó con Centavo, el contador (fase 3C).</summary>
+public enum ContadorState
+{
+    None,       // no se ha resuelto
+    Pardoned,   // lo dejó ir
+    Dead        // lo mató (antes o al final del interrogatorio)
+}
+
+/// <summary>Resultado del interrogatorio de Centavo (fase 3C).</summary>
+public enum ContadorInterrogation
+{
+    None,
+    Helpful,
+    Misleading
 }
 
 /// <summary>

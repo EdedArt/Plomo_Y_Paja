@@ -1,0 +1,44 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 20882899d7d7462a9035f02c34114ba7, type: 3}
+  m_Name: informante
+  m_EditorClassIdentifier: 
+  characterId: informante
+  clips:
+  - name: death
+    frames:
+    - {fileID: 21300000, guid: 6b4fcb1792a3a034eac6be36dedf63f4, type: 3}
+    fps: 8
+  - name: hit
+    frames:
+    - {fileID: 21300000, guid: 9c196ba9fadbba645a4bcc086b9c6141, type: 3}
+    fps: 1
+  - name: idle
+    frames:
+    - {fileID: 21300000, guid: e2ad888d9651f3e49b7636aa7222bb0e, type: 3}
+    fps: 4
+  - name: shoot
+    frames:
+    - {fileID: 21300000, guid: b747bec5d10f3094f9f9e9de85269e4f, type: 3}
+    fps: 10
+  - name: surrender
+    frames:
+    - {fileID: 21300000, guid: 316721da36997ad4a92674c625a4b6ff, type: 3}
+    fps: 4
+  - name: talk
+    frames:
+    - {fileID: 21300000, guid: ee77d915eb1653645a15890b8d3201d8, type: 3}
+    fps: 6
+  - name: walk
+    frames:
+    - {fileID: 21300000, guid: dbba85f3529acf24fa0a34d4324aa9b8, type: 3}
+    fps: 8
