@@ -91,10 +91,10 @@ public class EnemyAI : MonoBehaviour
     [Tooltip("Sonido de aviso al empezar a apuntar (AudioLibrary). Vacío o sin clip = sin sonido")]
     [SerializeField] private string aimSfx = "escopeta_bombeo";
     [Tooltip("Segundos entre tiros (al azar entre los dos)")]
-    [SerializeField] private Vector2 shotInterval = new Vector2(1f, 1.6f);
-    [SerializeField, Range(0f, 1f)] private float rangedHitChance = 0.45f;
-    [SerializeField, Range(0f, 1f)] private float rangedHitChanceRunning = 0.25f;
-    [SerializeField] private float rangedDamage = 10f;
+    [SerializeField] private Vector2 shotInterval = new Vector2(0.8f, 1.3f);
+    [SerializeField, Range(0f, 1f)] private float rangedHitChance = 0.62f;
+    [SerializeField, Range(0f, 1f)] private float rangedHitChanceRunning = 0.38f;
+    [SerializeField] private float rangedDamage = 15f;
     [Tooltip("Temblor del tiro acertado (grados)")]
     [SerializeField] private float rangedSpread = 1.5f;
     [Tooltip("Segundos que se ve el cuadro de disparo")]
@@ -134,7 +134,7 @@ public class EnemyAI : MonoBehaviour
     private float _shootPoseUntil = -1f;            // Hasta cuándo se ve el cuadro de disparo
 
     /// <summary>Máximo de guardias plantados disparando a la vez; el resto espera plantado su turno.</summary>
-    public const int MaxSimultaneousShooters = 2;
+    public const int MaxSimultaneousShooters = 3;
     private static readonly HashSet<EnemyAI> Shooters = new HashSet<EnemyAI>();
 
     [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.SubsystemRegistration)]

@@ -36,7 +36,7 @@ public class EnemyBarks : MonoBehaviour
     [SerializeField] private float fontSize = 13f;
     [SerializeField] private Color textColor = Color.black;
     [Tooltip("Grosor del contorno negro del texto (unidades SDF de TMP, 0..0.5)")]
-    [SerializeField, Range(0f, 0.5f)] private float textOutline = 0.28f;
+    [SerializeField, Range(0f, 0.5f)] private float textOutline = 0f;
     [Tooltip("Segundos del rebote de entrada")]
     [SerializeField] private float popSeconds = 0.25f;
     [Tooltip("Segundos del desvanecido de salida (dentro de bubbleSeconds)")]
@@ -254,8 +254,12 @@ public class EnemyBarks : MonoBehaviour
         tr.offsetMin = new Vector2(PadX, PadY); tr.offsetMax = new Vector2(-PadX, -PadY);
         _label = textGo.AddComponent<TextMeshProUGUI>();
         if (font != null) _label.font = font;
-        Material outlined = OutlineMaterial(_label.font, textOutline);
-        if (outlined != null) _label.fontSharedMaterial = outlined;
+        // Contorno 0 (texto negro): se queda el material de la fuente, sin engrosar la letra
+        if (textOutline > 0f)
+        {
+            Material outlined = OutlineMaterial(_label.font, textOutline);
+            if (outlined != null) _label.fontSharedMaterial = outlined;
+        }
         _label.fontSize = fontSize;
         _label.enableAutoSizing = false;
         _label.color = textColor;

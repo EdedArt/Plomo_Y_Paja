@@ -98,18 +98,21 @@ public static class TestPrefabGenerator
             if (ai != null)
             {
                 var so = new SerializedObject(ai);
-                MigrateFloat(so, "rangedHitChance", 0.3f, 0.45f, report);
-                MigrateFloat(so, "rangedHitChanceRunning", 0.15f, 0.25f, report);
-                MigrateFloat(so, "rangedDamage", 8f, 10f, report);
-                MigrateFloat(so, "aimTelegraph", 0.35f, 0.45f, report);
-                MigrateVector2(so, "shotInterval", new Vector2(1.4f, 2.2f), new Vector2(1f, 1.6f), report);
+                // Cadena de valores (original → 1.ª subida → demo): cualquiera de los anteriores pasa al último.
+                // El aviso (aimTelegraph 0.45 s) y su sonido NO cambian en la subida de la demo.
+                MigrateFloat(so, "rangedHitChance", report, 0.3f, 0.45f, 0.62f);
+                MigrateFloat(so, "rangedHitChanceRunning", report, 0.15f, 0.25f, 0.38f);
+                MigrateFloat(so, "rangedDamage", report, 8f, 10f, 15f);
+                MigrateFloat(so, "aimTelegraph", report, 0.35f, 0.45f);
+                MigrateVector2(so, "shotInterval", report, new Vector2(1.4f, 2.2f), new Vector2(1f, 1.6f), new Vector2(0.8f, 1.3f));
                 so.ApplyModifiedPropertiesWithoutUndo();
             }
             EnemyBarks barks = contents.GetComponent<EnemyBarks>();
             if (barks != null)
             {
                 var so = new SerializedObject(barks);
-                MigrateFloat(so, "bubbleHeight", 2.3f, 2f, report);
+                MigrateFloat(so, "bubbleHeight", report, 2.3f, 2f);
+                MigrateFloat(so, "textOutline", report, 0.28f, 0f); // texto negro: el contorno negro solo engrosaba la letra
                 SerializedProperty fontProp = so.FindProperty("font");
                 if (fontProp != null && barkFont != null && barkFont != TMP_Settings.defaultFontAsset)
                 {
@@ -130,35 +133,40 @@ public static class TestPrefabGenerator
         }
     }
 
-    /// <summary>Cambia un float serializado solo si todavía tiene el valor viejo (un ajuste a mano no se pisa).</summary>
-    private static void MigrateFloat(SerializedObject so, string property, float oldValue, float newValue, StringBuilder report)
+    /// <summary>
+    /// Lleva un float serializado al ÚLTIMO valor de la cadena si todavía tiene uno de los anteriores (versiones viejas del
+    /// código); cualquier otro valor es un ajuste a mano y no se pisa.
+    /// </summary>
+    private static void MigrateFloat(SerializedObject so, string property, StringBuilder report, params float[] chain)
     {
         SerializedProperty p = so.FindProperty(property);
-        if (p == null) return;
-        if (Mathf.Approximately(p.floatValue, oldValue))
+        if (p == null || chain.Length < 2) return;
+        float target = chain[chain.Length - 1];
+        if (Mathf.Approximately(p.floatValue, target)) return;
+        for (int i = 0; i < chain.Length - 1; i++)
         {
-            p.floatValue = newValue;
-            report.AppendLine($"✓ {property}: {oldValue} → {newValue}");
+            if (!Mathf.Approximately(p.floatValue, chain[i])) continue;
+            report.AppendLine($"✓ {property}: {p.floatValue} → {target}");
+            p.floatValue = target;
+            return;
         }
-        else if (!Mathf.Approximately(p.floatValue, newValue))
-        {
-            report.AppendLine($"⚠ {property} = {p.floatValue} (ajustado a mano): no se toca");
-        }
+        report.AppendLine($"⚠ {property} = {p.floatValue} (ajustado a mano): no se toca");
     }
 
-    private static void MigrateVector2(SerializedObject so, string property, Vector2 oldValue, Vector2 newValue, StringBuilder report)
+    private static void MigrateVector2(SerializedObject so, string property, StringBuilder report, params Vector2[] chain)
     {
         SerializedProperty p = so.FindProperty(property);
-        if (p == null) return;
-        if ((p.vector2Value - oldValue).sqrMagnitude < 0.0001f)
+        if (p == null || chain.Length < 2) return;
+        Vector2 target = chain[chain.Length - 1];
+        if ((p.vector2Value - target).sqrMagnitude < 0.0001f) return;
+        for (int i = 0; i < chain.Length - 1; i++)
         {
-            p.vector2Value = newValue;
-            report.AppendLine($"✓ {property}: {oldValue} → {newValue}");
+            if ((p.vector2Value - chain[i]).sqrMagnitude >= 0.0001f) continue;
+            report.AppendLine($"✓ {property}: {p.vector2Value} → {target}");
+            p.vector2Value = target;
+            return;
         }
-        else if ((p.vector2Value - newValue).sqrMagnitude >= 0.0001f)
-        {
-            report.AppendLine($"⚠ {property} = {p.vector2Value} (ajustado a mano): no se toca");
-        }
+        report.AppendLine($"⚠ {property} = {p.vector2Value} (ajustado a mano): no se toca");
     }
 
     // ==================================================================
