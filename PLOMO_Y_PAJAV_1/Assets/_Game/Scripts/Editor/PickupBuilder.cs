@@ -15,6 +15,8 @@ using UnityEngine.SceneManagement;
 /// - Guardar posiciones: escribe en el asset lo que se movió, agregó o borró en ese grupo de la escena abierta.
 /// NIVEL 2 (Fase 4): su generador llama BuildPrefabs + PlaceInOpenScene y a Don Lobo le apaga dropsLoot (EnemyHealth);
 /// el asset se crea vacío y se llena con "Guardar posiciones de objetos".
+/// N1.2 (regla N7): cada objeto lleva PickupSpot y reposa en un mueble o contenedor, sin vaivén (solo brillo). Se avisa si flota
+/// (más de 0.05 m) o si quedó en un piso sin muebles a 0.6 m. Una entrada con "container" usa su altura tal cual; sin él, baja al piso.
 /// </summary>
 public static class PickupBuilder
 {
@@ -45,22 +47,32 @@ public static class PickupBuilder
             prompt = "[E] Tomar balas", placeholder = new Color(0.85f, 0.65f, 0.15f) },
     };
 
-    /// <summary>Lugares iniciales del Nivel 1 (solo al crear el asset; después manda el asset). La altura la ajusta al piso.</summary>
+    private const int NivelPorkyLayoutVersion = 2; // N1.2. Un asset de antes (versión 0) se reemplaza por esta distribución
+    private const string NivelPorkyScene = "NivelPorky";
+
+    // Objetos colocados (N7): más chicos que el lienzo de 0.5 m del drop (van en un cajón o una repisa), quietos, y la lucecita
+    // solo de cerca: dentro de la casa hay varios y URP da 8 luces por objeto
+    private const float PlacedVisualSize = 0.34f;
+    private const float PlacedLightDistance = 7f;
+    private const float FurnitureRadius = 0.6f;
+    private const float FloorMinSide = 3f;      // un collider con los dos lados así de largos es piso
+    private const float FurnitureMaxSide = 2.5f;
+
+    /// <summary>Distribución del Nivel 1 (N1.2): 4 cajas de cartuchos, 3 botiquines, 1 caja de balas. Nada justo antes del portón del patio.</summary>
     private static PickupLayout.Entry[] NivelPorkySeed() => new[]
     {
-        // Casa: rincón oeste de la cocina, lejos de la ruta directa (puerta sala → puerta trasera)
-        Seed("Cartuchos_Casa", PickupKind.Cartuchos, new Vector3(-7.1f, 0.06f, 3.1f)),
-        // Antes del portón del patio de Centavo (x -7, z 13.5), junto a la valla, fuera de la línea del centinela
-        Seed("Botiquin_Porton", PickupKind.Botiquin, new Vector3(-8.9f, 0f, 12.3f)),
-        // Premio: rincones de adelante, dentro del cuarto (centro en x -7, z 19; puerta en z 17.5; barriles y caja al fondo)
-        Seed("Cartuchos_Cuarto", PickupKind.Cartuchos, new Vector3(-5.55f, 0.22f, 18f)),
-        Seed("Botiquin_Cuarto", PickupKind.Botiquin, new Vector3(-8.45f, 0.22f, 18f)),
-        // Salida del patio: junto al camino de huida (-7, 12.4) → (-9, 8.6), ya pasado el portón
-        Seed("Balas_Salida", PickupKind.BalasRevolver, new Vector3(-7.6f, 0f, 9.4f)),
+        Seed("Cartuchos_Cocina", PickupKind.Cartuchos, Nivel1FurnitureBuilder.CounterSpot, "Cocina: mostrador"),
+        Seed("Cartuchos_Dormitorio", PickupKind.Cartuchos, Nivel1FurnitureBuilder.DrawerSpot, "Dormitorio: cajón abierto de la mesita de noche"),
+        Seed("Botiquin_Bano", PickupKind.Botiquin, Nivel1FurnitureBuilder.CabinetSpot, "Baño: repisa del armario abierto"),
+        Seed("Balas_Sala", PickupKind.BalasRevolver, Nivel1FurnitureBuilder.TinSpot, "Sala: lata abierta sobre la mesa"),
+        Seed("Cartuchos_Vecino", PickupKind.Cartuchos, Nivel1MapBuilder.PorchTableSpot, "Vecino B: mesa del porche"),
+        Seed("Botiquin_Callejon", PickupKind.Botiquin, Nivel1MapBuilder.AlleyCrateSpot, "Callejón lateral: caja"),
+        Seed("Botiquin_Banco", PickupKind.Botiquin, ContadorYardBuilder.WorkbenchSpot, "Cuarto de Centavo: banco de trabajo"),
+        Seed("Cartuchos_Caja_Cuarto", PickupKind.Cartuchos, ContadorYardBuilder.CrateSpot, "Cuarto de Centavo: caja"),
     };
 
-    private static PickupLayout.Entry Seed(string id, PickupKind kind, Vector3 position) =>
-        new PickupLayout.Entry { id = id, kind = kind, position = position };
+    private static PickupLayout.Entry Seed(string id, PickupKind kind, Vector3 position, string container) =>
+        new PickupLayout.Entry { id = id, kind = kind, position = position, container = container };
 
     // ============ Menús ============
 
@@ -97,9 +109,11 @@ public static class PickupBuilder
         {
             string objectName = pickup.gameObject.name;
             string id = objectName.StartsWith(InstancePrefix) ? objectName.Substring(InstancePrefix.Length) : objectName;
-            entries.Add(new PickupLayout.Entry { id = id, kind = pickup.Kind, position = pickup.transform.position });
+            string container = pickup.TryGetComponent(out PickupSpot spot) ? spot.ContainerTag : "";
+            entries.Add(new PickupLayout.Entry { id = id, kind = pickup.Kind, position = pickup.transform.position, container = container });
         }
         layout.entries = entries;
+        layout.version = NivelPorkyLayoutVersion; // lo guardado a mano ya no se reemplaza
         EditorUtility.SetDirty(layout);
         AssetDatabase.SaveAssets();
 
@@ -244,18 +258,119 @@ public static class PickupBuilder
             }
             var instance = (GameObject)PrefabUtility.InstantiatePrefab(prefab, root);
             instance.name = InstancePrefix + entry.id;
-            Vector3 position = Pickup.SnapToGround(entry.position);
-            instance.transform.position = position;
-            report.AppendLine($"• {entry.id} en ({position.x:F2}, {position.y:F2}, {position.z:F2})");
+            bool hasContainer = !string.IsNullOrEmpty(entry.container);
+            instance.transform.position = hasContainer ? entry.position : Pickup.SnapToGround(entry.position);
+            PlaceOnSurface(instance, entry, report);
+            ApplyPlacedLook(instance);
+            Vector3 position = instance.transform.position;
+            report.AppendLine($"• {entry.id} en ({position.x:F2}, {position.y:F2}, {position.z:F2})" + (hasContainer ? " · " + entry.container : ""));
         }
 
+        // N7: el spawner queda en la escena, con los drops apagados (GuardDropSpawner.dropsEnabled)
         var dropPrefab = AssetDatabase.LoadAssetAtPath<GameObject>(PrefabPath(InfoFor(PickupKind.Cartuchos)));
         var spawnerGo = new GameObject("GuardDropSpawner");
         spawnerGo.transform.SetParent(root, false);
         var spawner = new SerializedObject(spawnerGo.AddComponent<GuardDropSpawner>());
         spawner.FindProperty("dropPrefab").objectReferenceValue = dropPrefab;
         spawner.ApplyModifiedPropertiesWithoutUndo();
-        report.AppendLine($"✓ {layout.entries.Count} objetos y drops de guardias en {scene.name}");
+        report.AppendLine($"✓ {layout.entries.Count} objetos en {scene.name} (drops de guardias apagados)");
+    }
+
+    /// <summary>N7: lo apoya en la superficie y avisa si flotaba o si quedó en un piso sin muebles cerca.</summary>
+    private static void PlaceOnSurface(GameObject instance, PickupLayout.Entry entry, StringBuilder report)
+    {
+        PickupSpot spot = instance.AddComponent<PickupSpot>();
+        spot.Setup(entry.container);
+
+        if (!spot.Snap(out Collider surface, out float gap))
+        {
+            Warn(report, $"{entry.id}: no hay ninguna superficie debajo de {entry.position}.");
+            return;
+        }
+        if (gap > PickupSpot.MaxGap) Warn(report, $"{entry.id}: estaba a {gap:0.00} m de la superficie ({surface.name}).");
+        if (IsFloor(surface) && !HasFurnitureNear(instance.transform.position))
+            Warn(report, $"{entry.id}: quedó en el piso ({surface.name}) sin muebles a {FurnitureRadius} m. N7: tiene que ir en un mueble o contenedor.");
+    }
+
+    private static void Warn(StringBuilder report, string text)
+    {
+        report.AppendLine("⚠ " + text);
+        Debug.LogWarning("[Pickups] " + text);
+    }
+
+    private static bool IsFloor(Collider collider)
+    {
+        Vector3 size = collider.bounds.size;
+        return size.x >= FloorMinSide && size.z >= FloorMinSide;
+    }
+
+    private static bool HasFurnitureNear(Vector3 position)
+    {
+        foreach (Collider collider in Physics.OverlapSphere(position + Vector3.up * 0.3f, FurnitureRadius, Physics.DefaultRaycastLayers, QueryTriggerInteraction.Ignore))
+        {
+            Vector3 size = collider.bounds.size;
+            if (!Pickup.IsActor(collider) && Mathf.Max(size.x, size.z) <= FurnitureMaxSide) return true;
+        }
+        return false;
+    }
+
+    /// <summary>N7: quieto, solo el brillo. Tamaño de mueble y lucecita solo de cerca. Se escribe en la instancia: el drop conserva el vaivén.</summary>
+    private static void ApplyPlacedLook(GameObject instance)
+    {
+        var so = new SerializedObject(instance.GetComponent<Pickup>());
+        so.FindProperty("bobAmplitude").floatValue = 0f;
+        so.FindProperty("visualSize").floatValue = PlacedVisualSize;
+        so.FindProperty("lightMaxDistance").floatValue = PlacedLightDistance;
+        so.ApplyModifiedPropertiesWithoutUndo();
+    }
+
+    /// <summary>
+    /// Con el NavMesh horneado: hay un lugar alcanzable desde la calle, a ≤ 2.1 m en horizontal (el alcance es 2.2), desde donde el objeto
+    /// se ve de pie (mismo rayo que Pickup.HasLineOfSight, con los ojos a 1.7 m), así aparece el aviso aunque esté en un cajón o un armario.
+    /// Se prueban varios lugares alrededor: el más cercano puede ser un rincón cerrado, como detrás del banco de Centavo.
+    /// </summary>
+    public static bool ValidateSpots(StringBuilder report)
+    {
+        GameObject root = GameObject.Find(RootName);
+        if (root == null)
+        {
+            report.AppendLine("✗ No está " + RootName + " en la escena.");
+            return false;
+        }
+
+        bool ok = true;
+        int total = 0;
+        foreach (Pickup pickup in root.GetComponentsInChildren<Pickup>(true))
+        {
+            total++;
+            if (HasStandingSpot(pickup.transform.position)) continue;
+            ok = false;
+            report.AppendLine($"✗ {pickup.name}: ningún lugar alcanzable a 2.1 m desde donde se vea de pie.");
+        }
+        if (ok) report.AppendLine($"✓ Objetos: los {total} se alcanzan y se ven de pie.");
+        return ok;
+    }
+
+    private static bool HasStandingSpot(Vector3 position)
+    {
+        const int directions = 12;
+        const float maxHorizontal = 2.1f, eyeHeight = 1.7f, sampleRadius = 1.6f;
+        Vector3 street = new Vector3(0f, 0f, -15f);
+        foreach (float distance in new[] { 0.9f, 1.4f, 1.9f })
+        for (int i = 0; i < directions; i++)
+        {
+            Vector3 around = position + Quaternion.Euler(0f, i * 360f / directions, 0f) * Vector3.forward * distance;
+            if (!UnityEngine.AI.NavMesh.SamplePosition(around, out UnityEngine.AI.NavMeshHit floor, sampleRadius, UnityEngine.AI.NavMesh.AllAreas)) continue;
+
+            Vector3 flat = floor.position - position;
+            flat.y = 0f;
+            if (flat.magnitude > maxHorizontal || !Nivel1MapBuilder.Reachable(street, floor.position)) continue;
+
+            bool blocked = Physics.Linecast(floor.position + Vector3.up * eyeHeight, position + Vector3.up * 0.25f, out RaycastHit hit,
+                Physics.DefaultRaycastLayers, QueryTriggerInteraction.Ignore) && !Pickup.IsActor(hit.collider);
+            if (!blocked) return true;
+        }
+        return false;
     }
 
     private static KindInfo InfoFor(PickupKind kind)
@@ -268,11 +383,27 @@ public static class PickupBuilder
     {
         string path = DataFolder + "/PickupLayout_" + sceneName + ".asset";
         var layout = AssetDatabase.LoadAssetAtPath<PickupLayout>(path);
-        if (layout != null) return layout;
+        if (layout != null)
+        {
+            if (sceneName == NivelPorkyScene && layout.version < NivelPorkyLayoutVersion)
+            {
+                // N1.2: la distribución de HUD.3 ponía objetos en el piso. Lo guardado después de N1.2 no se toca
+                layout.entries = new List<PickupLayout.Entry>(NivelPorkySeed());
+                layout.version = NivelPorkyLayoutVersion;
+                EditorUtility.SetDirty(layout);
+                AssetDatabase.SaveAssets();
+                Debug.Log("[Pickups] " + path + ": se puso la distribución de N1.2.");
+            }
+            return layout;
+        }
 
         LevelBuilderUtils.EnsureFolder(DataFolder);
         layout = ScriptableObject.CreateInstance<PickupLayout>();
-        if (sceneName == "NivelPorky") layout.entries.AddRange(NivelPorkySeed());
+        if (sceneName == NivelPorkyScene)
+        {
+            layout.entries.AddRange(NivelPorkySeed());
+            layout.version = NivelPorkyLayoutVersion;
+        }
         else Debug.LogWarning("[Pickups] " + path + " se crea vacío: coloca objetos en la escena y corre \"Guardar posiciones de objetos\".");
         AssetDatabase.CreateAsset(layout, path);
         AssetDatabase.SaveAssets();
