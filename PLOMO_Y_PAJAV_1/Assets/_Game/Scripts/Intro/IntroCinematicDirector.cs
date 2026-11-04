@@ -435,8 +435,8 @@ public class IntroCinematicDirector : MonoBehaviour
     private void Update()
     {
         if (!_seated || _camera == null) return;
-        _seatYaw = Mathf.Clamp(_seatYaw + Input.GetAxis("Mouse X") * lookSensitivity, -yawLimit, yawLimit);
-        _seatPitch = Mathf.Clamp(_seatPitch - Input.GetAxis("Mouse Y") * lookSensitivity, -pitchLimit, pitchLimit);
+        _seatYaw = Mathf.Clamp(_seatYaw + Input.GetAxis("Mouse X") * lookSensitivity * OptionsPanel.Sensibilidad, -yawLimit, yawLimit);
+        _seatPitch = Mathf.Clamp(_seatPitch - Input.GetAxis("Mouse Y") * lookSensitivity * OptionsPanel.Sensibilidad, -pitchLimit, pitchLimit);
         _camera.localRotation = Quaternion.Euler(_seatPitch, _seatYaw, 0f);
     }
 

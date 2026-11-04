@@ -98,7 +98,8 @@ public class StoryBookDirector : MonoBehaviour
             skip.Skipped += HandleSkip;
             skip.Armed = true;
         }
-        StartLoop(musicSource, data.music);
+        // Viniendo del menú la música ya suena (MusicPlayer); abriendo Intro directo, el libro usa la suya.
+        if (MusicPlayer.Instance == null || !MusicPlayer.Instance.IsPlaying) StartLoop(musicSource, data.music);
         StartLoop(ambienceSource, data.roomAmbience);
         if (rainSource != null) rainSource.volume = 0f;
 
@@ -217,6 +218,7 @@ public class StoryBookDirector : MonoBehaviour
         if (ending) yield return Wait(Mathf.Max(0f, pushSeconds - fadeOutSeconds));
         if (fade != null) yield return fade.FadeTo(1f, ending ? fadeOutSeconds : fadeSeconds);
         if (narratorSource != null) narratorSource.Stop();
+        if (MusicPlayer.Instance != null) MusicPlayer.Instance.Stop();
 
         if (_load == null)
         {
@@ -320,11 +322,16 @@ public class StoryBookDirector : MonoBehaviour
     private void Update()
     {
         float dt = Time.unscaledDeltaTime;
-        if (musicSource != null)
+        bool talking = narratorSource != null && narratorSource.isPlaying;
+        float duck = talking ? Mathf.Pow(10f, duckDecibels / 20f) : 1f;
+        MusicPlayer player = MusicPlayer.Instance;
+        if (player != null && player.IsPlaying)
         {
-            bool talking = narratorSource != null && narratorSource.isPlaying;
-            float duck = talking ? Mathf.Pow(10f, duckDecibels / 20f) : 1f;
-            float target = musicVolume * AudioLibrary.SfxVolume * duck * _musicFade;
+            player.SetBookMix(duck, _musicFade);
+        }
+        else if (musicSource != null)
+        {
+            float target = musicVolume * AudioLibrary.SfxVolume * MusicPlayer.UserVolume * duck * _musicFade;
             musicSource.volume = Mathf.MoveTowards(musicSource.volume, target, dt * 0.6f);
         }
         if (ambienceSource != null)

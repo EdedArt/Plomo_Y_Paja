@@ -9,8 +9,16 @@ using TMPro;
 // Poner en cada boton. Funciona en el editor sin darle Play.
 [ExecuteAlways]
 [RequireComponent(typeof(Image))]
-public class BotonCartoon : MonoBehaviour, IPointerEnterHandler, IPointerExitHandler
+public class BotonCartoon : MonoBehaviour, IPointerEnterHandler, IPointerExitHandler,
+    ISelectHandler, IDeselectHandler, IPointerClickHandler, ISubmitHandler
 {
+    /// <summary>MainMenu lo activa al seleccionar por codigo, para que abrir un panel no suene.</summary>
+    public static bool SilenciarHover;
+
+    [Header("Sonido (mudo si el id no existe)")]
+    [SerializeField] private string sonidoHover = "sfx_ui_hover";
+    [SerializeField] private string sonidoClic = "sfx_ui_click";
+
     [Header("Colores")]
     [SerializeField] private Color beige = new Color(0.93f, 0.87f, 0.73f);
     [SerializeField] private Color beigeEncima = new Color(1f, 0.95f, 0.80f);
@@ -31,6 +39,16 @@ public class BotonCartoon : MonoBehaviour, IPointerEnterHandler, IPointerExitHan
     private RectTransform rt;
     private RectTransform borde;
     private bool encima;
+    private bool seleccionado;
+
+    /// <summary>Suena el efecto solo si existe en la AudioLibrary (no avisa si falta: son placeholders).</summary>
+    public static bool PlayIfPresent(string id, float volumen = 1f)
+    {
+        if (string.IsNullOrEmpty(id)) return false;
+        AudioLibrary biblioteca = AudioLibrary.Active;
+        if (biblioteca == null || !biblioteca.ContainsSfx(id)) return false;
+        return AudioLibrary.PlaySfx2D(id, volumen);
+    }
 
     private void OnEnable()
     {
@@ -61,9 +79,15 @@ public class BotonCartoon : MonoBehaviour, IPointerEnterHandler, IPointerExitHan
 
     private void CrearBorde()
     {
-        if (grosorBorde <= 0f) return;
-
         var hijo = transform.Find("Borde");
+        if (grosorBorde <= 0f)
+        {
+            // Es ExecuteAlways: al agregarse crea el borde con el grosor por defecto, antes de que el
+            // builder ponga 0. Como hijo se dibuja ENCIMA de la placa: una silueta casi negra.
+            if (hijo != null) hijo.gameObject.SetActive(false);
+            return;
+        }
+
         if (hijo == null)
         {
             var go = new GameObject("Borde", typeof(RectTransform), typeof(Image));
@@ -72,6 +96,7 @@ public class BotonCartoon : MonoBehaviour, IPointerEnterHandler, IPointerExitHan
             hijo = go.transform;
         }
 
+        hijo.gameObject.SetActive(true);
         borde = (RectTransform)hijo;
         borde.anchorMin = Vector2.zero;
         borde.anchorMax = Vector2.one;
@@ -85,8 +110,27 @@ public class BotonCartoon : MonoBehaviour, IPointerEnterHandler, IPointerExitHan
         img.type = fondo.type;
     }
 
-    public void OnPointerEnter(PointerEventData e) { encima = true; }
+    public void OnPointerEnter(PointerEventData e)
+    {
+        encima = true;
+
+        // Raton y teclado comparten seleccion: el boton bajo el raton es el activo.
+        EventSystem sistema = EventSystem.current;
+        if (sistema != null && sistema.currentSelectedGameObject != gameObject)
+            sistema.SetSelectedGameObject(gameObject);
+    }
+
     public void OnPointerExit(PointerEventData e) { encima = false; }
+
+    public void OnSelect(BaseEventData e)
+    {
+        seleccionado = true;
+        if (!SilenciarHover) PlayIfPresent(sonidoHover);
+    }
+
+    public void OnDeselect(BaseEventData e) { seleccionado = false; }
+    public void OnPointerClick(PointerEventData e) { PlayIfPresent(sonidoClic); }
+    public void OnSubmit(BaseEventData e) { PlayIfPresent(sonidoClic); }
 
     private void Update()
     {
@@ -98,16 +142,18 @@ public class BotonCartoon : MonoBehaviour, IPointerEnterHandler, IPointerExitHan
 
         float k = 1f - Mathf.Exp(-velocidad * Time.unscaledDeltaTime);
 
-        float objetivo = encima ? escalaEncima : 1f;
+        bool activo = encima || seleccionado;
+
+        float objetivo = activo ? escalaEncima : 1f;
         rt.localScale = Vector3.Lerp(rt.localScale, Vector3.one * objetivo, k);
 
-        float giro = encima ? inclinacionEncima : 0f;
+        float giro = activo ? inclinacionEncima : 0f;
         var e = rt.localEulerAngles;
         e.z = Mathf.LerpAngle(e.z, giro, k);
         rt.localEulerAngles = e;
 
-        fondo.color = Color.Lerp(fondo.color, encima ? beigeEncima : beige, k);
+        fondo.color = Color.Lerp(fondo.color, activo ? beigeEncima : beige, k);
         if (texto != null)
-            texto.color = Color.Lerp(texto.color, encima ? doradoEncima : dorado, k);
+            texto.color = Color.Lerp(texto.color, activo ? doradoEncima : dorado, k);
     }
 }

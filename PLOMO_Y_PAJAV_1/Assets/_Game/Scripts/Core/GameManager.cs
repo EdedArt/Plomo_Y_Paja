@@ -37,7 +37,10 @@ public class GameManager : MonoBehaviour
     {
         // Pausa con Escape (desactivada durante el interrogatorio: la escena ya congela el tiempo, fase 3C.3)
         // ni durante una cinemática (INTRO.2): ahí Esc mantenido es "saltar"
-        if (Input.GetKeyDown(KeyCode.Escape) && !gameIsOver && !InterrogationDirector.IsActive && !CinematicState.IsPlaying)
+        // ni en el menú ni en el libro (MENU.1), las mismas escenas sin pausa que PauseMenuSpawner: este objeto sobrevive
+        // al volver del nivel, y ahí Esc es "volver" (menú) o "saltar" (libro)
+        if (Input.GetKeyDown(KeyCode.Escape) && !gameIsOver && !InterrogationDirector.IsActive && !CinematicState.IsPlaying
+            && !IsSceneWithoutPause())
         {
             TogglePause();
         }
@@ -131,11 +134,30 @@ public class GameManager : MonoBehaviour
 
     // ============ PAUSA ============
 
+    /// <summary>
+    /// Se dispara en cada TogglePause con el nuevo estado (true = pausado).
+    /// Lo escucha PauseMenu (UI/Pause). Se limpia al cargar el subsistema para
+    /// no arrastrar suscriptores muertos (GameManager es DontDestroyOnLoad).
+    /// </summary>
+    public static event System.Action<bool> OnPauseChanged;
+
+    [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.SubsystemRegistration)]
+    private static void ResetPauseEvent()
+    {
+        OnPauseChanged = null;
+    }
+
+    private static bool IsSceneWithoutPause()
+    {
+        string scene = SceneManager.GetActiveScene().name;
+        return scene == "MenuPrincipal" || scene == "Intro";
+    }
+
     public void TogglePause()
     {
         gameIsPaused = !gameIsPaused;
         Time.timeScale = gameIsPaused ? 0f : 1f;
-        if (UIManager.Instance != null) UIManager.Instance.ShowPauseMenu(gameIsPaused);
+        OnPauseChanged?.Invoke(gameIsPaused);
 
         Cursor.lockState = gameIsPaused ? CursorLockMode.None : CursorLockMode.Locked;
         Cursor.visible = gameIsPaused;

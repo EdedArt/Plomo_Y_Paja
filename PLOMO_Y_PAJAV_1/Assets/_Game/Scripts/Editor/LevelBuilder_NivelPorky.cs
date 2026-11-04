@@ -100,6 +100,12 @@ public static class LevelBuilder_NivelPorky
         IntroTaxiBuilder.BuildInto(introReport);
         Debug.Log("[LevelBuilder] Taxi y llegada:\n" + introReport);
 
+        // Fase HUD.3 (H15): objetos recogibles y drops, desde PickupLayout_NivelPorky (no son estáticos: el NavMesh no los ve)
+        var pickupReport = new System.Text.StringBuilder();
+        PickupBuilder.BuildPrefabs(pickupReport);
+        PickupBuilder.PlaceInOpenScene(pickupReport);
+        Debug.Log("[LevelBuilder] Objetos:\n" + pickupReport);
+
         // Guardar antes de hornear: el NavMesh se guarda junto a la escena
         EditorSceneManager.SaveScene(scene, ScenePath);
         BakeNavMesh();

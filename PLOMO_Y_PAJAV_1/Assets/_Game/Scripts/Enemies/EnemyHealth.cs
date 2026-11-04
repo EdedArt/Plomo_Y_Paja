@@ -63,7 +63,13 @@ public class EnemyHealth : MonoBehaviour
     /// <summary>El enemigo murió.</summary>
     public event Action OnDeath;
 
+    /// <summary>Murió cualquier enemigo (HUD.3: GuardDropSpawner, sin tocar los prefabs de los guardias).</summary>
+    public static event Action<EnemyHealth> AnyDied;
+
     [Header("Opciones")]
+    [Tooltip("¿Puede soltar objetos al morir? (H16: apagarlo en Don Lobo, Fase 4)")]
+    [SerializeField] private bool dropsLoot = true;
+
     [Tooltip("Tiempo en segundos antes de destruir el GameObject al morir")]
     [SerializeField] private float destroyDelay = 3f;           // Para que se vea el dibujo de muerte
 
@@ -76,6 +82,7 @@ public class EnemyHealth : MonoBehaviour
 
     // ===================== Propiedades públicas =====================
 
+    public bool DropsLoot => dropsLoot;                                         // H16: ¿suelta objetos al morir?
     public string NpcId => npcId;                                               // Id para DialogueDatabase
     public bool CanSurrender => canSurrender;                                   // ¿Es interrogable?
     public bool IsSurrendered => _isSurrendered && !_isDead;                    // Rendido y vivo
@@ -137,6 +144,7 @@ public class EnemyHealth : MonoBehaviour
 
         onEnemyDied?.Invoke();                                  // Avisar al Inspector
         OnDeath?.Invoke();                                      // Avisar al código
+        AnyDied?.Invoke(this);                                  // Drops (HUD.3)
         if (_ai != null) _ai.Die();                             // La IA se apaga y muestra el dibujo de muerte
 
         // Script de David: cuenta la muerte para la historia y los finales

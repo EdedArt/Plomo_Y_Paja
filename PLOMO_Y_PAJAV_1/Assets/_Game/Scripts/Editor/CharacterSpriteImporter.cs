@@ -29,7 +29,8 @@ public class CharacterSpriteImporter : AssetPostprocessor
     // 12: HUD.1.1: el arte del HUD que cae en Art/Characters/hud/ (así llegó el de Edgar desde dev) se importa con la regla
     //     del HUD (sprite de UI: pivote al centro, sin mipmaps, sin compresión), nunca con la de personaje (PPU 250 y pivote
     //     en los pies). Los PNG de Edgar ya se movieron a Art/UI/HUD/ con los ids del guion.
-    public override uint GetVersion() => 12;
+    // 13: HUD.3: Art/Props/pickups/ (objetos del mapa: PPU 500, pivote abajo al centro, mipmaps).
+    public override uint GetVersion() => 13;
 
     /// <summary>Texturas del libro de la intro (fase INTRO): Art/Intro/ilus_intro_NN, libro_portada, libro_guardas, libro_papel.</summary>
     public const string IntroFolder = "Assets/_Game/Art/Intro";
@@ -57,6 +58,9 @@ public class CharacterSpriteImporter : AssetPostprocessor
     /// <summary>Objetos recogibles dibujados (fase 3C.5.2): Art/Pickups/&lt;nombre&gt;.png, recortados con character_key.py --single.</summary>
     public const string PickupsFolder = "Assets/_Game/Art/Pickups";
 
+    /// <summary>Objetos del mapa (fase HUD.3): Art/Props/pickups/&lt;id&gt;.png, recortados con "character_key.py Objetos" (apoyan en el piso).</summary>
+    public const string PropPickupsFolder = "Assets/_Game/Art/Props/pickups";
+
     /// <summary>Alpha mínimo (0..255) para considerar que un píxel es parte del personaje.</summary>
     private const byte FeetAlpha = 26; // 0.1
 
@@ -66,6 +70,11 @@ public class CharacterSpriteImporter : AssetPostprocessor
         if (path.StartsWith(PickupsFolder + "/"))
         {
             ApplyPickup((TextureImporter)assetImporter);
+            return;
+        }
+        if (path.StartsWith(PropPickupsFolder + "/"))
+        {
+            ApplyPickup((TextureImporter)assetImporter, SpriteAlignment.BottomCenter, 500f);
             return;
         }
         if (path.StartsWith(FxFolder + "/"))
@@ -143,7 +152,7 @@ public class CharacterSpriteImporter : AssetPostprocessor
     /// Recogibles: Sprite con alpha real, pivote al centro, mipmaps (se ven chicos y lejos), 1000 px por metro. El tamaño en
     /// el mundo lo fija WeaponPickup (visualLength), así que el PPU no importa.
     /// </summary>
-    private static void ApplyPickup(TextureImporter importer)
+    private static void ApplyPickup(TextureImporter importer, SpriteAlignment alignment = SpriteAlignment.Center, float pixelsPerUnit = 1000f)
     {
         importer.textureType = TextureImporterType.Sprite;
         importer.textureShape = TextureImporterShape.Texture2D;
@@ -158,8 +167,8 @@ public class CharacterSpriteImporter : AssetPostprocessor
         importer.ReadTextureSettings(settings);
         settings.spriteMode = (int)SpriteImportMode.Single;
         settings.spriteMeshType = SpriteMeshType.FullRect;
-        settings.spriteAlignment = (int)SpriteAlignment.Center;
-        settings.spritePixelsPerUnit = 1000f;
+        settings.spriteAlignment = (int)alignment;
+        settings.spritePixelsPerUnit = pixelsPerUnit;
         importer.SetTextureSettings(settings);
     }
 

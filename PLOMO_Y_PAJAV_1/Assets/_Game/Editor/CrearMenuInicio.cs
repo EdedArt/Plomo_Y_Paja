@@ -1,21 +1,56 @@
 #if UNITY_EDITOR
+using System;
+using System.Collections.Generic;
+using System.IO;
+using System.Security.Cryptography;
+using System.Text;
+using System.Text.RegularExpressions;
 using UnityEngine;
 using UnityEngine.UI;
+using UnityEngine.SceneManagement;
 using UnityEditor;
 using UnityEditor.Events;
+using UnityEditor.SceneManagement;
 using UnityEngine.Events;
 using TMPro;
+using Object = UnityEngine.Object;
 
-// Arma el menu de inicio completo con un clic.
+// Arma el menu de inicio completo con un clic (es la unica fuente de la escena MenuPrincipal).
 // Menu de Unity: Plomo y Paja -> Crear menu de inicio
+// Se puede correr varias veces: borra lo anterior y vuelve a tomar el arte y el audio que haya.
 public static class CrearMenuInicio
 {
     private const string RutaMenu = "Assets/_Game/Art/UI/Menu/";
+    private const string RutaEscena = "Assets/_Game/Scenes/MenuPrincipal.unity";
+    private const string RutaFuente = "Assets/_Game/Fonts/IMFellEnglish SDF.asset";
+    private const string RutaFuenteRespaldo = "Assets/_Game/Fonts/SpecialElite SDF.asset";
+    private const string RutaTtfTitulo = "Assets/_Game/Fonts/LuckiestGuy-Regular.ttf";
+    private const string RutaAtlasTitulo = "Assets/_Game/Fonts/LuckiestGuy Titulo SDF.asset";
+    private const string RutaTtfCursiva = "Assets/_Game/Fonts/IMFellEnglish-Italic.ttf";
+    private const string RutaAtlasCursiva = "Assets/_Game/Fonts/IMFellEnglish-Italic Titulo SDF.asset";
+    private const float TamanoTitulo = 128f;
+    private const float AltoBoton = 110f;
+    private const string RutaMusica = "Assets/_Game/Audio/Music/musica_intro.wav";
+    private const string RutaLibreria = "Assets/_Game/Audio/AudioLibrary.asset";
+
+    private const string TextoCreditos =
+        "<size=64>PLOMO Y PAJA</size>\n\n" +
+        "Programación y dirección — David Cabezas\n" +
+        "Arte y personajes — Edgar Arteaga\n" +
+        "Voces, música y sonido — Cristian\n\n" +
+        "Universidad Cooperativa de Colombia · Pasto · 2026\n" +
+        "Hecho con Unity";
+
+    // Lo que el menu puede usar y que aun puede no estar: se lista al final de cada corrida.
+    private static readonly string[] SonidosEsperados =
+        { "sfx_trueno", "sfx_trueno_lejos", "sfx_ui_hover", "sfx_ui_click", "sfx_ui_jugar" };
 
     // Colores
     private static readonly Color Crema = new Color(0.95f, 0.89f, 0.75f);
     private static readonly Color CremaClaro = new Color(1f, 0.97f, 0.88f);
     private static readonly Color Negro = new Color(0.08f, 0.06f, 0.05f);
+
+    private static TMP_FontAsset fuente;
 
     [MenuItem("Plomo y Paja/Crear menu de inicio")]
     public static void Crear()
@@ -27,11 +62,20 @@ public static class CrearMenuInicio
             return;
         }
 
+        if (!AbrirEscena()) return;
+
         // Limpia lo anterior para poder correrlo varias veces.
-        var viejo = GameObject.Find("CanvasMenu");
-        if (viejo != null) Object.DestroyImmediate(viejo);
-        var viejoMgr = GameObject.Find("MenuManager");
-        if (viejoMgr != null) Object.DestroyImmediate(viejoMgr);
+        foreach (string nombre in new[] { "CanvasMenu", "MenuManager", "UI_Pelicula", "UI_Fundido", "MusicPlayer" })
+        {
+            var viejo = GameObject.Find(nombre);
+            if (viejo != null) Object.DestroyImmediate(viejo);
+        }
+
+        var faltantes = new List<string>();
+
+        fuente = Cargar<TMP_FontAsset>(RutaFuente);
+        if (fuente == null) fuente = Cargar<TMP_FontAsset>(RutaFuenteRespaldo);
+        if (fuente == null) faltantes.Add("fuente IMFellEnglish / SpecialElite (se usa la de TMP)");
 
         // ---------- Canvas ----------
         var canvasGO = new GameObject("CanvasMenu",
@@ -60,40 +104,67 @@ public static class CrearMenuInicio
         fondo.raycastTarget = false;
 
         var anim = fondo.gameObject.AddComponent<MenuFrameAnimator>();
-        var f1 = Cargar<Sprite>(RutaMenu + "menu_inicio_01.png");
-        var f2 = Cargar<Sprite>(RutaMenu + "menu_inicio_02.png");
-        if (f1 != null && f2 != null)
+        Vector2 tamano = Vector2.zero;
+        Sprite[] espera = BuscarCuadros("menu_inicio", ref tamano);
+        Sprite[] tormenta = BuscarCuadros("menu_rayo", ref tamano);
+        if (espera.Length == 0)
         {
-            var so = new SerializedObject(anim);
-            var arr = so.FindProperty("frames");
-            arr.arraySize = 2;
-            arr.GetArrayElementAtIndex(0).objectReferenceValue = f1;
-            arr.GetArrayElementAtIndex(1).objectReferenceValue = f2;
-            so.ApplyModifiedPropertiesWithoutUndo();
-        }
-        else
-        {
-            Debug.LogWarning("No encontre menu_inicio_01/02 en " + RutaMenu +
+            faltantes.Add("menu_inicio_NN (fondo oscuro hasta que lleguen)");
+            Debug.LogWarning("No encontre menu_inicio_NN en " + RutaMenu +
                              ". Asignalos a mano en el componente MenuFrameAnimator.");
         }
+        if (tormenta.Length == 0) faltantes.Add("menu_rayo_NN (el rayo cae sobre la imagen de espera)");
+
+        var soAnim = new SerializedObject(anim);
+        AsignarLista(soAnim.FindProperty("frames"), espera);
+        AsignarLista(soAnim.FindProperty("framesTormenta"), tormenta);
+        soAnim.ApplyModifiedPropertiesWithoutUndo();
+
+        // ---------- Destello del rayo (encima del fondo, debajo de la UI) ----------
+        var destello = NuevaImagen("Destello", canvasGO.transform);
+        Estirar(destello.rectTransform);
+        destello.color = new Color(1f, 1f, 1f, 0f);
+        destello.raycastTarget = false;
+
+        var rayo = destello.gameObject.AddComponent<LightningFlash>();
+        var soRayo = new SerializedObject(rayo);
+        soRayo.FindProperty("flash").objectReferenceValue = destello;
+        soRayo.FindProperty("background").objectReferenceValue = anim;
+        soRayo.ApplyModifiedPropertiesWithoutUndo();
 
         var placa = Cargar<Sprite>(RutaMenu + "boton_placa.png");
+        if (placa == null) faltantes.Add("boton_placa (botones color crema)");
 
         // ---------- Panel principal ----------
         var panel = NuevoPanel("PanelPrincipal", canvasGO.transform);
 
-        var titulo = NuevoTexto("Titulo", panel.transform, "PLOMO\nY PAJA", 110);
-        Colocar(titulo.rectTransform, 600, 300, 700, 300);
-        titulo.color = CremaClaro;
-        titulo.alignment = TextAlignmentOptions.Center;
-        titulo.fontStyle = FontStyles.Bold;
-        titulo.outlineWidth = 0.35f;
-        titulo.outlineColor = Negro;
+        var logo = CrearLogo(panel.transform, rayo, faltantes);
 
-        var btnJugar    = NuevoBoton("BtnJugar",    panel.transform, "INICIAR JUEGO", placa, 600,  40);
-        var btnOpciones = NuevoBoton("BtnOpciones", panel.transform, "OPCIONES",      placa, 600, -70);
-        var btnCreditos = NuevoBoton("BtnCreditos", panel.transform, "CREDITOS",      placa, 600, -180);
-        var btnSalir    = NuevoBoton("BtnSalir",    panel.transform, "SALIR",         placa, 600, -290);
+        var btnJugar    = NuevoBoton("BtnJugar",    panel.transform, "Jugar",    placa, 600,  40);
+        var btnOpciones = NuevoBoton("BtnOpciones", panel.transform, "Opciones", placa, 600, -70);
+        var btnCreditos = NuevoBoton("BtnCreditos", panel.transform, "Créditos", placa, 600, -180);
+        var btnSalir    = NuevoBoton("BtnSalir",    panel.transform, "Salir",    placa, 600, -290);
+
+        // Jugar suena con su propio bombeo (MainMenu), no con el clic.
+        var soJugar = new SerializedObject(btnJugar.GetComponent<BotonCartoon>());
+        soJugar.FindProperty("sonidoClic").stringValue = "";
+        soJugar.ApplyModifiedPropertiesWithoutUndo();
+
+        var botones = new[] { btnJugar, btnOpciones, btnCreditos, btnSalir };
+        foreach (var b in botones) b.gameObject.AddComponent<CanvasGroup>();
+
+        // ---------- "Pulsa cualquier tecla" ----------
+        var prompt = NuevoTexto("PromptEspera", canvasGO.transform, "Pulsa cualquier tecla", 56);
+        Colocar(prompt.rectTransform, 0, 80, 1200, 110);
+        // Anclado abajo: en 21:9 el lienzo es mas bajo y centrado se salia de la pantalla.
+        prompt.rectTransform.anchorMin = new Vector2(0.5f, 0f);
+        prompt.rectTransform.anchorMax = new Vector2(0.5f, 0f);
+        prompt.color = CremaClaro;
+        prompt.outlineWidth = 0.3f;
+        prompt.outlineColor = Negro;
+        var promptGrupo = prompt.gameObject.AddComponent<CanvasGroup>();
+        promptGrupo.blocksRaycasts = false;
+        promptGrupo.interactable = false;
 
         // ---------- Panel de opciones ----------
         var opciones = NuevoPanel("PanelOpciones", canvasGO.transform);
@@ -102,59 +173,390 @@ public static class CrearMenuInicio
         Estirar(fondoOp.rectTransform);
         fondoOp.color = new Color(0f, 0f, 0f, 0.65f);
 
-        var tituloOp = NuevoTexto("TituloOpciones", opciones.transform, "OPCIONES", 80);
-        Colocar(tituloOp.rectTransform, 0, 260, 700, 120);
+        var tituloOp = NuevoTexto("TituloOpciones", opciones.transform, "Opciones", 80);
+        Colocar(tituloOp.rectTransform, 0, 320, 700, 120);
         tituloOp.color = CremaClaro;
         tituloOp.alignment = TextAlignmentOptions.Center;
         tituloOp.outlineWidth = 0.3f;
         tituloOp.outlineColor = Negro;
 
-        var etqVol = NuevoTexto("EtiquetaVolumen", opciones.transform, "Volumen", 44);
-        Colocar(etqVol.rectTransform, -320, 100, 420, 70);
-        etqVol.color = Crema;
-        etqVol.alignment = TextAlignmentOptions.Right;
+        NuevaEtiqueta("EtiquetaVolumen", opciones.transform, "Volumen general", 170);
+        var slider = NuevoSlider("SliderVolumen", opciones.transform, 0f, 1f, 1f);
+        Colocar((RectTransform)slider.transform, 240, 170, 520, 50);
 
-        var slider = NuevoSlider("SliderVolumen", opciones.transform);
-        Colocar((RectTransform)slider.transform, 160, 100, 520, 50);
+        NuevaEtiqueta("EtiquetaMusica", opciones.transform, "Música", 70);
+        var sliderMusica = NuevoSlider("SliderMusica", opciones.transform, 0f, 1f, 1f);
+        Colocar((RectTransform)sliderMusica.transform, 240, 70, 520, 50);
 
-        var etqPant = NuevoTexto("EtiquetaPantalla", opciones.transform, "Pantalla completa", 44);
-        Colocar(etqPant.rectTransform, -320, -10, 420, 70);
-        etqPant.color = Crema;
-        etqPant.alignment = TextAlignmentOptions.Right;
+        NuevaEtiqueta("EtiquetaSensibilidad", opciones.transform, "Sensibilidad del ratón", -30);
+        var sliderSens = NuevoSlider("SliderSensibilidad", opciones.transform, 0.25f, 2f, 1f);
+        Colocar((RectTransform)sliderSens.transform, 240, -30, 520, 50);
 
+        NuevaEtiqueta("EtiquetaPantalla", opciones.transform, "Pantalla completa", -130);
         var toggle = NuevoToggle("TogglePantalla", opciones.transform);
-        Colocar((RectTransform)toggle.transform, -40, -10, 60, 60);
+        Colocar((RectTransform)toggle.transform, 10, -130, 60, 60);
 
-        var btnVolver = NuevoBoton("BtnVolverOpciones", opciones.transform, "VOLVER", placa, 0, -220);
+        var btnVolver = NuevoBoton("BtnVolverOpciones", opciones.transform, "Volver", placa, 0, -300);
 
         var op = opciones.AddComponent<OptionsPanel>();
         var soOp = new SerializedObject(op);
         soOp.FindProperty("volumen").objectReferenceValue = slider;
         soOp.FindProperty("pantallaCompleta").objectReferenceValue = toggle;
+        soOp.FindProperty("musica").objectReferenceValue = sliderMusica;
+        soOp.FindProperty("sensibilidadRaton").objectReferenceValue = sliderSens;
         soOp.ApplyModifiedPropertiesWithoutUndo();
 
         opciones.SetActive(false);
 
+        // ---------- Panel de creditos ----------
+        var creditos = NuevoPanel("PanelCreditos", canvasGO.transform);
+
+        var fondoCr = NuevaImagen("FondoOscuro", creditos.transform);
+        Estirar(fondoCr.rectTransform);
+        fondoCr.color = new Color(0f, 0f, 0f, 0.75f);
+
+        var textoCr = NuevoTexto("TextoCreditos", creditos.transform, TextoCreditos, 42);
+        Colocar(textoCr.rectTransform, 0, 90, 1400, 640);
+        textoCr.color = CremaClaro;
+        textoCr.outlineWidth = 0.2f;
+        textoCr.outlineColor = Negro;
+
+        var btnVolverCr = NuevoBoton("BtnVolverCreditos", creditos.transform, "Volver", placa, 0, -340);
+
+        creditos.SetActive(false);
+
+        // ---------- Fundido y pelicula (canvas propios, encima de todo) ----------
+        var fundido = IntroBookBuilder.BuildFade();
+        Undo.RegisterCreatedObjectUndo(fundido.transform.root.gameObject, "Crear menu");
+        fundido.GetComponent<CanvasGroup>().alpha = 0f;
+
+        CrearPelicula(faltantes);
+
         // ---------- Manager ----------
         var mgrGO = new GameObject("MenuManager");
         Undo.RegisterCreatedObjectUndo(mgrGO, "Crear menu");
+
+        // El menu es la primera escena: sin esto no habria AudioLibrary activa ni truenos.
+        var libreria = Cargar<AudioLibrary>(RutaLibreria);
+        if (libreria != null)
+        {
+            var soLoader = new SerializedObject(mgrGO.AddComponent<AudioLibraryLoader>());
+            soLoader.FindProperty("library").objectReferenceValue = libreria;
+            soLoader.ApplyModifiedPropertiesWithoutUndo();
+            foreach (string id in SonidosEsperados)
+            {
+                if (!libreria.ContainsSfx(id)) faltantes.Add(id);
+            }
+        }
+        else
+        {
+            faltantes.Add("AudioLibrary.asset (menu sin sonido)");
+        }
+
         var mgr = mgrGO.AddComponent<MainMenu>();
 
         var soMgr = new SerializedObject(mgr);
+        soMgr.FindProperty("escenaJuego").stringValue = "Intro";
         soMgr.FindProperty("panelPrincipal").objectReferenceValue = panel;
         soMgr.FindProperty("panelOpciones").objectReferenceValue = opciones;
+        soMgr.FindProperty("panelCreditos").objectReferenceValue = creditos;
+        soMgr.FindProperty("promptEspera").objectReferenceValue = promptGrupo;
+        soMgr.FindProperty("rayo").objectReferenceValue = rayo;
+        soMgr.FindProperty("logo").objectReferenceValue = logo;
+        soMgr.FindProperty("fundido").objectReferenceValue = fundido;
+        var listaBotones = soMgr.FindProperty("botones");
+        listaBotones.arraySize = botones.Length;
+        for (int i = 0; i < botones.Length; i++)
+            listaBotones.GetArrayElementAtIndex(i).objectReferenceValue = botones[i];
         soMgr.ApplyModifiedPropertiesWithoutUndo();
 
         Conectar(btnJugar,    new UnityAction(mgr.Jugar));
         Conectar(btnOpciones, new UnityAction(mgr.AbrirOpciones));
-        Conectar(btnCreditos, new UnityAction(mgr.AbrirOpciones)); // provisional
+        Conectar(btnCreditos, new UnityAction(mgr.AbrirCreditos));
         Conectar(btnSalir,    new UnityAction(mgr.Salir));
         Conectar(btnVolver,   new UnityAction(mgr.MostrarPrincipal));
+        Conectar(btnVolverCr, new UnityAction(mgr.MostrarPrincipal));
+
+        // ---------- Musica ----------
+        var musicaGO = new GameObject("MusicPlayer");
+        Undo.RegisterCreatedObjectUndo(musicaGO, "Crear menu");
+        var soMusica = new SerializedObject(musicaGO.AddComponent<MusicPlayer>());
+        var clip = Cargar<AudioClip>(RutaMusica);
+        if (clip == null) faltantes.Add("musica_intro.wav (se busca en la AudioLibrary)");
+        soMusica.FindProperty("clip").objectReferenceValue = clip;
+        soMusica.ApplyModifiedPropertiesWithoutUndo();
 
         Selection.activeGameObject = canvasGO;
         EditorUtility.SetDirty(canvasGO);
 
-        Debug.Log("Menu de inicio creado. Revisa el campo 'Escena Juego' en MenuManager.");
+        AssetDatabase.SaveAssets();
+
+        var escena = SceneManager.GetActiveScene();
+        EditorSceneManager.MarkSceneDirty(escena);
+        EditorSceneManager.SaveScene(escena);
+
+        Debug.Log("Menu de inicio creado y guardado en " + escena.path + ". Cuadros: " + espera.Length +
+                  " de espera, " + tormenta.Length + " de tormenta.");
+        if (faltantes.Count > 0)
+        {
+            Debug.LogWarning("[Menu] Faltan (quedan placeholders; volve a correr el menu cuando lleguen): " +
+                             string.Join(", ", faltantes));
+        }
+    }
+
+    // ---------- piezas del menu ----------
+
+    // Trabaja siempre sobre MenuPrincipal, sin perder lo que haya sin guardar en otra escena.
+    private static bool AbrirEscena()
+    {
+        if (SceneManager.GetActiveScene().path == RutaEscena) return true;
+        if (!File.Exists(RutaEscena))
+        {
+            Debug.LogWarning("No existe " + RutaEscena + ": el menu se arma en la escena abierta.");
+            return true;
+        }
+        if (!EditorSceneManager.SaveCurrentModifiedScenesIfUserWantsTo()) return false;
+        EditorSceneManager.OpenScene(RutaEscena);
+        return true;
+    }
+
+    // Todos los cuadros del grupo, en orden numerico y con cualquier formato. El nombre exacto
+    // deja fuera pausa_* y boton_placa. Cuadros identicos se saltan; tamanos distintos se avisan.
+    private static Sprite[] BuscarCuadros(string prefijo, ref Vector2 tamano)
+    {
+        var patron = new Regex("^" + prefijo + @"_(\d+)\.(jpg|jpeg|png)$", RegexOptions.IgnoreCase);
+        var porNumero = new SortedDictionary<int, string>();
+        foreach (string archivo in Directory.GetFiles(RutaMenu))
+        {
+            Match m = patron.Match(Path.GetFileName(archivo));
+            if (!m.Success) continue;
+
+            int numero = int.Parse(m.Groups[1].Value);
+            string ruta = archivo.Replace('\\', '/');
+            if (porNumero.TryGetValue(numero, out string otra))
+            {
+                if (File.GetLastWriteTimeUtc(ruta) <= File.GetLastWriteTimeUtc(otra))
+                {
+                    Debug.LogWarning("[Menu] Dos archivos para el cuadro " + numero + ": se usa " + otra + " y se ignora " + ruta + ".");
+                    continue;
+                }
+                Debug.LogWarning("[Menu] Dos archivos para el cuadro " + numero + ": se usa " + ruta + " y se ignora " + otra + ".");
+            }
+            porNumero[numero] = ruta;
+        }
+
+        var cuadros = new List<Sprite>();
+        var vistos = new Dictionary<string, string>();
+        using (MD5 md5 = MD5.Create())
+        {
+            foreach (string ruta in porNumero.Values)
+            {
+                string huella = BitConverter.ToString(md5.ComputeHash(File.ReadAllBytes(ruta)));
+                if (vistos.TryGetValue(huella, out string igual))
+                {
+                    Debug.LogWarning("[Menu] " + ruta + " es identico a " + igual + ": no se repite en el ciclo.");
+                    continue;
+                }
+                vistos[huella] = ruta;
+
+                var sprite = Cargar<Sprite>(ruta);
+                if (sprite == null)
+                {
+                    Debug.LogWarning("[Menu] " + ruta + " no se importo como Sprite (revisa MenuSpriteImporter).");
+                    continue;
+                }
+
+                Vector2 medida = sprite.rect.size;
+                if (tamano == Vector2.zero) tamano = medida;
+                else if (medida != tamano)
+                {
+                    Debug.LogWarning("[Menu] " + ruta + " mide " + medida + " y los demas " + tamano +
+                                     ": igual cubre la pantalla, pero el fundido puede saltar.");
+                }
+                cuadros.Add(sprite);
+            }
+        }
+        return cuadros.ToArray();
+    }
+
+    private static void AsignarLista(SerializedProperty lista, Sprite[] sprites)
+    {
+        lista.arraySize = sprites.Length;
+        for (int i = 0; i < sprites.Length; i++)
+            lista.GetArrayElementAtIndex(i).objectReferenceValue = sprites[i];
+    }
+
+    // menu_logo.png si existe; si no, el titulo por letras (MenuTitleLogo): M11 de Fase-Menu.
+    private static RectTransform CrearLogo(Transform padre, LightningFlash rayo, List<string> faltantes)
+    {
+        var go = new GameObject("Logo", typeof(RectTransform));
+        go.transform.SetParent(padre, false);
+        var rt = (RectTransform)go.transform;
+        Colocar(rt, 400, 345, 800, 200);
+
+        var componente = go.AddComponent<MenuTitleLogo>();
+        var so = new SerializedObject(componente);
+        so.FindProperty("lightning").objectReferenceValue = rayo;
+
+        var sprite = Cargar<Sprite>(RutaMenu + "menu_logo.png");
+        if (sprite != null)
+        {
+            var img = NuevaImagen("LogoImagen", rt);
+            Estirar(img.rectTransform);
+            img.sprite = sprite;
+            img.preserveAspect = true;
+            img.raycastTarget = false;
+            so.FindProperty("logoImage").objectReferenceValue = img;
+            so.ApplyModifiedPropertiesWithoutUndo();
+            return rt;
+        }
+
+        faltantes.Add("menu_logo (se usa el titulo por letras)");
+
+        var reporte = new StringBuilder();
+        TMP_FontAsset titulo = FuenteTitulo(reporte, RutaTtfTitulo, RutaAtlasTitulo, "Luckiest Guy", "PLOMAJ", 512);
+        if (titulo == null)
+        {
+            titulo = fuente;
+            faltantes.Add("Luckiest Guy (el titulo usa IM Fell English)");
+        }
+        TMP_FontAsset cursiva = FuenteTitulo(reporte, RutaTtfCursiva, RutaAtlasCursiva, "IM Fell Italic", "y", 256);
+        bool cursivaFalsa = cursiva == null;
+        if (cursivaFalsa)
+        {
+            cursiva = fuente;
+            faltantes.Add("IM Fell Italic (la y usa cursiva simulada)");
+        }
+        if (reporte.Length > 0) Debug.Log("[Menu] Fuentes del titulo:\n" + reporte);
+
+        // Orden de dibujo: todas las sombras, luego las letras, luego los brillos.
+        var palabras = new[]
+        {
+            new { Nombre = "Plomo", Texto = "PLOMO", Y = false, Arriba = "#C9CED6", Abajo = "#4A5260" },
+            new { Nombre = "Y", Texto = "y", Y = true, Arriba = "#B3261E", Abajo = "#B3261E" },
+            new { Nombre = "Paja", Texto = "PAJA", Y = false, Arriba = "#F6E39A", Abajo = "#C8902E" },
+        };
+        var sombras = new TMP_Text[palabras.Length];
+        var letras = new TMP_Text[palabras.Length];
+        var brillos = new TMP_Text[palabras.Length];
+        for (int i = 0; i < palabras.Length; i++)
+        {
+            var p = palabras[i];
+            sombras[i] = CapaTitulo("Sombra" + p.Nombre, rt, p.Texto, p.Y ? cursiva : titulo, p.Y,
+                p.Y && cursivaFalsa, p.Y ? 0.2f : 0.3f, Hex("#2A1A10"));
+        }
+        for (int i = 0; i < palabras.Length; i++)
+        {
+            var p = palabras[i];
+            letras[i] = CapaTitulo("Letras" + p.Nombre, rt, p.Texto, p.Y ? cursiva : titulo, p.Y,
+                p.Y && cursivaFalsa, p.Y ? 0.2f : 0.3f, p.Y ? Hex("#F3E6C4") : Hex("#2A1A10"));
+        }
+        for (int i = 0; i < palabras.Length; i++)
+        {
+            var p = palabras[i];
+            if (!p.Y) brillos[i] = CapaTitulo("Brillo" + p.Nombre, rt, p.Texto, titulo, false, false, 0f, Color.clear);
+        }
+
+        var lista = so.FindProperty("words");
+        lista.arraySize = palabras.Length;
+        for (int i = 0; i < palabras.Length; i++)
+        {
+            var e = lista.GetArrayElementAtIndex(i);
+            e.FindPropertyRelative("main").objectReferenceValue = letras[i];
+            e.FindPropertyRelative("shadow").objectReferenceValue = sombras[i];
+            e.FindPropertyRelative("shine").objectReferenceValue = brillos[i];
+            e.FindPropertyRelative("top").colorValue = Hex(palabras[i].Arriba);
+            e.FindPropertyRelative("bottom").colorValue = Hex(palabras[i].Abajo);
+            e.FindPropertyRelative("verticalOffset").floatValue = palabras[i].Y ? -18f : 0f;
+        }
+        so.ApplyModifiedPropertiesWithoutUndo();
+        return rt;
+    }
+
+    // Atlas estatico solo con los glifos pedidos. null si no hay TTF o no se pudo generar.
+    private static TMP_FontAsset FuenteTitulo(StringBuilder reporte, string ttf, string atlas, string etiqueta,
+                                              string glifos, int tamanoAtlas)
+    {
+        TMP_FontAsset f = InterrogationUIBuilder.EnsureFont(reporte, new[] { ttf }, atlas, etiqueta, glifos, 96, 12, tamanoAtlas);
+        return f != null && AssetDatabase.GetAssetPath(f) == atlas ? f : null;
+    }
+
+    private static TMP_Text CapaTitulo(string nombre, Transform padre, string texto, TMP_FontAsset f, bool esY,
+                                       bool cursivaFalsa, float contorno, Color colorContorno)
+    {
+        var t = NuevoTexto(nombre, padre, texto, esY ? TamanoTitulo * 0.45f : TamanoTitulo);
+        if (f != null) t.font = f;
+        t.alignment = TextAlignmentOptions.Baseline;
+        t.enableWordWrapping = false;
+        t.overflowMode = TextOverflowModes.Overflow;
+        if (cursivaFalsa) t.fontStyle = FontStyles.Italic;
+        if (contorno > 0f)
+        {
+            t.outlineWidth = contorno;
+            t.outlineColor = colorContorno;
+        }
+        return t;
+    }
+
+    private static Color Hex(string hex)
+    {
+        ColorUtility.TryParseHtmlString(hex, out Color c);
+        return c;
+    }
+
+    // Reutiliza el filtro del libro (OldFilmFilter) en su propio Canvas, mas debil: se siente, no se nota.
+    private static void CrearPelicula(List<string> faltantes)
+    {
+        var material = Cargar<Material>(IntroBookBuilder.FilmMaterialPath);
+        if (material == null)
+        {
+            faltantes.Add("IntroOldFilm.mat (menu sin grano; corre Plomo y Paja -> Intro -> Construir escena del libro)");
+            return;
+        }
+
+        Canvas canvas = IntroBookBuilder.OverlayCanvas("UI_Pelicula", 60);
+        Undo.RegisterCreatedObjectUndo(canvas.gameObject, "Crear menu");
+
+        var img = NuevaImagen("Pelicula", canvas.transform);
+        Estirar(img.rectTransform);
+        img.color = Color.white;
+        img.raycastTarget = false;
+        img.material = material;
+
+        var so = new SerializedObject(img.gameObject.AddComponent<OldFilmFilter>());
+        so.FindProperty("graphic").objectReferenceValue = img;
+        so.FindProperty("grainStrength").floatValue = 0.06f;
+        so.FindProperty("dustChance").floatValue = 0.06f;
+        so.FindProperty("dustStrength").floatValue = 0.35f;
+        so.FindProperty("scratchChance").floatValue = 0.06f;
+        so.FindProperty("scratchStrength").floatValue = 0.15f;
+        so.FindProperty("flickerAmount").floatValue = 0.02f;
+        so.FindProperty("vignetteStrength").floatValue = 0.2f;
+        so.FindProperty("tint").colorValue = Color.white; // sin sepia: el atardecer conserva su color
+        so.ApplyModifiedPropertiesWithoutUndo();
+    }
+
+    private static void NuevaEtiqueta(string nombre, Transform padre, string txt, float y)
+    {
+        var t = NuevoTexto(nombre, padre, txt, 40);
+        Colocar(t.rectTransform, -300, y, 520, 70);
+        t.color = Crema;
+        t.alignment = TextAlignmentOptions.Right;
+    }
+
+    // El borde cambia de color al tener el foco del teclado.
+    private static void ResaltarFoco(Selectable s, Image fondo)
+    {
+        fondo.color = Color.white;
+        s.targetGraphic = fondo;
+        s.transition = Selectable.Transition.ColorTint;
+        var c = ColorBlock.defaultColorBlock;
+        c.normalColor = new Color(0.2f, 0.18f, 0.15f);
+        c.highlightedColor = new Color(0.35f, 0.3f, 0.2f);
+        c.selectedColor = new Color(0.55f, 0.45f, 0.25f);
+        c.pressedColor = new Color(0.55f, 0.45f, 0.25f);
+        c.disabledColor = new Color(0.2f, 0.18f, 0.15f, 0.5f);
+        s.colors = c;
     }
 
     // ---------- ayudantes ----------
@@ -202,6 +604,7 @@ public static class CrearMenuInicio
         go.transform.SetParent(padre, false);
 
         var t = go.AddComponent<TextMeshProUGUI>();
+        if (fuente != null) t.font = fuente;
         t.text = txt;
         t.fontSize = tam;
         t.alignment = TextAlignmentOptions.Center;
@@ -213,12 +616,15 @@ public static class CrearMenuInicio
                                      Sprite placa, float x, float y)
     {
         var img = NuevaImagen(nombre, padre);
-        Colocar(img.rectTransform, x, y, 420, 110);
+        // Con placa, el boton tiene la proporcion de la placa: toda el area clicable se ve.
+        float ancho = placa != null ? AltoBoton * placa.rect.width / placa.rect.height : 420f;
+        Colocar(img.rectTransform, x, y, ancho, AltoBoton);
 
         if (placa != null)
         {
             img.sprite = placa;
-            img.type = Image.Type.Sliced;
+            img.type = Image.Type.Simple;
+            img.preserveAspect = true;
             img.color = Color.white;
         }
         else
@@ -249,10 +655,14 @@ public static class CrearMenuInicio
         so.FindProperty("grosorBorde").floatValue = placa != null ? 0f : 6f;
         so.ApplyModifiedPropertiesWithoutUndo();
 
+        // BotonCartoon ya creo su borde al agregarse: con placa no debe quedar en la escena.
+        var borde = img.transform.Find("Borde");
+        if (placa != null && borde != null) Object.DestroyImmediate(borde.gameObject);
+
         return btn;
     }
 
-    private static Slider NuevoSlider(string nombre, Transform padre)
+    private static Slider NuevoSlider(string nombre, Transform padre, float min, float max, float valor)
     {
         var go = new GameObject(nombre, typeof(RectTransform));
         go.transform.SetParent(padre, false);
@@ -260,7 +670,7 @@ public static class CrearMenuInicio
 
         var fondo = NuevaImagen("Fondo", go.transform);
         Estirar(fondo.rectTransform);
-        fondo.color = new Color(0.2f, 0.18f, 0.15f);
+        ResaltarFoco(slider, fondo);
 
         var zona = new GameObject("Relleno", typeof(RectTransform));
         zona.transform.SetParent(go.transform, false);
@@ -271,10 +681,9 @@ public static class CrearMenuInicio
         relleno.color = Crema;
 
         slider.fillRect = relleno.rectTransform;
-        slider.targetGraphic = fondo;
-        slider.minValue = 0f;
-        slider.maxValue = 1f;
-        slider.value = 1f;
+        slider.minValue = min;
+        slider.maxValue = max;
+        slider.value = valor;
         return slider;
     }
 
@@ -286,7 +695,7 @@ public static class CrearMenuInicio
 
         var fondo = NuevaImagen("Fondo", go.transform);
         Estirar(fondo.rectTransform);
-        fondo.color = new Color(0.2f, 0.18f, 0.15f);
+        ResaltarFoco(toggle, fondo);
 
         var marca = NuevaImagen("Marca", go.transform);
         var r = marca.rectTransform;
@@ -296,7 +705,6 @@ public static class CrearMenuInicio
         r.offsetMax = Vector2.zero;
         marca.color = Crema;
 
-        toggle.targetGraphic = fondo;
         toggle.graphic = marca;
         toggle.isOn = Screen.fullScreen;
         return toggle;
