@@ -81,24 +81,28 @@ public static partial class LevelBuilder_Campamento
     };
 
     // ============ Objetos (L5, N7): siempre en un mueble o contenedor ============
+    // Contrato de N1.2: con "container", position.y es la altura de la superficie (el piso del cajón, la repisa, la tapa).
+    // Salen de las alturas de Cabinet (cada repisa), OpenCrate (fondo) y Table (h) en LevelBuilder_Campamento.Map/Lodge.
+
+    private const float ShelfLow = 0.45f, ShelfHigh = 1.05f, CrateBottom = 0.08f, WorkbenchTop = 0.9f, ConsoleTop = 0.85f;
 
     private static PickupLayout.Entry[] PickupSeed() => new[]
     {
         // Campamento
-        Seed("Cartuchos_Barracon", PickupKind.Cartuchos, new Vector3(-9.4f, 0.6f, 25.55f)),     // repisa del barracón entrable
-        Seed("Botiquin_Carpa", PickupKind.Botiquin, new Vector3(13.5f, 0f, 9.3f)),              // cajón abierto a la entrada de la carpa
-        Seed("Cartuchos_Aserradero", PickupKind.Cartuchos, new Vector3(10.2f, 0f, 40.6f)),      // banco de trabajo junto a la sierra
+        Seed("Cartuchos_Barracon", PickupKind.Cartuchos, new Vector3(-9.4f, ShelfHigh, 25.55f), "Barracón A: repisa alta del estante"),
+        Seed("Botiquin_Carpa", PickupKind.Botiquin, new Vector3(13.5f, CrateBottom, 9.3f), "Carpa A: cajón abierto de la entrada"),
+        Seed("Cartuchos_Aserradero", PickupKind.Cartuchos, new Vector3(10.2f, WorkbenchTop, 40.6f), "Aserradero: banco de trabajo junto a la sierra"),
         // Antes del salón (pasillo y oficina)
-        Seed("Cartuchos_Pasillo", PickupKind.Cartuchos, new Vector3(-1.12f, 0f, 56.2f)),        // consola del pasillo
-        Seed("Botiquin_Oficina", PickupKind.Botiquin, new Vector3(10.55f, 0.6f, 57f)),          // repisa del estante de la oficina
-        Seed("Balas_Oficina", PickupKind.BalasRevolver, new Vector3(3f, 0f, 59f)),              // cajón abierto de la oficina
+        Seed("Cartuchos_Pasillo", PickupKind.Cartuchos, new Vector3(-1.12f, ConsoleTop, 56.2f), "Pasillo: consola"),
+        Seed("Botiquin_Oficina", PickupKind.Botiquin, new Vector3(10.55f, ShelfHigh, 57f), "Oficina: repisa alta del estante"),
+        Seed("Balas_Oficina", PickupKind.BalasRevolver, new Vector3(3f, CrateBottom, 59f), "Oficina: cajón abierto"),
         // Dentro del salón
-        Seed("Cartuchos_Gabinete", PickupKind.Cartuchos, new Vector3(-8.55f, 0.6f, 61.6f)),     // gabinete, muro oeste
-        Seed("Balas_Barra", PickupKind.BalasRevolver, new Vector3(8.6f, -0.3f, 62.6f)),         // repisa baja, detrás de la barra
+        Seed("Cartuchos_Gabinete", PickupKind.Cartuchos, new Vector3(-8.55f, ShelfHigh, 61.6f), "Salón: gabinete, muro oeste"),
+        Seed("Balas_Barra", PickupKind.BalasRevolver, new Vector3(8.6f, ShelfLow, 62.6f), "Salón: repisa baja detrás de la barra"),
     };
 
-    private static PickupLayout.Entry Seed(string id, PickupKind kind, Vector3 position) =>
-        new PickupLayout.Entry { id = id, kind = kind, position = position };
+    private static PickupLayout.Entry Seed(string id, PickupKind kind, Vector3 position, string container) =>
+        new PickupLayout.Entry { id = id, kind = kind, position = position, container = container };
 
     // ============ Menú ============
 
@@ -164,6 +168,7 @@ public static partial class LevelBuilder_Campamento
 #pragma warning restore 618
         ValidateRoutes(report);
         ValidateBorders(report);
+        PickupBuilder.ValidateSpots(report); // N7: con el NavMesh horneado. Su punto de partida (0, 0, -15) cae en el sendero
         ReportMissingAudio(report);
         EditorSceneManager.SaveScene(scene, ScenePath);
 
@@ -322,6 +327,7 @@ public static partial class LevelBuilder_Campamento
         if (companionPrefab != null) PrefabUtility.InstantiatePrefab(companionPrefab);
         else report.AppendLine("✗ Falta AICompanion.prefab: sin pensamientos.");
 
+        // Los crea GameManagersBootstrap antes de cargar la escena (N2.1.1): esta copia se destruye sola
         var managers = new GameObject("GameManagers");
         managers.AddComponent<GameManager>();
         managers.AddComponent<GameStateTracker>();
@@ -457,19 +463,51 @@ public static partial class LevelBuilder_Campamento
             AssetDatabase.CreateAsset(layout, LayoutPath);
             AssetDatabase.SaveAssets();
         }
+        else if (FillMissingContainers(layout, report))
+        {
+            EditorUtility.SetDirty(layout);
+            AssetDatabase.SaveAssets();
+        }
 
         PickupBuilder.BuildPrefabs(report);
+        // N7: sin drops de guardias. PlaceInOpenScene deja el spawner con dropsEnabled apagado (N1.2), también desde
+        // "HUD → Colocar objetos": nada los vuelve a prender
         PickupBuilder.PlaceInOpenScene(report);
-
-        // N7: sin drops de guardias. Queda apagado en la escena: encenderlo es activar el objeto
-        foreach (GuardDropSpawner spawner in Object.FindObjectsOfType<GuardDropSpawner>(true))
-            spawner.gameObject.SetActive(false);
-        report.AppendLine("✓ Drops de guardias apagados en esta escena.");
 
         // N7: ningún objeto en el piso
         foreach (Pickup pickup in Object.FindObjectsOfType<Pickup>(true))
             if (pickup.transform.position.y < 0.05f)
                 report.AppendLine("⚠ " + pickup.name + " quedó en el piso: no encontró su mueble en " + pickup.transform.position);
+    }
+
+    /// <summary>
+    /// Un asset de antes de N2.1.1 (o creado vacío por "Colocar objetos"): sin container, N1.2 baja el objeto al piso. Solo se
+    /// completa lo que no tiene mueble; lo guardado con su container en "Guardar posiciones de objetos" no se toca.
+    /// </summary>
+    private static bool FillMissingContainers(PickupLayout layout, StringBuilder report)
+    {
+        PickupLayout.Entry[] seed = PickupSeed();
+        if (layout.entries.Count == 0)
+        {
+            layout.entries.AddRange(seed);
+            return true;
+        }
+
+        bool changed = false;
+        foreach (PickupLayout.Entry entry in layout.entries)
+        {
+            if (!string.IsNullOrEmpty(entry.container)) continue;
+            PickupLayout.Entry known = System.Array.Find(seed, s => s.id == entry.id);
+            if (known == null)
+            {
+                report.AppendLine("⚠ " + entry.id + " no tiene mueble y no es de la distribución del nivel: va a bajar al piso.");
+                continue;
+            }
+            entry.position = known.position;
+            entry.container = known.container;
+            changed = true;
+        }
+        return changed;
     }
 
     // ============ Validación (en el Editor, al generar) ============

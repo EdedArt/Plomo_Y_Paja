@@ -34,6 +34,11 @@ Un campamento de la banda de Don Lobo escondido en el bosque, junto a un aserrad
 
 Después sale un pensamiento de la API (contexto: acaba de entrar al bosque siguiendo las huellas, se oye jazz a lo lejos).
 
+**Respaldo** (si la API falla o tarda más de 6 s, sale una al azar):
+- Jazz en medio del bosque. O el Lobo tiene buen gusto… o alguien está celebrando algo.
+- Las huellas siguen juntas. Si lo arrastraban, se cansaron muy pronto.
+- Un campamento entero para cobrar una deuda. Porky debía más que plata.
+
 ---
 
 ## 2. Don Lobo
