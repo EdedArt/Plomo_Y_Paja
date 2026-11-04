@@ -600,6 +600,11 @@ MonoBehaviour:
   flashSpriteMaterial: {fileID: 2100000, guid: 19ee1c0aee363e24eb6ec031efd9a217, type: 2}
   decalLifetime: 30
   decalFadeTime: 2
+  decalTextures:
+  - {fileID: 2800000, guid: cb01d8e22e8904d459d806372df05b95, type: 3}
+  - {fileID: 2800000, guid: e76d1b2d98d8f8647b77f31351fd4afb, type: 3}
+  - {fileID: 2800000, guid: df522b6a5868ae042a95de2eb631cdc4, type: 3}
+  - {fileID: 2800000, guid: a107df6d92069124c9b2cc744596b09c, type: 3}
 --- !u!114 &1868268103767418084
 MonoBehaviour:
   m_ObjectHideFlags: 0
