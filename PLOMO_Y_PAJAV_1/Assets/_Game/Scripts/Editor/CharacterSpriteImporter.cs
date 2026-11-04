@@ -30,7 +30,9 @@ public class CharacterSpriteImporter : AssetPostprocessor
     //     del HUD (sprite de UI: pivote al centro, sin mipmaps, sin compresión), nunca con la de personaje (PPU 250 y pivote
     //     en los pies). Los PNG de Edgar ya se movieron a Art/UI/HUD/ con los ids del guion.
     // 13: HUD.3: Art/Props/pickups/ (objetos del mapa: PPU 500, pivote abajo al centro, mipmaps).
-    public override uint GetVersion() => 13;
+    // 14: PISTAS.2: Art/Props/pistas/ (dibujos de las pistas: PPU 3333 ≈ 0.3 m, pivote abajo al centro, mipmaps; la imagen
+    //     grande de la hoja, pista_foto_reunion_grande, como Sprite de UI sin compresión).
+    public override uint GetVersion() => 14;
 
     /// <summary>Texturas del libro de la intro (fase INTRO): Art/Intro/ilus_intro_NN, libro_portada, libro_guardas, libro_papel.</summary>
     public const string IntroFolder = "Assets/_Game/Art/Intro";
@@ -61,6 +63,14 @@ public class CharacterSpriteImporter : AssetPostprocessor
     /// <summary>Objetos del mapa (fase HUD.3): Art/Props/pickups/&lt;id&gt;.png, recortados con "character_key.py Objetos" (apoyan en el piso).</summary>
     public const string PropPickupsFolder = "Assets/_Game/Art/Props/pickups";
 
+    /// <summary>
+    /// Dibujos de las pistas (PISTAS.2): Art/Props/pistas/pista_*_01.png, recortados a lo opaco con
+    /// "character_key.py --single --crop 4" (el borde de abajo del PNG es el del dibujo). Lado mayor ≈ 1000 px → 3333 px por
+    /// metro ≈ 0.3 m (CluePickup igual lo deja en 0.3 m). Las imágenes grandes de la hoja (*_grande) son Sprites de UI.
+    /// </summary>
+    public const string CluesFolder = "Assets/_Game/Art/Props/pistas";
+    private const float CluePixelsPerUnit = 3333f;
+
     /// <summary>Alpha mínimo (0..255) para considerar que un píxel es parte del personaje.</summary>
     private const byte FeetAlpha = 26; // 0.1
 
@@ -75,6 +85,14 @@ public class CharacterSpriteImporter : AssetPostprocessor
         if (path.StartsWith(PropPickupsFolder + "/"))
         {
             ApplyPickup((TextureImporter)assetImporter, SpriteAlignment.BottomCenter, 500f);
+            return;
+        }
+        if (path.StartsWith(CluesFolder + "/"))
+        {
+            if (System.IO.Path.GetFileNameWithoutExtension(path).EndsWith("_grande"))
+                ApplyHud((TextureImporter)assetImporter, 2048);   // imagen de la hoja: UI, sin mipmaps ni compresión
+            else
+                ApplyPickup((TextureImporter)assetImporter, SpriteAlignment.BottomCenter, CluePixelsPerUnit);
             return;
         }
         if (path.StartsWith(FxFolder + "/"))
@@ -195,7 +213,7 @@ public class CharacterSpriteImporter : AssetPostprocessor
 
     /// <summary>HUD (HUD.1, paso 0): Sprite Single, Full Rect, pivote al centro, SIN mipmaps, sin compresión, Bilinear,
     /// alpha = transparencia. El PPU (100) no importa en la UI: HudWilbur fija el tamaño de cada Image.</summary>
-    private static void ApplyHud(TextureImporter importer)
+    private static void ApplyHud(TextureImporter importer, int maxSize = 1024)
     {
         importer.textureType = TextureImporterType.Sprite;
         importer.textureShape = TextureImporterShape.Texture2D;
@@ -205,7 +223,7 @@ public class CharacterSpriteImporter : AssetPostprocessor
         importer.textureCompression = TextureImporterCompression.Uncompressed;
         importer.alphaIsTransparency = true;
         importer.alphaSource = TextureImporterAlphaSource.FromInput;
-        importer.maxTextureSize = 1024;
+        importer.maxTextureSize = maxSize;
         var settings = new TextureImporterSettings();
         importer.ReadTextureSettings(settings);
         settings.spriteMode = (int)SpriteImportMode.Single;
