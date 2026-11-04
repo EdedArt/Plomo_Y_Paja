@@ -63,7 +63,7 @@ PAIRS = {  # frame -> referencia
 }
 
 
-def key_magenta(path, lo, hi, despill_all=False):
+def key_magenta(path, lo, hi, despill_all=False, edge_strength=0.5):
     a = np.asarray(Image.open(path).convert("RGB")).astype(np.float32)
     r, g, b = a[..., 0], a[..., 1], a[..., 2]
     m = np.minimum(r, b) - g
@@ -75,7 +75,7 @@ def key_magenta(path, lo, hi, despill_all=False):
         p = np.pad(near, 1)
         near = near | p[:-2, 1:-1] | p[2:, 1:-1] | p[1:-1, :-2] | p[1:-1, 2:]
     spill = (m > 0) & near
-    d = np.where(spill, m * 0.5, 0.0)
+    d = np.where(spill, m * edge_strength, 0.0)
     if despill_all:  # humo translúcido (fx_impacto_02): el magenta se transparenta en todo el dibujo; R y B bajan hasta G
         d = np.where(m > 0, m, 0.0)
     return np.dstack([r - d, g, b - d]), alpha
@@ -106,7 +106,7 @@ def bbox(alpha):
 
 
 def key_single(args):
-    rgb, alpha = key_magenta(args.single, args.lo, args.hi)
+    rgb, alpha = key_magenta(args.single, args.lo, args.hi, edge_strength=1.0 if args.defringe else 0.5)
     rgb = dilate(rgb, alpha, args.dilate)
     h, w = alpha.shape
     if args.crop >= 0:
@@ -175,6 +175,7 @@ def main():
     ap.add_argument("--dst", default=DST)
     ap.add_argument("--single", default=None, help="un solo PNG (sin escalar ni alinear)")
     ap.add_argument("--out", default=None, help="salida de --single (por defecto, sobrescribe la entrada)")
+    ap.add_argument("--defringe", action="store_true", help="--single: despill COMPLETO en la franja de borde (sin halo rosado en bordes crema)")
     ap.add_argument("--crop", type=int, default=-1, help="--single: recortar a lo opaco con este margen en px")
     ap.add_argument("--center", nargs="?", const="HUD", default=None,
                     help="iconos centrados: carpeta _entrante_hud/<NOMBRE> (por defecto HUD) -> Art/UI/HUD")

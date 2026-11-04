@@ -32,7 +32,11 @@ public class CharacterSpriteImporter : AssetPostprocessor
     // 13: HUD.3: Art/Props/pickups/ (objetos del mapa: PPU 500, pivote abajo al centro, mipmaps).
     // 14: PISTAS.2: Art/Props/pistas/ (dibujos de las pistas: PPU 3333 ≈ 0.3 m, pivote abajo al centro, mipmaps; la imagen
     //     grande de la hoja, pista_foto_reunion_grande, como Sprite de UI sin compresión).
-    public override uint GetVersion() => 14;
+    // 15: Art/UI/Tutorial/ (tarjetas ilustradas del tutorial: Sprite de UI, sin mipmaps, 2048, compresión HQ, clamp).
+    public override uint GetVersion() => 15;
+
+    /// <summary>Tarjetas ilustradas del tutorial (N1.3b): Art/UI/Tutorial/tut_*.png, recortadas con character_key.py --single --defringe.</summary>
+    public const string TutorialFolder = "Assets/_Game/Art/UI/Tutorial";
 
     /// <summary>Texturas del libro de la intro (fase INTRO): Art/Intro/ilus_intro_NN, libro_portada, libro_guardas, libro_papel.</summary>
     public const string IntroFolder = "Assets/_Game/Art/Intro";
@@ -98,6 +102,11 @@ public class CharacterSpriteImporter : AssetPostprocessor
         if (path.StartsWith(FxFolder + "/"))
         {
             ApplyPickup((TextureImporter)assetImporter); // mismo trato: Sprite con alpha, pivote al centro, mipmaps
+            return;
+        }
+        if (path.StartsWith(TutorialFolder + "/"))
+        {
+            ApplyTutorialCard((TextureImporter)assetImporter);
             return;
         }
         if (IsHudArt(path)) // HUD.1.1: también Art/Characters/hud/ (regla explícita, antes caía en la de personaje)
@@ -213,6 +222,28 @@ public class CharacterSpriteImporter : AssetPostprocessor
 
     /// <summary>HUD (HUD.1, paso 0): Sprite Single, Full Rect, pivote al centro, SIN mipmaps, sin compresión, Bilinear,
     /// alpha = transparencia. El PPU (100) no importa en la UI: HudWilbur fija el tamaño de cada Image.</summary>
+    /// <summary>Tarjetas del tutorial: Sprite de UI, sin mipmaps, máx. 2048, compresión de alta calidad, Clamp.</summary>
+    private static void ApplyTutorialCard(TextureImporter importer)
+    {
+        importer.textureType = TextureImporterType.Sprite;
+        importer.textureShape = TextureImporterShape.Texture2D;
+        importer.spriteImportMode = SpriteImportMode.Single;
+        importer.mipmapEnabled = false;
+        importer.wrapMode = TextureWrapMode.Clamp;
+        importer.filterMode = FilterMode.Bilinear;
+        importer.textureCompression = TextureImporterCompression.CompressedHQ;
+        importer.alphaIsTransparency = true;
+        importer.alphaSource = TextureImporterAlphaSource.FromInput;
+        importer.maxTextureSize = 2048;
+        var settings = new TextureImporterSettings();
+        importer.ReadTextureSettings(settings);
+        settings.spriteMode = (int)SpriteImportMode.Single;
+        settings.spriteMeshType = SpriteMeshType.FullRect;
+        settings.spriteAlignment = (int)SpriteAlignment.Center;
+        settings.spritePixelsPerUnit = 100f;
+        importer.SetTextureSettings(settings);
+    }
+
     private static void ApplyHud(TextureImporter importer, int maxSize = 1024)
     {
         importer.textureType = TextureImporterType.Sprite;
