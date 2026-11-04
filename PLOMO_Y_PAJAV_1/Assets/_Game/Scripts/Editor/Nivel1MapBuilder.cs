@@ -27,6 +27,15 @@ public static class Nivel1MapBuilder
     public static readonly Vector3 ForestGatePosition = new Vector3(-6.4f, 0f, ContadorYardBuilder.RinconBackZ);
     public static readonly Vector3 LevelExitPosition = new Vector3(-6.2f, 0f, 55f);
 
+    // N1.2 (PickupBuilder): superficies de los objetos en lo que arma este builder
+    private const float PorchTop = 0.24f;
+    private const float PorchTableOffsetX = 1.45f, PorchTableOffsetZ = -1.05f;
+    private const float NeighbourBDoorX = 22f;
+    private const float AlleyCrateSize = 0.8f;
+    private static readonly Vector3 AlleyCratePosition = new Vector3(-13f, 0f, -1.2f);
+    public static readonly Vector3 PorchTableSpot = new Vector3(NeighbourBDoorX + PorchTableOffsetX, PorchTop + 0.78f, NeighbourFacadeZ + PorchTableOffsetZ);
+    public static readonly Vector3 AlleyCrateSpot = AlleyCratePosition + Vector3.up * AlleyCrateSize;
+
     private const float StreetEndX = 44f;
     private const float StreetSouthZ = -17f;
     private const float FacadeZ = -20f;
@@ -87,12 +96,15 @@ public static class Nivel1MapBuilder
         LevelBuilder_NivelPorky.RefreshYardGround(environment);
         ContadorYardBuilder.RefreshYardForMap(environment, lighting);
         BuildInto(environment, lighting, markers, report);
+        PickupBuilder.BuildPrefabs(report); // N1.2: los objetos van sobre los muebles que se acaban de rehacer
+        PickupBuilder.PlaceInOpenScene(report);
 
         EditorSceneManager.MarkSceneDirty(scene);
         EditorSceneManager.SaveScene(scene);
         LevelBuilder_NivelPorky.BakeNavMesh();
         bool ok = Validate(report);
         ok &= ContadorYardBuilder.ValidatePaths(report);
+        ok &= PickupBuilder.ValidateSpots(report);
         EditorSceneManager.SaveScene(scene);
         AssetDatabase.SaveAssets();
 
@@ -186,6 +198,7 @@ public static class Nivel1MapBuilder
         PlaceAnchors(markers);
         BuildSafetyCatch(markers);
         ApplyReadableLighting(report);
+        Nivel1FurnitureBuilder.BuildInto(environment, lighting); // N1.2: los muebles donde van los objetos
 
         report.AppendLine($"✓ Calle x ±{StreetEndX}, vecinos, callejón lateral, lote vacío, portón del bosque en {ForestGatePosition}, salida en {LevelExitPosition}");
     }
@@ -301,7 +314,7 @@ public static class Nivel1MapBuilder
     {
         Neighbour("Vecino_C", -43f, -30f, 5.6f, "RevoqueCalido", -37f, false, parent, lights);
         Neighbour("Vecino_A", -28f, -15f, 6.2f, "Ladrillo", -21f, false, parent, lights);
-        Neighbour("Vecino_B", 15f, 28f, 5.2f, "Revoque", 22f, true, parent, lights);
+        Neighbour("Vecino_B", 15f, 28f, 5.2f, "Revoque", NeighbourBDoorX, true, parent, lights);
 
         // El vecino A da al callejón: ventanas de ese lado, para que no sea una pared en blanco
         Transform a = parent.Find("Vecino_A");
@@ -339,7 +352,7 @@ public static class Nivel1MapBuilder
         CartoonKit.MeshObject(name + "_Techo", roof, new[] { CartoonKit.M("TechoEdificio"), CartoonKit.M(wall) }, root, new Vector3(cx, height, zFront + depth * 0.5f), Quaternion.identity);
 
         // Porche: piso de 0.24 m (se sube sin saltar, stepOffset 0.3), escalón, postes y alero
-        const float porchTop = 0.24f, porchDepth = 2f, porchWidth = 5f;
+        const float porchTop = PorchTop, porchDepth = 2f, porchWidth = 5f;
         Material wood = CartoonKit.M("Madera"), dark = CartoonKit.M("MaderaOscura");
         CartoonKit.Box(name + "_Porche", new Vector3(doorX, porchTop * 0.5f - 0.05f, zFront - porchDepth * 0.5f), new Vector3(porchWidth, porchTop + 0.1f, porchDepth), wood, root, default, 0.03f);
         CartoonKit.Box(name + "_Escalon", new Vector3(doorX, 0.05f, zFront - porchDepth - 0.25f), new Vector3(2f, 0.12f, 0.5f), dark, root, default, 0.03f);
@@ -373,7 +386,7 @@ public static class Nivel1MapBuilder
         if (porchTable)
         {
             // Para N1.2: mesa del porche del vecino
-            CartoonKit.RoundTable(name + "_Mesa_Porche", new Vector3(doorX + 1.45f, porchTop, zFront - 1.05f), root, 0.42f);
+            CartoonKit.RoundTable(name + "_Mesa_Porche", new Vector3(doorX + PorchTableOffsetX, porchTop, zFront + PorchTableOffsetZ), root, 0.42f);
             CartoonKit.Chair(name + "_Silla_Porche", new Vector3(doorX - 1.5f, porchTop, zFront - 1f), 100f, root);
         }
     }
@@ -396,7 +409,7 @@ public static class Nivel1MapBuilder
         for (int i = 0; i < cans.Length; i++)
             CartoonKit.FitCollider(CartoonKit.MeshObject($"Bote_Basura_{i}", can, canMats, alley, cans[i], Quaternion.Euler(0f, i * 40f, 0f)));
 
-        CartoonKit.Crate("Caja_Callejon_Lateral_A", new Vector3(-13f, 0f, -1.2f), 8f, alley, 0.8f);
+        CartoonKit.Crate("Caja_Callejon_Lateral_A", AlleyCratePosition, 8f, alley, AlleyCrateSize);
         CartoonKit.Crate("Caja_Callejon_Lateral_B", new Vector3(-10.6f, 0f, 2.7f), -12f, alley, 0.7f);
         CartoonKit.Barrel("Barril_Callejon_Lateral", new Vector3(-10.55f, 0f, -2.2f), 20f, alley, 3);
 
@@ -829,7 +842,7 @@ public static class Nivel1MapBuilder
         return ok;
     }
 
-    private static bool Reachable(Vector3 from, Vector3 to)
+    public static bool Reachable(Vector3 from, Vector3 to)
     {
         if (!NavMesh.SamplePosition(from, out NavMeshHit a, 1f, NavMesh.AllAreas)) return false;
         if (!NavMesh.SamplePosition(to, out NavMeshHit b, 1f, NavMesh.AllAreas)) return false;

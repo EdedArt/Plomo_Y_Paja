@@ -92,6 +92,10 @@ public static class ContadorYardBuilder
     private static readonly Vector3 BenchSize = new Vector3(1.9f, BenchHeight, 0.62f);
     private const float ActivationRadius = 12f;
 
+    // N1.2 (PickupBuilder): las superficies del premio. Banco: en la punta sin morsa ni lata. Caja: la que cierra el lado del banco
+    public static Vector3 WorkbenchSpot => ShedToWorld(BenchPosition + new Vector3(0.62f, BenchHeight, 0f));
+    public static Vector3 CrateSpot => ShedToWorld(new Vector3(1.45f, FloorTop + 0.78f, 0.38f));
+
     private static readonly Color LampColor = new Color(1f, 0.58f, 0.24f);
     private static readonly Color MoonColor = new Color32(0x9E, 0xBD, 0xFF, 0xFF);
 

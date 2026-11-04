@@ -9,6 +9,7 @@ using UnityEngine;
 /// Con dos objetos al alcance, manda el más cercano (un solo aviso y una sola tecla por objeto).
 /// SE VE: hijo "Visual" (SpriteRenderer + BillboardSprite, o el placeholder con etiqueta si falta el PNG), vaivén de ±3 cm en
 /// 1.4 s, y cada 2–3 s un brillo: la lucecita cálida sube y el dibujo crece un poco. Sin colliders: no tapa ni frena nada.
+/// N1.2 (regla N7): los que están colocados en un mueble no se mueven (PickupBuilder les pone bobAmplitude 0): solo el brillo.
 /// Reiniciar tras morir recarga la escena (H17): objetos y drops vuelven solos.
 /// </summary>
 public abstract class Pickup : MonoBehaviour
@@ -81,20 +82,28 @@ public abstract class Pickup : MonoBehaviour
     /// </summary>
     public static Vector3 SnapToGround(Vector3 position, float up = 1.2f, float down = 5f)
     {
+        if (TryFindSurface(position, up, down, out RaycastHit hit)) position.y = hit.point.y;
+        return position;
+    }
+
+    /// <summary>La primera superficie bajo position (sin guardias, jugador ni triggers). También la usa PickupSpot (N1.2).</summary>
+    public static bool TryFindSurface(Vector3 position, float up, float down, out RaycastHit surface)
+    {
         int count = Physics.RaycastNonAlloc(position + Vector3.up * up, Vector3.down, GroundHits, up + down,
             Physics.DefaultRaycastLayers, QueryTriggerInteraction.Ignore);
         float best = float.MaxValue;
+        surface = default;
         for (int i = 0; i < count; i++)
         {
             RaycastHit hit = GroundHits[i];
             if (hit.distance >= best || IsActor(hit.collider)) continue;
             best = hit.distance;
-            position.y = hit.point.y;
+            surface = hit;
         }
-        return position;
+        return best < float.MaxValue;
     }
 
-    private static bool IsActor(Collider collider)
+    public static bool IsActor(Collider collider)
     {
         return collider.GetComponentInParent<EnemyHealth>() != null || collider.GetComponentInParent<PlayerHealth>() != null;
     }

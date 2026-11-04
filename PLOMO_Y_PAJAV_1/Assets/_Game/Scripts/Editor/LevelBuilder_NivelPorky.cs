@@ -30,7 +30,7 @@ public static class LevelBuilder_NivelPorky
 {
     public const string ScenePath = "Assets/Scenes/NivelPorky.unity";
 
-    private const float WallHeight = 3.5f;
+    public const float WallHeight = 3.5f;
     private const float WallThickness = 0.2f;
     private const float DoorWidth = 1.6f;
     private const float DoorHeight = 2.4f;
@@ -117,6 +117,7 @@ public static class LevelBuilder_NivelPorky
         if (!ContadorYardBuilder.ValidatePaths(yardReport))
             Debug.LogWarning("[LevelBuilder] Patio del contador:\n" + yardReport);
         Nivel1MapBuilder.Validate(mapReport);
+        PickupBuilder.ValidateSpots(mapReport); // N1.2: cada objeto se alcanza y se ve de pie
         Debug.Log("[LevelBuilder] Mapa N1.1:\n" + mapReport);
         EditorSceneManager.SaveScene(scene, ScenePath);
 
@@ -148,7 +149,7 @@ public static class LevelBuilder_NivelPorky
     // N1.1: ya no va al callejón del fondo (no existe); lleva al portón del rincón de Centavo
     private static readonly Vector3[] BackPath = { new Vector3(-4f, 0f, 6.3f), new Vector3(-3.8f, 0f, 9f), new Vector3(-5.6f, 0f, 11.5f), new Vector3(-7f, 0f, 13.4f) };
 
-    private const float FloorTop = 0.06f;
+    public const float FloorTop = 0.06f;
 
     // Goteras: agujeros del cielorraso (rect x,z) y del techo de paja (x, z, radio). Fuera de pistas y puertas.
     private static readonly Rect LeakKitchenA = new Rect(-1.5f, 3.9f, 1.4f, 1.4f);      // centro (-0.8, 4.6)
@@ -335,8 +336,9 @@ public static class LevelBuilder_NivelPorky
         GameObject tipped2 = CartoonKit.Chair("Silla_Volcada_Cocina", new Vector3(3.3f, FloorTop + 0.24f, 3.3f), 0f, furniture, true);
         tipped2.transform.rotation = Quaternion.Euler(0f, -60f, 90f);
         CartoonKit.IceBox("Nevera", new Vector3(7.4f, FloorTop, 5.25f), 180f, furniture, lighting);
-        CartoonKit.Barrel("Barril_Cocina", new Vector3(-7.3f, FloorTop, 5.3f), 0f, furniture, 0);
-        CartoonKit.Crate("Caja_Cocina", new Vector3(-6.35f, FloorTop, 5.35f), 8f, furniture, 0.7f);
+        // N1.2: su rincón ahora es el baño (Nivel1FurnitureBuilder)
+        CartoonKit.Barrel("Barril_Cocina", Nivel1FurnitureBuilder.KitchenBarrelPosition, 0f, furniture, 0);
+        CartoonKit.Crate("Caja_Cocina", Nivel1FurnitureBuilder.KitchenCratePosition, 8f, furniture, 0.7f);
         Light kitchenBulb = CartoonKit.BareBulb("Bombilla_Cocina", new Vector3(0f, WallHeight, 3.3f), 0.6f, furniture, lighting, InteriorLamp, 2f, 6.5f);
         MakeSubtleFlicker(kitchenBulb);                                  // la única que parpadea, apenas
 
