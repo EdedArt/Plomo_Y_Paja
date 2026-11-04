@@ -14,4 +14,7 @@ EditorBuildSettings:
   - enabled: 1
     path: Assets/Scenes/NivelPorky.unity
     guid: d71a73e39fcc1b247b9066e7f5041c72
+  - enabled: 1
+    path: Assets/Scenes/Campamento.unity
+    guid: 6ce58828a69452f4ea02b48dbc767059
   m_configObjects: {}
