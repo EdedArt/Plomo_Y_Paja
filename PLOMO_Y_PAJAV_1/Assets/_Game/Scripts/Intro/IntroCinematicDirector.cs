@@ -16,9 +16,10 @@ using UnityEngine;
 ///  4. sfx_puerta_carro, negro 0.5 s, el jugador en Anchor_PlayerCurb mirando curbStandYaw (el lado de la acera).
 ///  5. Llegada (INTRO.2.1): a la vez vuelve la imagen, la mirada gira 1.8 s hacia Anchor_HouseLook y el taxi arranca por
 ///     Taxi_ExitPath (recto al oeste, a espaldas de la cámara: fuera de cuadro en toda la llegada) con sfx_taxi_arranca
-///     (3D, se apaga con la distancia). Al final del camino se apaga, y Release lo apaga sí o sí antes de devolver el
-///     control (sin esperar Renderer.isVisible). → wilbur_casa_01 → pensamiento fijo de la IA (I9,
-///     AICompanion.ShowCustomLine, sin API) → cartel "PLOMO Y PAJA" (opcional).
+///     (3D; N1.3: el motor baja en el último tramo). Al final del camino (antes de x -40, sin llegar a la barricada) se apaga,
+///     y Release lo apaga sí o sí antes de devolver el control (sin esperar Renderer.isVisible). → wilbur_casa_01 →
+///     pensamiento fijo de la IA (I9, AICompanion.ShowCustomLine, sin API) → RevealThoughtEnded (N1.3: la tarjeta
+///     "Pensamientos" de TutorialDirector; la secuencia espera mientras HoldAfterReveal) → cartel "PLOMO Y PAJA" (opcional).
 ///  PUNTO BLANCO (INTRO.2.1): CinematicState.CenterDot solo sentado en el taxi con la imagen clara (se puede mirar);
 ///     apagado en los fundidos, en la llegada (giro, línea, pensamiento, cartel) y al saltar.
 ///  6. Fuera franjas y subtítulos; el control vuelve desde donde quedó la vista (sin salto; nunca toca el FOV).
@@ -100,7 +101,10 @@ public class IntroCinematicDirector : MonoBehaviour
     [SerializeField] private float afterStopSeconds = 0.6f;
     [SerializeField] private float lineGap = 0.4f;
     [SerializeField] private float exitFadeSeconds = 0.5f;
-    [SerializeField] private float exitDriveSeconds = 7f;
+    [Tooltip("N1.3: el camino ahora es de 22 m (antes 45 m en 7 s)")]
+    [SerializeField] private float exitDriveSeconds = 4.5f;
+    [Tooltip("N1.3: el motor baja a cero en este último tramo: el taxi se apaga cerca y no debe cortarse el sonido")]
+    [SerializeField] private float exitEngineFadeSeconds = 1.5f;
     [SerializeField] private float revealSeconds = 1.8f;
     [Tooltip("Hacia dónde mira Wilbur al bajarse (yaw del mundo, 0 = +z). 20 = hacia la cerca de la acera: el giro a la " +
              "casa va a la derecha y el taxi, que se va al oeste, nunca entra en cuadro (INTRO.2.1)")]
@@ -130,12 +134,23 @@ public class IntroCinematicDirector : MonoBehaviour
     private bool _playing;
     private bool _finished;
     private bool _skipRequested;
+    private bool _holdAfterReveal;
     private Coroutine _main;
     private Coroutine _exitDrive;
     private AudioLowPassFilter[] _carriedFilters = new AudioLowPassFilter[0];
 
     /// <summary>¿La cinemática del taxi corre en esta carga? (válido desde Awake; lo lee PlayerWeaponHolster en Start)</summary>
     public bool PlaysThisLoad => _playing;
+
+    /// <summary>N1.3: terminó el pensamiento fijo de la llegada (no se dispara si se saltó antes). Lo escucha TutorialDirector.</summary>
+    public event Action RevealThoughtEnded;
+
+    /// <summary>N1.3: la secuencia se queda después de RevealThoughtEnded (y no se puede saltar) hasta que se pasa a false.</summary>
+    public void SetHoldAfterReveal(bool hold)
+    {
+        _holdAfterReveal = hold;
+        if (skip != null && !_finished && !_skipRequested) skip.Armed = !hold;
+    }
 
     public static bool HasPlayed =>
         _playedThisSession || (GameStateTracker.Instance != null && GameStateTracker.Instance.IntroCinematicPlayed);
@@ -242,6 +257,8 @@ public class IntroCinematicDirector : MonoBehaviour
             else Debug.LogWarning("[Intro] No hay AICompanion: el pensamiento de la llegada no se muestra.");
             yield return Wait(aiThoughtSeconds);
         }
+        RevealThoughtEnded?.Invoke();
+        while (_holdAfterReveal && !_skipRequested) yield return null;
         if (showTitleCard && titleCard != null)
         {
             yield return FadeGroup(titleCard, 1f, titleFadeSeconds);
@@ -309,7 +326,8 @@ public class IntroCinematicDirector : MonoBehaviour
 
     /// <summary>
     /// El taxi se va (arranca suave) y se apaga al final del camino (INTRO.2.1: sin esperar Renderer.isVisible). El camino va
-    /// recto al oeste, a espaldas de la cámara de la llegada, y termina a más de maxDistance del motor: el sonido ya se apagó.
+    /// recto al oeste, a espaldas de la cámara de la llegada. N1.3: termina antes de la barricada, todavía al alcance del motor,
+    /// así que el motor baja a cero antes de apagarlo.
     /// </summary>
     private IEnumerator DriveAway()
     {
@@ -327,6 +345,7 @@ public class IntroCinematicDirector : MonoBehaviour
                 PlaceTaxiOn(exitPath, d);
                 if (interior != null) interior.SetSpeed((d - last) / Mathf.Max(1e-4f, Time.unscaledDeltaTime));
                 last = d;
+                if (taxiEngine != null) taxiEngine.volume = Mathf.Clamp01((exitDriveSeconds - t) / Mathf.Max(0.01f, exitEngineFadeSeconds));
                 yield return null;
             }
             PlaceTaxiOn(exitPath, length);
