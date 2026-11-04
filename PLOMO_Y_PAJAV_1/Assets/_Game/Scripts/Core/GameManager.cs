@@ -4,7 +4,7 @@ using UnityEngine.SceneManagement;
 
 /// <summary>
 /// Orquesta el flujo general del juego: inicio, derrota, finales, reinicio.
-/// DÓNDE VA: GameObject "GameManagers" (mismo que GameStateTracker y AICompanion).
+/// DÓNDE VA: lo crea GameManagersBootstrap al arrancar el juego (N2.1.1). La copia que traiga una escena se destruye sola.
 ///
 /// ESCENAS NECESARIAS (configurar en File → Build Settings):
 /// Index 0: "MainMenu"
@@ -65,14 +65,34 @@ public class GameManager : MonoBehaviour
     }
 
     /// <summary>
-    /// Reintentar desde la pantalla de muerte — recarga la escena actual.
+    /// El jugador murió y LevelDeathRestart va a recargar (N2.1.1): sin pausa ni control hasta entonces.
+    /// No hay pantalla de muerte en el juego, así que no pasa por PlayerDied.
+    /// </summary>
+    public void MarkGameOverForRestart()
+    {
+        gameIsOver = true;
+    }
+
+    /// <summary>
+    /// Reiniciar este nivel (muerte o Pausa → Reiniciar): vuelve al progreso con que se entró (N2.1.1) y recarga la escena.
+    /// Las banderas de una vez por sesión siguen: sin taxi ni llegada otra vez. Por nombre, como las demás cargas por escena.
     /// </summary>
     public void RetryCurrentLevel()
     {
         gameIsOver = false;
-        if (GameStateTracker.Instance != null) GameStateTracker.Instance.ResetState();
+        if (gameIsPaused) TogglePause(); // este objeto sobrevive a la recarga: no debe entrar pausado a la escena nueva
+        if (GameStateTracker.Instance != null) GameStateTracker.Instance.RestoreLevelSnapshot();
         Time.timeScale = 1f;
-        SceneManager.LoadScene(SceneManager.GetActiveScene().buildIndex);
+        SceneManager.LoadScene(SceneManager.GetActiveScene().name);
+    }
+
+    /// <summary>"Jugar" en el menú (N2.1.1): partida desde cero, banderas de sesión incluidas.</summary>
+    public void StartNewGame()
+    {
+        gameIsOver = false;
+        if (gameIsPaused) TogglePause();
+        Time.timeScale = 1f;
+        if (GameStateTracker.Instance != null) GameStateTracker.Instance.ResetForNewGame();
     }
 
     /// <summary>

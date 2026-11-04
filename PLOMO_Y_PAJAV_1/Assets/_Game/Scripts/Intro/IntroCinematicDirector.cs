@@ -599,4 +599,7 @@ public class IntroCinematicDirector : MonoBehaviour
     {
         if (debug) Debug.Log("[Intro] " + message);
     }
+
+    /// <summary>Partida nueva (N2.1.1): el taxi vuelve a salir. La bandera del tracker la limpia él.</summary>
+    public static void ResetSession() => _playedThisSession = false;
 }

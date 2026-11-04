@@ -1,10 +1,18 @@
 using System.Collections.Generic;
 using UnityEngine;
+using UnityEngine.SceneManagement;
 
 /// <summary>
 /// Singleton que lleva el registro de todas las decisiones del jugador.
 /// Determina qué final se desbloquea al final del juego.
-/// DÓNDE VA: GameObject vacío llamado "GameManagers" en la escena.
+/// DÓNDE VA: lo crea GameManagersBootstrap al arrancar el juego (N2.1.1), en cualquier escena. La copia que traiga una escena
+/// (Campamento) se destruye sola.
+///
+/// FOTO DE ENTRADA AL NIVEL (N2.1.1): al entrar a un nivel por progresión (la escena de juego cambia) se guarda el progreso.
+/// Reiniciar ese nivel (muerte o Pausa → Reiniciar) lo restaura: lo ganado en el intento fallido se pierde.
+/// Las banderas de una vez por sesión (taxi, escopeta sacada, tutorial, huellas) NO están en la foto: sobreviven a reiniciar.
+/// Solo "Jugar" en el menú (ResetForNewGame) borra todo, banderas incluidas.
+/// Un campo nuevo de progreso (ej. N2.2) se agrega también a LevelSnapshot, TakeLevelSnapshot, RestoreLevelSnapshot y ResetState.
 ///
 /// LÓGICA DE FINALES:
 /// - Final A "La bala fácil":       cluesFound < 2  AND wolfKilled
@@ -49,6 +57,8 @@ public class GameStateTracker : MonoBehaviour
     public int CluesFound => cluesCollected.Count;
     /// <summary>¿Ya tiene esta pista? (ej: registro_01 antes de que Centavo la entregue, fase 3C.4)</summary>
     public bool HasClue(string clueId) => cluesCollected.Contains(clueId);
+    /// <summary>Solo lectura y sin riesgo de nulos: ¿ya se recogió esta pista? (N2.1.1, para CluePickup)</summary>
+    public static bool IsClueCollected(string clueId) => Instance != null && Instance.HasClue(clueId);
     public int InterrogationsCompleted => npcsInterrogated.Count;
     public bool WolfKilled => wolfKilled;
     public bool WolfSpared => wolfSpared;
@@ -64,7 +74,7 @@ public class GameStateTracker : MonoBehaviour
     public void MarkIntroCinematicPlayed() => introCinematicPlayed = true;
 
     // ===== Escopeta sacada (INTRO.3, I8): una vez por sesión, igual que la bandera del taxi =====
-    // ResetState (Reintentar) no la borra: tras morir se empieza armado.
+    // Reiniciar el nivel no la borra (no está en la foto): tras morir se empieza armado.
     [SerializeField] private bool weaponDrawn = false;
     /// <summary>¿Wilbur ya sacó la escopeta en esta sesión? (PlayerWeaponHolster)</summary>
     public bool WeaponDrawn => weaponDrawn;
@@ -86,6 +96,29 @@ public class GameStateTracker : MonoBehaviour
     /// <summary>Cambió el resultado del interrogatorio de Centavo (resultado, ¿mintió?).</summary>
     public event System.Action<ContadorInterrogation, bool> OnContadorInterrogationChanged;
 
+    /// <summary>
+    /// "Jugar" en el menú: rearmar lo que dura una sesión. Para banderas que viven en otro sistema (tutorial, huellas).
+    /// Estático: quien tenga una bandera estática se suscribe sin depender de que el tracker ya exista.
+    /// </summary>
+    public static event System.Action NewGameStarted;
+
+    // ===== Foto de entrada al nivel (N2.1.1) =====
+    private sealed class LevelSnapshot
+    {
+        public List<string> clues, npcs, aiLog;
+        public int enemiesKilled;
+        public bool wolfKilled, wolfSpared, contadorLied;
+        public ContadorState contadorState;
+        public ContadorInterrogation contadorInterrogation;
+        public string revolverObtainedInScene;
+    }
+
+    private LevelSnapshot _levelSnapshot;
+    private string _snapshotScene = "";
+
+    /// <summary>Escena de juego de la última foto ("" = ninguna todavía).</summary>
+    public string SnapshotScene => _snapshotScene;
+
     private void Awake()
     {
         // Patrón Singleton: si ya existe una instancia, destruir esta
@@ -99,6 +132,14 @@ public class GameStateTracker : MonoBehaviour
 
         // Contexto para la IA (AICompanion lo lee en cada pedido; no se modifica AICompanion)
         AICompanion.ContextProvider = GetStatusSummary;
+
+        SceneManager.sceneLoaded += HandleSceneLoaded;
+    }
+
+    private void Start()
+    {
+        // Por si la primera escena cargó antes de suscribirse (idempotente: misma escena = sin foto nueva)
+        EnterScene(SceneManager.GetActiveScene().name);
     }
 
     private void OnDestroy()
@@ -106,6 +147,68 @@ public class GameStateTracker : MonoBehaviour
         if (Instance != this) return;
         Instance = null;
         AICompanion.ContextProvider = null;
+        SceneManager.sceneLoaded -= HandleSceneLoaded;
+    }
+
+    // ============ Foto de entrada al nivel ============
+
+    /// <summary>Las escenas donde se juega: ni el menú, ni el libro, ni los finales.</summary>
+    public static bool IsGameplayScene(string sceneName) =>
+        !string.IsNullOrEmpty(sceneName) && sceneName != "MenuPrincipal" && sceneName != "Intro" && !sceneName.StartsWith("Final");
+
+    private void HandleSceneLoaded(Scene scene, LoadSceneMode mode)
+    {
+        if (mode == LoadSceneMode.Single) EnterScene(scene.name);
+    }
+
+    /// <summary>Otra escena de juego = se entró por progresión. La misma = reinicio: la foto sigue siendo la de la entrada.</summary>
+    private void EnterScene(string sceneName)
+    {
+        if (!IsGameplayScene(sceneName) || sceneName == _snapshotScene) return;
+        TakeLevelSnapshot(sceneName);
+    }
+
+    private void TakeLevelSnapshot(string sceneName)
+    {
+        _snapshotScene = sceneName;
+        _levelSnapshot = new LevelSnapshot
+        {
+            clues = new List<string>(cluesCollected),
+            npcs = new List<string>(npcsInterrogated),
+            aiLog = new List<string>(aiContextLog),
+            enemiesKilled = enemiesKilled,
+            wolfKilled = wolfKilled,
+            wolfSpared = wolfSpared,
+            contadorState = contadorState,
+            contadorInterrogation = contadorInterrogation,
+            contadorLied = contadorLied,
+            revolverObtainedInScene = revolverObtainedInScene
+        };
+        Debug.Log($"[GameState] Foto de entrada a {sceneName}: {cluesCollected.Count} pistas, {npcsInterrogated.Count} interrogados, Centavo {contadorState}.");
+    }
+
+    /// <summary>
+    /// Vuelve al progreso con que se entró a este nivel. Sin eventos: la escena se recarga enseguida y todo lee el estado de nuevo.
+    /// Lo llama GameManager.RetryCurrentLevel, justo antes de recargar.
+    /// </summary>
+    public void RestoreLevelSnapshot()
+    {
+        if (_levelSnapshot == null)
+        {
+            Debug.LogWarning("[GameState] Reinicio sin foto de entrada: el estado se queda como está.");
+            return;
+        }
+        cluesCollected = new List<string>(_levelSnapshot.clues);
+        npcsInterrogated = new List<string>(_levelSnapshot.npcs);
+        aiContextLog = new List<string>(_levelSnapshot.aiLog);
+        enemiesKilled = _levelSnapshot.enemiesKilled;
+        wolfKilled = _levelSnapshot.wolfKilled;
+        wolfSpared = _levelSnapshot.wolfSpared;
+        contadorState = _levelSnapshot.contadorState;
+        contadorInterrogation = _levelSnapshot.contadorInterrogation;
+        contadorLied = _levelSnapshot.contadorLied;
+        revolverObtainedInScene = _levelSnapshot.revolverObtainedInScene;
+        Debug.Log($"[GameState] Foto de {_snapshotScene} restaurada: {cluesCollected.Count} pistas.");
     }
 
     // ============ Registro de acciones ============
@@ -213,7 +316,8 @@ public class GameStateTracker : MonoBehaviour
     }
 
     /// <summary>
-    /// Resetear todo el estado (para "Nuevo juego" o "Reintentar").
+    /// Borrar el progreso y la foto (al volver al menú). No toca las banderas de sesión. Reintentar NO pasa por aquí: usa
+    /// RestoreLevelSnapshot. La partida nueva usa ResetForNewGame.
     /// </summary>
     public void ResetState()
     {
@@ -227,6 +331,21 @@ public class GameStateTracker : MonoBehaviour
         contadorInterrogation = ContadorInterrogation.None;
         contadorLied = false;
         revolverObtainedInScene = "";
+        _levelSnapshot = null;
+        _snapshotScene = "";
+    }
+
+    /// <summary>"Jugar" en MenuPrincipal: progreso, foto y banderas de una vez por sesión, las de aquí y las estáticas.</summary>
+    public void ResetForNewGame()
+    {
+        ResetState();
+        introCinematicPlayed = false;
+        weaponDrawn = false;
+        IntroCinematicDirector.ResetSession();
+        PlayerWeaponHolster.ResetSession();
+        CampamentoLevelStart.ResetSession();
+        NewGameStarted?.Invoke();
+        Debug.Log("[GameState] Partida nueva: estado y banderas de sesión en cero.");
     }
 
     /// <summary>
