@@ -90,3 +90,9 @@ PLOMO_Y_PAJAV_1/entrante_hud/
 
 # red de seguridad: ninguna carpeta de originales entrantes entra al repo, esté donde esté
 **/_entrante_*/
+
+# Builds y secretos
+Builds/
+**/Builds/
+Secrets/
+**/Secrets/
