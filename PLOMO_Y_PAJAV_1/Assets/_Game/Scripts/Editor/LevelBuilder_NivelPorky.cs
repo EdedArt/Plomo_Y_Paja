@@ -61,6 +61,8 @@ public static class LevelBuilder_NivelPorky
         RenderingSetup.Configure();
 
         Scene scene = EditorSceneManager.NewScene(NewSceneSetup.EmptyScene, NewSceneMode.Single);
+        // N1.4: con nombre desde ya. PickupBuilder busca Data/PickupLayout_<escena>: sin guardar, scene.name es "" y leía PickupLayout_.asset
+        EditorSceneManager.SaveScene(scene, ScenePath);
 
         LoadMaterials();
         Transform environment = CreateGroup("--- ENVIRONMENT ---");

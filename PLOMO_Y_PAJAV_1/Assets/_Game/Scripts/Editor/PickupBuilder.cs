@@ -103,6 +103,12 @@ public static class PickupBuilder
             return;
         }
 
+        if (string.IsNullOrEmpty(SceneManager.GetActiveScene().name))
+        {
+            EditorUtility.DisplayDialog("Guardar posiciones de objetos", "La escena abierta no tiene nombre: guárdala primero.", "Entendido");
+            return;
+        }
+
         PickupLayout layout = GetOrCreateLayout(SceneManager.GetActiveScene().name);
         var entries = new List<PickupLayout.Entry>();
         foreach (Pickup pickup in root.GetComponentsInChildren<Pickup>(true))
@@ -241,6 +247,13 @@ public static class PickupBuilder
     public static void PlaceInOpenScene(StringBuilder report)
     {
         Scene scene = SceneManager.GetActiveScene();
+        if (string.IsNullOrEmpty(scene.name))
+        {
+            // N1.4: una escena sin guardar no tiene distribución (antes creaba un PickupLayout_.asset vacío y no colocaba nada)
+            Debug.LogError("[Pickups] La escena abierta no tiene nombre: guárdala antes de colocar objetos.");
+            report.AppendLine("✗ La escena abierta no tiene nombre: guárdala antes de colocar objetos.");
+            return;
+        }
         PickupLayout layout = GetOrCreateLayout(scene.name);
 
         GameObject old = GameObject.Find(RootName);
