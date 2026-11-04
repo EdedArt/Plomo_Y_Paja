@@ -12,15 +12,15 @@ using static LevelBuilderUtils;
 /// MENÚ: Plomo y Paja → Generar Nivel Porky
 ///
 /// PLANO (metros, X = a lo largo de la calle, Z = hacia el fondo):
-///   Calle 40x10 (z -20..-10) → patio delantero (z -10..-6) → casa 16x12 (z -6..6)
-///   → patio trasero 20x15 (z 6..21) → callejón (z 21..33, salida al fondo)
+///   Calle (z -20..-10) → patio delantero (z -10..-6) → casa 16x12 (z -6..6) → patio trasero 20x15 (z 6..21)
+///   Fase N1.1: la calle más larga, los vecinos, el callejón lateral, el lote, el fondo y la vista los arma Nivel1MapBuilder.
 ///
 ///   Casa:  Sala (x -8..2, z -6..2) | Dormitorio (x 2..8, z -6..2)
 ///          Cocina (x -8..8, z 2..6) a lo ancho del fondo
 ///   Puerta delantera en la sala, puerta trasera en la cocina,
 ///   boquete de 3 m en la fachada del dormitorio, techo parcial.
 ///
-/// Camino libre de escombros: puerta delantera → sala → cocina → puerta trasera → callejón.
+/// Camino libre de escombros: puerta delantera → sala → cocina → puerta trasera → portón del rincón de Centavo.
 ///
 /// FASE 3A2: todo se construye con CartoonKit (paredes con zócalo y fardos de paja, piso de tablas, arcos,
 /// muebles, techo de paja, cerca, faroles con haz) + cielo pintado (NightSkyBuilder). Las mallas del kit
@@ -88,6 +88,10 @@ public static class LevelBuilder_NivelPorky
         // Fase 3C.1: cuarto de herramientas de Centavo, cerca y portón del rincón (traen sus propios flags estáticos)
         ContadorYardBuilder.BuildInto(environment, lighting);
 
+        // Fase N1.1: kit de bordes, calle más larga, vecinos, callejón lateral, lote, portón y sendero del bosque, vista y red de seguridad
+        var mapReport = new System.Text.StringBuilder();
+        Nivel1MapBuilder.BuildInto(environment, lighting, markers, mapReport);
+
         // Fase HUD.1 (H1): HUD de Wilbur (vida y munición); regenerar el nivel lo conserva.
         // HUD.1.1: primero se rearma el prefab, así toma el arte nuevo de Art/UI/HUD (antes solo lo colocaba tal como estaba)
         var hudReport = new System.Text.StringBuilder();
@@ -112,6 +116,8 @@ public static class LevelBuilder_NivelPorky
         var yardReport = new System.Text.StringBuilder();
         if (!ContadorYardBuilder.ValidatePaths(yardReport))
             Debug.LogWarning("[LevelBuilder] Patio del contador:\n" + yardReport);
+        Nivel1MapBuilder.Validate(mapReport);
+        Debug.Log("[LevelBuilder] Mapa N1.1:\n" + mapReport);
         EditorSceneManager.SaveScene(scene, ScenePath);
 
         AddToBuildSettings();
@@ -139,7 +145,8 @@ public static class LevelBuilder_NivelPorky
 
     // Caminos que quedan planos en el terreno irregular (y donde se dibuja la tierra)
     private static readonly Vector3[] FrontPath = { new Vector3(-5f, 0f, -6.3f), new Vector3(-5f, 0f, -8.2f), new Vector3(-4.4f, 0f, -10f) };
-    private static readonly Vector3[] BackPath = { new Vector3(-4f, 0f, 6.3f), new Vector3(-3.4f, 0f, 10f), new Vector3(-1.4f, 0f, 15.5f), new Vector3(0f, 0f, 21f) };
+    // N1.1: ya no va al callejón del fondo (no existe); lleva al portón del rincón de Centavo
+    private static readonly Vector3[] BackPath = { new Vector3(-4f, 0f, 6.3f), new Vector3(-3.8f, 0f, 9f), new Vector3(-5.6f, 0f, 11.5f), new Vector3(-7f, 0f, 13.4f) };
 
     private const float FloorTop = 0.06f;
 
@@ -152,15 +159,50 @@ public static class LevelBuilder_NivelPorky
     {
         Transform ground = CreateGroup("Suelos", env);
         CartoonKit.Cobblestones("Calle", new Vector3(0f, 0f, -15f), new Vector2(40f, 10f), ground);
-        CartoonKit.Cobblestones("Callejon_Suelo", new Vector3(0f, 0f, 27f), new Vector2(4f, 12f), ground);
 
-        // Patio delantero + pasillos laterales + patio trasero (z -10..21): suave, irregular, plano en caminos y bordes
-        CartoonKit.UnevenGround("Patios", new Vector3(0f, 0f, 5.5f), new Vector2(20f, 31f), 0.5f, 0.12f, GroundFreedom, _ground, ground);
+        BuildYardGround(ground);
         CartoonKit.DirtPath("Camino_Delantero", FrontPath, 1.6f, ground);
-        CartoonKit.DirtPath("Camino_Trasero", BackPath, 1.7f, ground);
 
         // Piso de tablas de la casa, 6 cm sobre el patio
         CartoonKit.PlankFloor("Casa_Piso", new Vector3(0f, FloorTop, 0f), new Vector2(16.2f, 12.2f), ground, 1f);
+    }
+
+    /// <summary>Patio delantero + pasillos laterales + patio trasero (z -10..21): suave, irregular, plano en caminos y bordes.</summary>
+    private static void BuildYardGround(Transform ground)
+    {
+        CartoonKit.UnevenGround("Patios", new Vector3(0f, 0f, 5.5f), new Vector2(20f, 31f), 0.5f, 0.12f, GroundFreedom, _ground, ground);
+        CartoonKit.DirtPath("Camino_Trasero", BackPath, 1.7f, ground);
+    }
+
+    /// <summary>
+    /// N1.1, solo para "Ampliar mapa" sobre una escena vieja: el terreno y las huellas seguían el camino al callejón que ya no está.
+    /// Rearma el terreno del patio, el camino trasero y las huellas (estáticos, igual que al generar).
+    /// </summary>
+    public static void RefreshYardGround(Transform environment)
+    {
+        LoadMaterials();
+        Transform ground = environment.Find("Suelos");
+        if (ground != null)
+        {
+            foreach (string name in new[] { "Patios", "Camino_Trasero" })
+            {
+                Transform old = ground.Find(name);
+                if (old != null) Object.DestroyImmediate(old.gameObject);
+            }
+            int before = ground.childCount;
+            BuildYardGround(ground);
+            for (int i = before; i < ground.childCount; i++) MarkStaticRecursive(ground.GetChild(i).gameObject);
+        }
+
+        Transform story = environment.Find("Narrativa");
+        if (story != null)
+        {
+            Transform oldPaws = story.Find("Huellas_Lobo");
+            if (oldPaws != null) Object.DestroyImmediate(oldPaws.gameObject);
+            GameObject paws = BuildPawPrints(story);
+            MarkStaticRecursive(paws);
+            CartoonKit.ExcludeFromNavMesh(paws.transform);
+        }
     }
 
     /// <summary>0 = plano (casa, caminos, bordes de la losa), 1 = ondulado.</summary>
@@ -358,15 +400,7 @@ public static class LevelBuilder_NivelPorky
         CartoonKit.WallDamage("Dano_Dormitorio_Oeste", new Vector3(2.134f, 2.2f, -4.6f), 90f, story, 10, false);
         CartoonKit.WallDamage("Dano_Dormitorio_Este", new Vector3(7.866f, 1.9f, -3.2f), -90f, story, 11, true);
 
-        // Huellas de lobo: del umbral de la puerta delantera, por la sala y la cocina, hasta la puerta trasera y la salida
-        var paws = new[]
-        {
-            new Vector3(-5f, 0f, -7.4f), new Vector3(-5f, 0f, -6.2f), new Vector3(-4.9f, FloorTop, -5.2f), new Vector3(-4.3f, FloorTop, -3.0f),
-            new Vector3(-3.4f, FloorTop, -0.5f), new Vector3(-3.05f, FloorTop, 2.0f), new Vector3(-3.1f, FloorTop, 3.5f),
-            new Vector3(-4.0f, FloorTop, 5.2f), new Vector3(-4.0f, FloorTop, 6.2f), new Vector3(-3.4f, 0f, 10f), new Vector3(-1.4f, 0f, 15.5f),
-            new Vector3(0f, 0f, 21f), new Vector3(0f, 0f, 27f), new Vector3(0f, 0f, 31f),
-        };
-        CartoonKit.WolfPawPrints("Huellas_Lobo", paws, story);
+        BuildPawPrints(story);
 
         // Manchas de la casa y charcos de las goteras
         CartoonKit.Stain("Mancha_Sala", new Vector3(-3.2f, y, -4.0f), 0.55f, 1, story);
@@ -379,32 +413,28 @@ public static class LevelBuilder_NivelPorky
         return story;
     }
 
-    // ============ Límites: cerca, callejón, edificios de enfrente ============
+    /// <summary>Huellas de lobo: del umbral de la puerta delantera, por la sala y la cocina, hasta la puerta trasera y el portón de Centavo.</summary>
+    private static GameObject BuildPawPrints(Transform story)
+    {
+        var paws = new[]
+        {
+            new Vector3(-5f, 0f, -7.4f), new Vector3(-5f, 0f, -6.2f), new Vector3(-4.9f, FloorTop, -5.2f), new Vector3(-4.3f, FloorTop, -3.0f),
+            new Vector3(-3.4f, FloorTop, -0.5f), new Vector3(-3.05f, FloorTop, 2.0f), new Vector3(-3.1f, FloorTop, 3.5f),
+            new Vector3(-4.0f, FloorTop, 5.2f), new Vector3(-4.0f, FloorTop, 6.2f), new Vector3(-3.8f, 0f, 9f), new Vector3(-5.6f, 0f, 11.5f),
+            new Vector3(-7f, 0f, 13.4f), new Vector3(-7f, 0f, 15.8f),
+        };
+        return CartoonKit.WolfPawPrints("Huellas_Lobo", paws, story);
+    }
+
+    // ============ Límites: los dos lados del patio. El resto de los bordes (N1.1) los arma Nivel1MapBuilder ============
 
     private static void BuildBoundaries(Transform env)
     {
         Transform bounds = CreateGroup("Limites", env);
         const float fence = 1.6f;
-        const CartoonKit.WallFace Plain = CartoonKit.WallFace.Plain;
-        Material brick = CartoonKit.M("Ladrillo"), plaster = CartoonKit.M("Revoque");
 
         CartoonKit.Fence("Valla_Izquierda", new Vector3(-10f, 0f, -10f), new Vector3(-10f, 0f, 21f), fence, bounds);
         CartoonKit.Fence("Valla_Derecha", new Vector3(10f, 0f, -10f), new Vector3(10f, 0f, 21f), fence, bounds);
-        // Cerca del fondo con salida de 4 m al callejón (x -2..2)
-        CartoonKit.Fence("Valla_Fondo", new Vector3(-10.1f, 0f, 21f), new Vector3(10.1f, 0f, 21f), fence, bounds,
-            new WallOpening(10.1f, 4f, fence));
-
-        // Callejón
-        CartoonKit.Wall("Callejon_Muro_Izq", new Vector3(-2.1f, 0f, 21f), new Vector3(-2.1f, 0f, 33f), 4f, 0.2f, brick, Plain, Plain, bounds);
-        CartoonKit.Wall("Callejon_Muro_Der", new Vector3(2.1f, 0f, 21f), new Vector3(2.1f, 0f, 33f), 4f, 0.2f, brick, Plain, Plain, bounds);
-        CartoonKit.Wall("Callejon_Muro_Fondo", new Vector3(-2.2f, 0f, 33.1f), new Vector3(2.2f, 0f, 33.1f), 4f, 0.2f, plaster, Plain, Plain, bounds);
-
-        // Calle: fachadas de enfrente, muros en los extremos y cerca junto al patio
-        CartoonKit.Facades("Edificios_Enfrente", -20.2f, 20.2f, -20f, 2f, bounds);
-        CartoonKit.Wall("Calle_Muro_Izq", new Vector3(-20.1f, 0f, -20f), new Vector3(-20.1f, 0f, -10f), 3f, 0.2f, brick, Plain, Plain, bounds);
-        CartoonKit.Wall("Calle_Muro_Der", new Vector3(20.1f, 0f, -20f), new Vector3(20.1f, 0f, -10f), 3f, 0.2f, brick, Plain, Plain, bounds);
-        CartoonKit.Fence("Calle_Borde_Izq", new Vector3(-20.2f, 0f, -10f), new Vector3(-10f, 0f, -10f), fence, bounds);
-        CartoonKit.Fence("Calle_Borde_Der", new Vector3(10f, 0f, -10f), new Vector3(20.2f, 0f, -10f), fence, bounds);
     }
 
     // ============ Destrucción: losas caídas, escombros y paja suelta ============
@@ -473,10 +503,6 @@ public static class LevelBuilder_NivelPorky
         CartoonKit.Barrel("Barril_Patio_B", new Vector3(6.6f, 0f, 18.9f), 40f, props, 2);
         CartoonKit.Crate("Caja_Patio", new Vector3(7.5f, 0f, 19.6f), 20f, props, 0.8f);
         CartoonKit.StrawBale("Fardo_Patio", ContadorYardBuilder.FardoPatioPosition, ContadorYardBuilder.FardoPatioYaw, props); // junto al cuarto del contador
-
-        CartoonKit.Barrel("Barril_Callejon_A", new Vector3(1.45f, 0f, 25f), 0f, props, 3);
-        CartoonKit.Barrel("Barril_Callejon_B", new Vector3(1.5f, 0f, 29.6f), 25f, props, 0);
-        CartoonKit.Crate("Caja_Callejon", new Vector3(-1.5f, 0f, 27.2f), -10f, props, 0.6f);
     }
 
     // ============ Faroles y luces de exterior ============
@@ -501,10 +527,8 @@ public static class LevelBuilder_NivelPorky
         CartoonKit.StreetLamp("Farol_Patio", new Vector3(-8.8f, 0f, 15f), 90f, lamps, lighting, WarmLamp, 2.2f, 11f);
         CartoonKit.StreetLamp("Farol_Porton", new Vector3(3.1f, 0f, 20.3f), -90f, lamps, lighting, WarmLamp, 2f, 10f);
 
-        // Aplique sobre la puerta trasera (por fuera) y dos en el callejón
+        // Aplique sobre la puerta trasera (por fuera)
         CartoonKit.WallLamp("Aplique_PuertaTrasera", new Vector3(-2.85f, 2.55f, 6.35f), 0f, lamps, lighting, WarmLamp, 1.8f, 8f);
-        CartoonKit.WallLamp("Aplique_Callejon_A", new Vector3(1.98f, 2.7f, 24f), -90f, lamps, lighting, WarmLamp, 1.6f, 8f);
-        CartoonKit.WallLamp("Aplique_Callejon_B", new Vector3(-1.98f, 2.7f, 30f), 90f, lamps, lighting, WarmLamp, 1.6f, 8f);
     }
 
     private static Light BuildLighting(Transform lighting)
@@ -568,11 +592,7 @@ public static class LevelBuilder_NivelPorky
 
         CreateMarker("Guard_guardia_porky", MarkerType.InterrogableGuard, "guardia_porky", new Vector3(5.5f, 0f, 4.3f), -90f, markers);
 
-        LevelMarker exit = CreateMarker("LevelExit", MarkerType.LevelExit, "nivel_porky_salida", new Vector3(0f, 0f, 32f), 0f, markers);
-        BoxCollider trigger = exit.gameObject.AddComponent<BoxCollider>();
-        trigger.isTrigger = true;
-        trigger.center = new Vector3(0f, 1.5f, 0f);
-        trigger.size = new Vector3(3f, 3f, 1f);
+        // N1.1: la salida es Anchor_LevelExit, al final del sendero del bosque (Nivel1MapBuilder)
     }
 
     // ============ Actores: jugador, IA y guardias (se colocan sobre los marcadores) ============
@@ -793,7 +813,7 @@ public static class LevelBuilder_NivelPorky
 
     // ============ NavMesh y Build Settings ============
 
-    private static void BakeNavMesh()
+    public static void BakeNavMesh()
     {
         // com.unity.ai.navigation no está instalado: se usa el baker integrado
 #pragma warning disable 618
